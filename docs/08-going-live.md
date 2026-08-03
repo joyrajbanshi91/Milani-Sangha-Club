@@ -333,91 +333,60 @@ browser only ever talks to one origin.
 Your machine has to stay awake and running the command. Good for showing the
 committee, or testing on a real phone.
 
-### 2. A shareable preview URL — public site only, free
+### 2. A shareable preview URL — the whole app, free
 
-```bash
-npm run preview:deploy
-```
+Push a branch and open a pull request. Netlify builds it and comments with a deploy
+preview URL, on which **everything works**, including sign-in and the finance area:
+a preview runs the API function too, so the site and the API are one origin there
+exactly as they are in production.
 
-Builds and uploads to an **unlisted** Firebase Hosting channel that expires in
-seven days, printing a URL like
-`https://club-app-8ce22--test-yk577tkx.web.app`. Works from anywhere, on any
-device, with nothing installed. Not indexed by search engines, and nothing is
+Works from anywhere, on any device, with nothing installed, and nothing is
 published at the club's real address.
-
-**The member area will not work on it.** Sign-in, the portal and the finance area
-all need the Express API, which cannot be hosted on the free plan — see below. The
-login page reports "Could not reach the club's server", which is accurate.
 
 ### 3. A real, permanent address — sign-in working online
 
-**Everything for this is already built and committed.** The API is wired up as a
-Cloud Function (`backend/src/function.ts`), and `firebase.json` already rewrites
-`/api/**` to it, so the website and the API share one origin. There is one blocker,
-and it is not code:
+**Free, and no card.** Netlify serves the PWA and runs the same Express app as a
+Netlify Function, so the member area and the finance area work online. The full
+walkthrough is [09-netlify.md](09-netlify.md); the short version is: connect the
+GitHub repository, add the environment variables, deploy.
 
-> `Error: Your project club-app-8ce22 must be on the Blaze (pay-as-you-go) plan.`
+The Firebase **Blaze** plan is not needed for any of this. Firebase remains the
+database and the identity provider, both of which run on the free Spark plan — it
+was only ever *hosting the API* that required Blaze, and Netlify does that instead.
 
-Firebase Hosting serves static files only. The Express API needs Cloud Functions or
-Cloud Run, and enabling those requires **Blaze**, which needs a card on the account.
+Two things people get wrong on the first attempt, both covered in that guide:
 
-#### What it will actually cost
+- The six `VITE_FIREBASE_*` variables are compiled into the bundle at build time.
+  Missing on the build machine, the deploy succeeds and the published site then
+  refuses to start. `frontend/scripts/check-build-env.mjs` now fails the build
+  instead.
+- The Netlify hostname must be added to **Firebase console → Authentication →
+  Settings → Authorised domains**, or sign-in fails with
+  `auth/unauthorized-domain`.
 
-Very likely **nothing**. The free monthly allowances that continue on Blaze cover a
-club many times this size:
+### Hosting the API somewhere else
 
-| | Free every month |
-| --- | --- |
-| Cloud Function invocations | 2,000,000 |
-| Firestore reads | 50,000 per day |
-| Firestore writes | 20,000 per day |
-| Hosting transfer | 10 GB |
+Nothing ties the API to Netlify. It is a plain Express app with no platform-specific
+code — `npm start` is all it needs on anything running Node 22.
 
-A 200-member club checking the app daily is nowhere near any of those. The reason
-Blaze is required is that Cloud Build must be enabled to build the function, not
-that the usage costs money.
+Whichever host you pick, two settings connect it up:
 
-Blaze is still a card on an account, which is a decision for the committee rather
-than a technical detail. **Set a budget alert before anything else** —
-[console → Usage and billing → Budgets & alerts](https://console.firebase.google.com/project/club-app-8ce22/usage/details).
-The function is also capped at `maxInstances: 5`, which limits a runaway bill far
-below anything an alert would catch.
-
-#### Then it is two commands
-
-```bash
-npm run firebase -- deploy --only functions      # builds in the cloud, no Docker needed
-npm run firebase -- deploy --only hosting
-```
-
-`VITE_API_BASE_URL=/api/v1` needs no change, and CORS is never exercised because
-the site and the API are one origin.
-
-### If the club will not enable billing
-
-The API can be hosted anywhere that runs Node 22. It is a plain Express app with no
-Google-specific code, and `npm start` is all it needs.
-
-Free options that need no card at the time of writing include Render and Fly.io —
-check their current terms yourself rather than taking this on trust. Whichever you
-pick, two settings connect it up:
-
-1. On the API host, set `CORS_ORIGINS` to the hosting URL, plus the Firebase
+1. On the API host, set `CORS_ORIGINS` to the website's URL, plus the Firebase
    credentials (the `FIREBASE_PROJECT_ID` / `FIREBASE_CLIENT_EMAIL` /
    `FIREBASE_PRIVATE_KEY` trio, since there is no key file to mount).
 2. Rebuild the frontend with `VITE_API_BASE_URL=https://your-api-host/api/v1`, then
-   deploy hosting.
+   redeploy the site.
 
 That plumbing already exists and is tested; it is the same code path used locally.
 Expect a slow first request on a free tier, which spins the service down when idle.
 
 ### Before publishing to the club's real address
 
-`https://club-app-8ce22.web.app` is still empty ("Site Not Found"), which is
-deliberate. Before it goes live:
+Before the Netlify URL is given out to members:
 
 - Replace the placeholder content and set `contentStatus` to `'reviewed'`
   ([06-editing-the-website.md](06-editing-the-website.md)). Right now the committee
   page lists "Full name" six times and the testimonials ask to be replaced.
 - Check the opening balances on the funds are the club's real figures.
-- Have the API hosted, or sign-in will be broken for every visitor.
+- Work through the verification table in [09-netlify.md](09-netlify.md) — in
+  particular `/api/v1/health/ready`, signing in, and a PDF download.

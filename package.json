@@ -33,7 +33,6 @@
     "firebase": "npx --yes firebase-tools",
     "rules:push": "npm --prefix backend run rules:push",
     "dev:lan": "bash scripts/dev.sh --host",
-    "preview:deploy": "npm run build:web && npx --yes firebase-tools hosting:channel:deploy test --expires 7d --project club-app-8ce22",
     "netlify:dev": "npx --yes netlify-cli dev"
   },
   "dependencies": {

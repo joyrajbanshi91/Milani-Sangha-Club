@@ -123,14 +123,14 @@ Sensitive endpoints (login, OTP, payment submission) additionally get a fixed
 
 Set these in **GitHub → Settings → Secrets and variables → Actions**.
 
+Deployment does **not** happen from GitHub Actions. Netlify builds and publishes
+on push, so the deployment variables live in the Netlify dashboard — see
+[09-netlify.md](09-netlify.md) for the full list. Actions only runs `ci.yml`,
+which builds with throwaway placeholders and needs no real credentials.
+
 | Name | Kind | Used by |
 | --- | --- | --- |
-| `FIREBASE_SERVICE_ACCOUNT` | secret | `deploy.yml` — full JSON of a deploy service account |
-| `FIREBASE_PROJECT_ID` | secret | `deploy.yml`, `ci.yml` |
-| `FIREBASE_TOKEN` | secret | optional: `ci.yml` rules dry-run |
-| `VITE_FIREBASE_*` | secret | `deploy.yml` build step |
-| `VITE_CLUB_UPI_ID` | secret | `deploy.yml` build step |
-| `CLUB_NAME`, `SUPPORT_EMAIL` | variable | `deploy.yml` build step |
+| `FIREBASE_PROJECT_ID` | secret | `ci.yml` — optional; enables the rules dry-run |
+| `FIREBASE_TOKEN` | secret | `ci.yml` — optional; enables the rules dry-run |
 
-The `production` environment in `deploy.yml` should have required reviewers
-configured, so a push to `main` cannot reach members without a human approving it.
+Both are optional: without them the rules step logs a warning and CI still passes.
