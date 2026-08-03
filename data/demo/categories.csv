@@ -1,0 +1,17 @@
+name,kind,active,notes
+Membership fees,income,yes,Annual and life subscriptions
+Donations,income,yes,From members and well-wishers
+Sponsorship,income,yes,Local businesses supporting events
+Event tickets,income,yes,Cultural programme and tournaments
+Interest,income,yes,Bank interest credited
+Other income,income,yes,Anything not covered above
+Ground maintenance,expense,yes,Playing surface and equipment
+Event expenses,expense,yes,Cultural programme and tournaments
+Utilities,expense,yes,Electricity and water at the premises
+Repairs,expense,yes,Building and furniture
+Sports equipment,expense,yes,Bats balls nets and kit
+Refreshments,expense,yes,Tea and food at meetings and events
+Printing and stationery,expense,yes,Notices receipts and registers
+Charity and service,expense,yes,Health camps and relief work
+Bank charges,expense,yes,Fees debited by the bank
+Other expenses,expense,yes,Anything not covered above

@@ -1,0 +1,65 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+frontend/dev-dist/
+
+# Environment / secrets — never commit these
+.env
+.env.*
+!.env.example
+*serviceAccount*.json
+*service-account*.json
+*.pem
+*.key
+
+# Firebase
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+ui-debug.log
+pubsub-debug.log
+database-debug.log
+.runtimeconfig.json
+emulator-data/
+
+# Testing
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# Caches
+__pycache__/
+*.pyc
+.cache/
+.eslintcache
+.vite/
+
+# Superseded PWA icons, kept by scripts/icons-from-logo.sh
+frontend/.icon-backups/
+
+# Local Netlify folder
+.netlify

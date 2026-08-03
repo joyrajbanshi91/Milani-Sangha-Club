@@ -1,0 +1,26 @@
+date,kind,amount,fund,to_fund,category,source,description,reference
+2026-04-02,income,12000,Club UPI,,Membership fees,Annual renewals batch 1,24 members renewed for 2026-27,UPI-APR-001
+2026-04-05,income,3500,Cash box,,Donations,Ward 12 collection drive,Door-to-door collection,
+2026-04-06,expense,1800,Cash box,,Refreshments,Sharma Tea Stall,Tea for the general body meeting,BILL-0412
+2026-04-08,income,25000,Bank account,,Sponsorship,Bose Hardware,Annual sponsorship for the tournament,CHQ-114502
+2026-04-10,expense,7500,Bank account,,Ground maintenance,Green Turf Services,Grass cutting and rolling,INV-2291
+2026-04-12,transfer,10000,Club UPI,Bank account,,Internal transfer,UPI collections moved to the bank,
+2026-04-14,income,4200,Club UPI,,Event tickets,Cultural evening advance sales,42 tickets at 100 each,UPI-APR-018
+2026-04-15,expense,2650,Cash box,,Printing and stationery,Nabin Press,Notices and receipt books,BILL-0455
+2026-04-18,income,8000,Cash box,,Membership fees,Annual renewals batch 2,16 members renewed,
+2026-04-20,expense,15400,Bank account,,Sports equipment,Kolkata Sports House,Two cricket kits and nets,INV-8830
+2026-04-22,expense,3100,Bank account,,Utilities,CESC,Electricity for March,ACC-77120
+2026-04-25,income,1500,Cash box,,Donations,Anonymous well-wisher,Cash donation at the office,
+2026-04-26,expense,9800,Festival fund,,Event expenses,Sound and Light Decorators,Advance for the annual programme,INV-5512
+2026-04-28,expense,236,Bank account,,Bank charges,Bank,Quarterly account maintenance,
+2026-04-30,income,412,Bank account,,Interest,Bank,Quarterly savings interest,
+2026-05-03,income,9500,Club UPI,,Membership fees,Annual renewals batch 3,19 members renewed,UPI-MAY-004
+2026-05-06,expense,5200,Cash box,,Charity and service,Ananda Diagnostics,Health camp screening charges,INV-3301
+2026-05-09,expense,1250,Cash box,,Repairs,Local carpenter,Repair to the hall benches,
+2026-05-12,income,6000,Bank account,,Donations,Retired members group,Collected at the reunion,CHQ-114611
+2026-05-15,transfer,5000,Bank account,Festival fund,,Internal transfer,Allocation to the festival fund,
+2026-05-18,expense,3400,Festival fund,,Event expenses,Milan Caterers,Deposit for the community lunch,INV-2210
+2026-05-22,income,2000,Cash box,,Other income,Scrap sale,Sale of old furniture,
+2026-05-25,expense,880,Cash box,,Refreshments,Sharma Tea Stall,Tea at the committee meeting,BILL-0501
+2026-05-28,expense,7200,Bank account,,Ground maintenance,Green Turf Services,Boundary rope and marking,INV-2340
+2026-05-31,income,398,Bank account,,Interest,Bank,Monthly interest credited,

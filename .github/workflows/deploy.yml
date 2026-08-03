@@ -1,0 +1,81 @@
+name: Deploy
+
+# Deployment is deliberately gated: pushes to main build and wait for approval on
+# the `production` environment (configure required reviewers in
+# Settings → Environments), because a bad deploy here affects real members.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Firebase Hosting + rules
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install frontend dependencies
+        run: npm install
+        working-directory: frontend
+
+      - name: Build web app
+        run: npm run build
+        working-directory: frontend
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
+          VITE_FIREBASE_VAPID_KEY: ${{ secrets.VITE_FIREBASE_VAPID_KEY }}
+          VITE_API_BASE_URL: /api/v1
+          VITE_CLUB_NAME: ${{ vars.CLUB_NAME || 'Milani Sangha Club' }}
+          VITE_CLUB_UPI_ID: ${{ secrets.VITE_CLUB_UPI_ID }}
+          VITE_SUPPORT_EMAIL: ${{ vars.SUPPORT_EMAIL }}
+
+      - name: Write service account credentials
+        run: |
+          if [ -z "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT secret is not set."
+            exit 1
+          fi
+          printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > "$RUNNER_TEMP/gcp-key.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/gcp-key.json" >> "$GITHUB_ENV"
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      # Rules first: a page that expects new rules must never reach members
+      # before those rules exist.
+      - name: Deploy security rules and indexes
+        run: |
+          firebase deploy \
+            --only firestore:rules,firestore:indexes,storage \
+            --project "${{ secrets.FIREBASE_PROJECT_ID }}" \
+            --non-interactive
+
+      - name: Deploy hosting
+        run: |
+          firebase deploy \
+            --only hosting \
+            --project "${{ secrets.FIREBASE_PROJECT_ID }}" \
+            --non-interactive \
+            --message "${{ github.sha }}"
+
+      - name: Remove credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/gcp-key.json"

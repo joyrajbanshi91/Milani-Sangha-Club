@@ -1,0 +1,85 @@
+# Netlify deployment.
+#
+# Netlify serves the built PWA as static files and runs the Express API as a
+# function, so the whole application — including member sign-in and the finance
+# area — works from one origin on the free tier. No card, no Blaze plan.
+#
+# Environment variables are NOT set here. Secrets belong in the Netlify dashboard
+# (Site configuration → Environment variables), never in a file in the repository.
+# The full list is in docs/09-netlify.md.
+
+[build]
+  # Both apps are installed and built. The backend is compiled first, because the
+  # function imports backend/dist.
+  command = "npm run install:all && npm --prefix backend run build && npm --prefix frontend run build"
+  publish = "frontend/dist"
+  functions = "netlify/functions"
+
+[build.environment]
+  # Matches the engines field in both package.json files.
+  NODE_VERSION = "22"
+  # The frontend calls a relative path, so the redirect below keeps it same-origin.
+  VITE_API_BASE_URL = "/api/v1"
+
+[functions]
+  node_bundler = "esbuild"
+  # firebase-admin is large and pulls in optional native dependencies that esbuild
+  # should not try to inline. Shipped as a node_module instead of bundled.
+  external_node_modules = ["firebase-admin"]
+
+# /api/** reaches the function. Must come BEFORE the SPA fallback: the first
+# matching rule wins, so a catch-all above this would swallow every API call and
+# return index.html — which is exactly the "Could not reach the club's server"
+# failure this deployment exists to fix.
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/api/:splat"
+  status = 200
+  force = true
+
+# Single-page app: every other path is served by index.html so React Router can
+# handle it.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# ---------------------------------------------------------------------------
+# Headers. Firebase Hosting gets these from firebase.json; Netlify needs its own
+# copy, and they must not drift apart.
+# ---------------------------------------------------------------------------
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+# A stale service worker would pin visitors to an old build indefinitely.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/registerSW.js"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Cache-Control = "no-cache"
+    Content-Type = "application/manifest+json"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "SAMEORIGIN"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
