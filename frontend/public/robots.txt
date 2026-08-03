@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+
+# Member and administrative areas must never be indexed.
+Disallow: /portal
+Disallow: /admin
+Disallow: /login

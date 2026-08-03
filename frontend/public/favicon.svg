@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Milani Sangha Club">
+  <rect width="64" height="64" rx="14" fill="#0f3d2e" />
+  <path
+    d="M14 48V16h6.5L32 33.5 43.5 16H50v32h-7V28.5L32 44 21 28.5V48z"
+    fill="#ffffff"
+  />
+</svg>

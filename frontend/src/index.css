@@ -1,0 +1,317 @@
+@import 'tailwindcss';
+
+/* ---------------------------------------------------------------------------
+   Design tokens (Tailwind CSS v4 — CSS-first configuration).
+   Every token declared here becomes a utility, e.g. `bg-brand-600`,
+   `text-accent-500`, `font-display`, `shadow-lift`.
+
+   To restyle the whole site, change the values here — not individual pages.
+   --------------------------------------------------------------------------- */
+@theme {
+  /* Club green — the anchor colour. Buttons, headings, the logo plate. */
+  --color-brand-50: #f0fbf5;
+  --color-brand-100: #d9f5e5;
+  --color-brand-200: #b3e9cd;
+  --color-brand-300: #7ed6ac;
+  --color-brand-400: #45bd87;
+  --color-brand-500: #1fa268;
+  --color-brand-600: #148253;
+  --color-brand-700: #126745;
+  --color-brand-800: #12523a;
+  --color-brand-900: #0f3d2e;
+  --color-brand-950: #062017;
+
+  /* Gold — eyebrows, rules, highlights. */
+  --color-accent-50: #fffaeb;
+  --color-accent-100: #fff0c6;
+  --color-accent-200: #ffe08a;
+  --color-accent-300: #fdc84e;
+  --color-accent-400: #f5ad1b;
+  --color-accent-500: #de8c0c;
+  --color-accent-600: #b8660d;
+  --color-accent-700: #934e11;
+
+  /* Warm neutrals. Text and quiet surfaces. */
+  --color-ink-50: #fbfaf8;
+  --color-ink-100: #f5f3ef;
+  --color-ink-200: #e8e4dc;
+  --color-ink-300: #d5cfc4;
+  --color-ink-400: #a9a294;
+  --color-ink-500: #7e766b;
+  --color-ink-600: #5d564d;
+  --color-ink-700: #433e37;
+  --color-ink-800: #2c2822;
+  --color-ink-900: #1b1814;
+
+  /* A serif display face gives the club an institutional, unhurried voice.
+     Deliberately local-only: no webfont request, so it renders instantly and
+     works offline. */
+  --font-display: ui-serif, Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', 'Noto Sans Devanagari', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+  --radius-card: 1rem;
+
+  --shadow-soft: 0 1px 2px rgb(27 24 20 / 0.04), 0 2px 10px rgb(27 24 20 / 0.05);
+  --shadow-lift: 0 2px 4px rgb(27 24 20 / 0.04), 0 16px 36px -10px rgb(27 24 20 / 0.16);
+  --shadow-glow: 0 10px 40px -12px rgb(20 130 83 / 0.35);
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Animations, exposed as `animate-*` utilities. */
+  --animate-float-slow: float 16s var(--ease-out-soft) infinite alternate;
+  --animate-float-slower: float 22s var(--ease-out-soft) infinite alternate-reverse;
+  --animate-marquee: marquee 40s linear infinite;
+  --animate-shimmer: shimmer 2.4s ease-in-out infinite;
+}
+
+@keyframes float {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(2rem, -1.5rem, 0) scale(1.08);
+  }
+}
+
+@keyframes marquee {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    /* The track holds the list twice, so -50% is one seamless loop. */
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@keyframes shimmer {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Base layer
+   --------------------------------------------------------------------------- */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+    /* Sticky header height, so in-page anchors are not hidden behind it. */
+    scroll-padding-top: 5.5rem;
+  }
+
+  body {
+    @apply bg-white font-sans text-ink-700 antialiased;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply text-ink-900;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-600;
+  }
+
+  ::selection {
+    @apply bg-accent-200 text-brand-950;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Decorative backgrounds
+
+   Built from layered radial gradients rather than images: nothing is fetched
+   over the network, so they cost no bandwidth and work offline. Each has a flat
+   `background-color` first, so a browser without `color-mix` still gets a
+   sensible light surface instead of nothing.
+   --------------------------------------------------------------------------- */
+@layer components {
+  .bg-aurora {
+    background-color: var(--color-brand-50);
+    background-image:
+      radial-gradient(
+        at 8% 6%,
+        color-mix(in oklab, var(--color-brand-300) 55%, transparent) 0,
+        transparent 55%
+      ),
+      radial-gradient(
+        at 92% 10%,
+        color-mix(in oklab, var(--color-accent-200) 65%, transparent) 0,
+        transparent 50%
+      ),
+      radial-gradient(
+        at 78% 88%,
+        color-mix(in oklab, var(--color-brand-200) 60%, transparent) 0,
+        transparent 52%
+      ),
+      radial-gradient(at 18% 92%, color-mix(in oklab, #c7d9ff 60%, transparent) 0, transparent 48%);
+  }
+
+  .bg-aurora-soft {
+    background-color: var(--color-ink-50);
+    background-image:
+      radial-gradient(
+        at 85% 8%,
+        color-mix(in oklab, var(--color-brand-200) 40%, transparent) 0,
+        transparent 45%
+      ),
+      radial-gradient(
+        at 10% 85%,
+        color-mix(in oklab, var(--color-accent-100) 70%, transparent) 0,
+        transparent 45%
+      );
+  }
+
+  .bg-shine {
+    background-image: linear-gradient(
+      110deg,
+      color-mix(in oklab, var(--color-brand-800) 100%, transparent) 0%,
+      color-mix(in oklab, var(--color-brand-600) 100%, transparent) 45%,
+      color-mix(in oklab, var(--color-brand-700) 100%, transparent) 100%
+    );
+  }
+
+  /* Fine dotted texture, tinted by the element's `color`. */
+  .texture-dots {
+    background-image: radial-gradient(currentColor 1px, transparent 1px);
+    background-size: 16px 16px;
+  }
+
+  /* Faint graph-paper grid, tinted by the element's `color`. */
+  .texture-grid {
+    background-image:
+      linear-gradient(to right, currentColor 1px, transparent 1px),
+      linear-gradient(to bottom, currentColor 1px, transparent 1px);
+    background-size: 56px 56px;
+  }
+
+  /* Gradient text for a highlighted word in a heading. */
+  .text-gradient {
+    background-image: linear-gradient(
+      100deg,
+      var(--color-brand-600),
+      var(--color-brand-400) 45%,
+      var(--color-accent-500)
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Scroll reveal
+
+   Elements marked `data-reveal` start slightly low and transparent, and settle
+   when they scroll into view (see components/ui/Reveal.tsx). The selector is
+   attribute-based so a section can opt in without wrapping every child.
+   --------------------------------------------------------------------------- */
+@layer components {
+  [data-reveal] {
+    opacity: 0;
+    transform: translateY(18px);
+    transition:
+      opacity 0.7s var(--ease-out-soft),
+      transform 0.7s var(--ease-out-soft);
+  }
+
+  [data-reveal][data-revealed='true'] {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Staggered children, for grids of cards. */
+  [data-reveal-stagger] > * {
+    opacity: 0;
+    transform: translateY(18px);
+    transition:
+      opacity 0.7s var(--ease-out-soft),
+      transform 0.7s var(--ease-out-soft);
+  }
+
+  [data-reveal-stagger][data-revealed='true'] > * {
+    opacity: 1;
+    transform: none;
+  }
+
+  [data-reveal-stagger][data-revealed='true'] > *:nth-child(2) {
+    transition-delay: 90ms;
+  }
+  [data-reveal-stagger][data-revealed='true'] > *:nth-child(3) {
+    transition-delay: 180ms;
+  }
+  [data-reveal-stagger][data-revealed='true'] > *:nth-child(4) {
+    transition-delay: 270ms;
+  }
+  [data-reveal-stagger][data-revealed='true'] > *:nth-child(5) {
+    transition-delay: 360ms;
+  }
+  [data-reveal-stagger][data-revealed='true'] > *:nth-child(n + 6) {
+    transition-delay: 420ms;
+  }
+
+  /* Sponsor ticker. Duplicated content in the track makes the loop seamless. */
+  .marquee {
+    overflow: hidden;
+    mask-image: linear-gradient(to right, transparent, black 6%, black 94%, transparent);
+  }
+
+  .marquee__track {
+    display: flex;
+    width: max-content;
+    animation: var(--animate-marquee);
+  }
+
+  .marquee:hover .marquee__track,
+  .marquee:focus-within .marquee__track {
+    animation-play-state: paused;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Reduced motion
+
+   Everything decorative stops. Revealed content must end up visible, not
+   stuck at opacity 0 — an animation preference should never hide information.
+   --------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  [data-reveal],
+  [data-reveal-stagger] > * {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .marquee__track {
+    animation: none;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+}

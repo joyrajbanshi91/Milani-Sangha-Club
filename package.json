@@ -1,0 +1,43 @@
+{
+  "name": "milani-sangha-club",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Club Management Platform \u2014 PWA for members, payments, events and administration",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "scripts": {
+    "install:all": "npm --prefix frontend install && npm --prefix backend install",
+    "dev": "bash scripts/dev.sh",
+    "dev:web": "npm --prefix frontend run dev",
+    "dev:api": "npm --prefix backend run dev",
+    "build": "npm --prefix frontend run build && npm --prefix backend run build",
+    "build:web": "npm --prefix frontend run build",
+    "build:api": "npm --prefix backend run build",
+    "preview": "npm --prefix frontend run preview",
+    "typecheck": "npm --prefix frontend run typecheck && npm --prefix backend run typecheck",
+    "lint": "npm --prefix frontend run lint && npm --prefix backend run lint",
+    "lint:fix": "npm --prefix frontend run lint:fix && npm --prefix backend run lint:fix",
+    "format": "npm --prefix frontend run format && npm --prefix backend run format",
+    "format:check": "npm --prefix frontend run format:check && npm --prefix backend run format:check",
+    "test": "npm --prefix frontend run test && npm --prefix backend run test",
+    "check:constants": "python3 scripts/check_domain_constants.py",
+    "verify": "npm run check:constants && npm run lint && npm run typecheck && npm test && npm run build",
+    "emulators": "firebase emulators:start",
+    "icons": "python3 scripts/generate_icons.py",
+    "icons:from-logo": "bash scripts/icons-from-logo.sh",
+    "rules:deploy": "npx --yes firebase-tools deploy --only firestore:rules,firestore:indexes --project club-app-8ce22 --non-interactive",
+    "user": "npm --prefix backend run user --",
+    "seed:finance": "npm --prefix backend run seed:finance --",
+    "firebase": "npx --yes firebase-tools",
+    "rules:push": "npm --prefix backend run rules:push",
+    "dev:lan": "bash scripts/dev.sh --host",
+    "preview:deploy": "npm run build:web && npx --yes firebase-tools hosting:channel:deploy test --expires 7d --project club-app-8ce22",
+    "netlify:dev": "npx --yes netlify-cli dev"
+  },
+  "dependencies": {
+    "firebase-admin": "^14.2.0",
+    "serverless-http": "^4.0.0"
+  }
+}
