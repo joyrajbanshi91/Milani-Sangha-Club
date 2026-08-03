@@ -140,8 +140,10 @@ transaction ids never reach the logs.
 
 ## Deployment topology
 
-Firebase Hosting serves the built PWA from its CDN. The Express API is deployed
-as a container (Cloud Run) or a 2nd-generation Cloud Function, and Hosting
-rewrites `/api/**` to it, so the browser sees one origin and needs no CORS
-exception in production. Both require the Firebase **Blaze** plan; see
-[05-deployment.md](05-deployment.md).
+Netlify serves the built PWA from its CDN and runs the same Express app as a
+Netlify Function, with `/api/*` redirected to it — so the browser sees one origin
+and needs no CORS exception in production. This works on the free tier, with no
+card. See [09-netlify.md](09-netlify.md).
+
+Firestore and Firebase Authentication are unchanged by that choice: the hosting
+platform serves the app, Firebase remains the database and the identity provider.

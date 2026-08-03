@@ -205,18 +205,24 @@ caught by exercising it end to end — the arithmetic tests all passed.
 
 ---
 
-## Netlify or Firebase Hosting?
+## Netlify is now the only deployment path
 
-Both configurations are in the repository and neither excludes the other.
+The Firebase Hosting configuration has been removed, because it could not host the
+API without Blaze and so never worked: the `deploy.yml` workflow that pushed to it
+failed on every run it ever had. Gone with it are the `hosting` and `functions`
+blocks of `firebase.json`, `backend/src/function.ts` (the Cloud Function wrapper)
+and the `firebase-functions` dependency.
 
-| | Netlify | Firebase Hosting |
-| --- | --- | --- |
-| Website | free | free |
-| The API | **free** (Functions) | needs **Blaze** |
-| Cold start | a second or two after idle | similar |
-| Deploys on git push | yes, by default | needs a GitHub Action |
-| Firestore and Auth | still Firebase either way | same |
+**Firebase itself stays.** Only the hosting and deployment path changed:
 
-Netlify is the pragmatic choice while the club is not paying for anything. If it
-later moves to Blaze, `firebase.json` is already set up for the function and the
-`/api` rewrite, and the same code deploys with no changes.
+| | Where it runs now |
+| --- | --- |
+| Website (`frontend/dist`) | Netlify CDN |
+| The API (Express) | Netlify Function — free tier, no card |
+| Database | Firestore — unchanged |
+| Sign-in | Firebase Authentication — unchanged |
+| Rules and indexes | `firebase/*.rules`, deployed with `npm run rules:deploy` |
+
+Firestore and Auth both run on the free Spark plan, so nothing here needs Blaze.
+If the club ever wants Firebase Hosting back, it is in the git history at `0b44d0e`
+— but it would need Blaze to be of any use.

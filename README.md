@@ -25,7 +25,7 @@ Full requirements: [Club_Management_Platform_SRS.md](Club_Management_Platform_SR
 | Database   | Firebase Firestore                                                |
 | Auth       | Firebase Authentication                                           |
 | Files      | Firebase Storage                                                  |
-| Hosting    | Firebase Hosting (PWA) + Cloud Functions / Cloud Run (API)        |
+| Hosting    | Netlify — static PWA + the Express API as a Netlify Function      |
 | Documents  | pdf-lib (receipts, membership cards), ExcelJS (reports)           |
 | Email      | Nodemailer                                                        |
 | Charts     | Recharts · Icons: Lucide                                          |

@@ -1,7 +1,16 @@
 # Deployment
 
-Phase 16 completes and hardens this. What follows is the intended topology and
-the steps that already work, so that nothing about production is a surprise later.
+> **Superseded — read [09-netlify.md](09-netlify.md) instead.**
+>
+> This document describes a Firebase Hosting + Cloud Run topology that is no longer
+> configured in the repository. It required the Blaze plan to host the API, was
+> never successfully deployed, and its `deploy.yml` workflow has been removed. The
+> live deployment path is Netlify: the PWA on its CDN, the same Express app as a
+> Netlify Function, on the free tier.
+>
+> Kept because the operational sections below — deploy order, verifying a release,
+> rollback, backups — still describe what the club should do, and because Firestore,
+> Auth and the security rules are unchanged by the change of host.
 
 ## Topology
 
@@ -58,19 +67,18 @@ firebase deploy --only hosting
 
 ## Automated deploy
 
-`.github/workflows/deploy.yml` runs on pushes to `main` and on demand. It builds
-the web app with the `VITE_*` secrets, deploys rules and indexes, then deploys
-Hosting, and deletes the credential file afterwards.
+There is no longer a deployment workflow in GitHub Actions. `deploy.yml` deployed
+to Firebase Hosting, needed a service account secret that was never configured, and
+failed on every run; it has been removed.
 
-Two things to configure before relying on it:
+**Netlify deploys on push to `main` instead**, building both the site and the API
+function — see [09-netlify.md](09-netlify.md). Actions now runs only `ci.yml`
+(lint, typecheck, tests, a placeholder build), which gates the code rather than
+publishing it.
 
-- The secrets and variables listed in
-  [03-environment-variables.md](03-environment-variables.md#ci-and-deployment-secrets).
-- **Settings → Environments → production → required reviewers.** A merge to
-  `main` should not reach members without a person approving it.
-
-The deploy service account needs *Firebase Hosting Admin*, *Cloud Datastore
-Owner* (for rules and indexes) and *Storage Admin*. Grant those, not Owner.
+Rules and indexes are not part of that deploy and are still pushed deliberately,
+with `npm run rules:deploy`. That is the one step where the order matters: rules
+first, so a page expecting new rules never reaches members before the rules exist.
 
 ## Verifying a release
 
