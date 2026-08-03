@@ -34,6 +34,15 @@ never fine for a service account key, an SMTP password or an API secret.
 All values are validated by `frontend/src/config/env.ts` at startup. A missing
 required key shows a readable error screen naming it, rather than a blank page.
 
+The required keys are also checked **before the build**, by
+`frontend/scripts/check-build-env.mjs` (wired as `prebuild`, so `npm run build`
+cannot skip it). This matters for hosted builds: `VITE_*` values are compiled into
+the bundle, so one missing on the build machine cannot be recovered at runtime — the
+deploy would succeed and the published site would then refuse to start for every
+visitor. The check reads the environment through Vite's own `loadEnv`, so it sees
+what the build will see: the `.env` files plus `process.env` (Netlify dashboard
+variables, GitHub Actions `env:`).
+
 ---
 
 ## Backend — `backend/.env`

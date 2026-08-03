@@ -99,6 +99,35 @@ them back itself. If this is wrong you get
 Those are compiled into the browser bundle, so **changing one needs a redeploy**, not
 just a restart. They are public by design.
 
+Two things in the Netlify variable editor decide whether the build can actually see
+them, and both default to something wider than you need — check them, because a
+variable that exists but is out of scope behaves exactly like one that was never set:
+
+- **Scopes** must include **Builds**. A variable scoped only to *Functions* reaches
+  the API and not the bundle.
+- **Deploy contexts**: use **All deploy contexts** unless you deliberately want
+  production to differ. Set for production only, every branch deploy and deploy
+  preview builds a broken site.
+
+### `The application could not start` on the live site
+
+The site loads, then shows *Configuration is incomplete or invalid* and lists the six
+`VITE_FIREBASE_*` variables as `Invalid input`. That wording is precise and worth
+reading: `Invalid input` is the validator's message for a value that is **absent**,
+where a blank one would say *is required*. So the variables were missing on the build
+machine, not mistyped — the bundle it produced has no Firebase config in it at all.
+
+Fix it at the source, not in the browser:
+
+1. Add the six variables (Builds scope, all deploy contexts) as listed above.
+2. **Deploys → Trigger deploy → Clear cache and deploy site.** A plain retry can
+   reuse the same bundle; these values are baked in at build time, so the site only
+   changes when a build runs after the variables exist.
+
+`frontend/scripts/check-build-env.mjs` runs as `prebuild` and now fails the Netlify
+build with this list if any of them is missing, so this cannot reach a member's
+browser again — the deploy stops in the build log instead.
+
 ---
 
 ## 4. Deploy, then check it in this order
