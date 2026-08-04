@@ -67,9 +67,43 @@ async function main(): Promise<number> {
       const missing = TABLES.filter((table) => !present.has(table.id)).map((table) => table.id)
 
       log(`tables     ${present.size} of ${TABLES.length} expected tables exist`)
-      if (missing.length > 0) {
-        log(`           missing: ${missing.join(', ')}`)
+
+      // A table can exist while its columns do not: provisioning creates the table
+      // first, then each column, so an interrupted run leaves something that looks
+      // finished from a list of names. Checking the columns is the difference
+      // between "the table is there" and "the table is usable".
+      const incomplete: string[] = []
+
+      for (const table of TABLES) {
+        if (!present.has(table.id)) continue
+
+        const { columns } = await getTables().listColumns({
+          databaseId: env.APPWRITE_DATABASE_ID,
+          tableId: table.id,
+        })
+
+        const have = new Set(columns.map((column) => (column as unknown as { key: string }).key))
+        const absent = table.columns.filter((column) => !have.has(column.key)).map((c) => c.key)
+
+        const unavailable = columns
+          .filter((column) => (column as unknown as { status?: string }).status !== 'available')
+          .map((column) => (column as unknown as { key: string }).key)
+
+        if (absent.length > 0 || unavailable.length > 0) {
+          incomplete.push(table.id)
+          log(`           ${table.id}: ${have.size}/${table.columns.length} columns`)
+          if (absent.length > 0) log(`             missing: ${absent.join(', ')}`)
+          if (unavailable.length > 0) log(`             not ready yet: ${unavailable.join(', ')}`)
+        }
+      }
+
+      if (missing.length > 0) log(`           missing tables: ${missing.join(', ')}`)
+
+      if (missing.length > 0 || incomplete.length > 0) {
         log('           run: npm --prefix backend run provision:appwrite -- --write')
+        log('           (safe to re-run — it only adds what is absent)')
+      } else {
+        log('columns    every table has all of its columns, all available')
       }
     } else {
       log(`database   "${env.APPWRITE_DATABASE_ID}" does not exist yet`)
