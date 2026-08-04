@@ -16,20 +16,19 @@ never fine for a service account key, an SMTP password or an API secret.
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `VITE_FIREBASE_API_KEY` | yes | Firebase web API key |
-| `VITE_FIREBASE_AUTH_DOMAIN` | yes | `<project>.firebaseapp.com` |
-| `VITE_FIREBASE_PROJECT_ID` | yes | Firebase project id |
-| `VITE_FIREBASE_STORAGE_BUCKET` | yes | `<project>.firebasestorage.app` |
-| `VITE_FIREBASE_MESSAGING_SENDER_ID` | yes | Cloud Messaging sender id |
-| `VITE_FIREBASE_APP_ID` | yes | Web app id |
-| `VITE_FIREBASE_MEASUREMENT_ID` | no | Google Analytics, if used |
-| `VITE_FIREBASE_VAPID_KEY` | no | Web push public key (Phase 13) |
-| `VITE_API_BASE_URL` | yes (default `/api/v1`) | API prefix; keep relative so one origin serves both |
-| `VITE_USE_FIREBASE_EMULATORS` | no | `true` to use the local emulator suite |
+| `VITE_APPWRITE_PROJECT_ID` | **yes** | Appwrite project id |
+| `VITE_APPWRITE_ENDPOINT` | no (default set) | Region-specific, e.g. `https://syd.cloud.appwrite.io/v1`. Copy it from the console rather than guessing |
+| `VITE_API_BASE_URL` | yes (default `/api/v1`) | API prefix. Relative in development; an Appwrite Function has its own domain, so usually absolute in production |
 | `VITE_CLUB_NAME` | yes (default set) | Club name shown throughout the UI |
 | `VITE_CLUB_UPI_ID` | no | Displayed alongside the payment QR code (Phase 7) |
 | `VITE_SUPPORT_EMAIL` | no | Contact address in the footer and help desk |
 | `DEV_API_PROXY` | no | Dev-server proxy target. Intentionally has no `VITE_` prefix, so it stays out of the browser bundle; read by `vite.config.ts` only |
+
+**One required variable, down from six.** The six `VITE_FIREBASE_*` values are gone:
+sign-in moved to Appwrite, which needs only the project id and an endpoint to reach
+it. Neither is a secret — what a caller may do is decided by their session and by
+table permissions, never by holding these. Removing the Firebase SDK also took
+63 KiB off the precached bundle.
 
 All values are validated by `frontend/src/config/env.ts` at startup. A missing
 required key shows a readable error screen naming it, rather than a blank page.

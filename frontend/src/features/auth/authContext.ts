@@ -10,7 +10,7 @@ export interface SignedInUser {
 }
 
 export interface AuthConfig {
-  mode: 'firebase' | 'demo'
+  mode: 'appwrite' | 'demo'
   accounts?: Array<{ email: string; name: string; role: Role }>
   warning?: string
 }
@@ -21,9 +21,9 @@ export interface AuthState {
   loading: boolean
   config: AuthConfig | undefined
 
-  /** Firebase mode. Throws a readable Error on bad credentials. */
+  /** Appwrite mode. Throws a readable Error on bad credentials. */
   signIn: (email: string, password: string) => Promise<void>
-  /** Firebase mode. Sends a reset email; never reveals whether the account exists. */
+  /** Appwrite mode. Sends a reset email; never reveals whether the account exists. */
   requestPasswordReset: (email: string) => Promise<void>
   /** Demo mode only. */
   signInDemo: (email: string) => Promise<void>

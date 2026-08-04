@@ -1,6 +1,6 @@
 /**
  * Last-resort renderer for failures that happen before React mounts — a missing
- * Firebase environment variable being the common one. Uses inline styles only,
+ * Appwrite environment variable being the common one. Uses inline styles only,
  * because a stylesheet may not have loaded at this point.
  */
 export function renderFatalError(error: unknown): void {
