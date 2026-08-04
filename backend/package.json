@@ -24,6 +24,7 @@
     "backup": "tsx scripts/backup-appwrite.ts",
     "restore": "tsx scripts/restore-appwrite.ts",
     "appwrite:check": "tsx scripts/check-appwrite.ts",
+    "reset:ledger": "tsx scripts/reset-ledger.ts",
     "members:import": "tsx scripts/import-members.ts"
   },
   "overrides": {

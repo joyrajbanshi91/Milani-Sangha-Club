@@ -156,6 +156,57 @@ function isTable(value: ParseResult<never> | Table): value is Table {
 }
 
 // ---------------------------------------------------------------------------
+// Dates as a spreadsheet writes them
+// ---------------------------------------------------------------------------
+
+/**
+ * Accept the date formats a club actually types, and return ISO.
+ *
+ * The columns used to demand `YYYY-MM-DD` and reject everything else. That is the
+ * right storage format and the wrong thing to demand of a treasurer: Excel and
+ * Google Sheets reformat a typed date to the locale on their own, so a file that
+ * left the template correct comes back as `01/04/26` without anybody choosing that.
+ * The club's opening balances were rejected for exactly this.
+ *
+ * **Day first**, which is the convention in India and the UK. `01/04/26` is 1 April
+ * 2026, not 4 January. Where both parts are 12 or less the input is genuinely
+ * ambiguous, so callers print the interpretation back — see `seed-finance.ts` — on
+ * the same principle as the role synonyms in the member import: a guess is fine as
+ * long as it is shown.
+ *
+ * Two-digit years map 00–79 to the 2000s and 80–99 to the 1900s. A club's ledger is
+ * not going to be dated 1926.
+ *
+ * Returns null if it cannot be read as a real date, including impossible days such
+ * as 31/02.
+ */
+export function toIsoDate(value: string): string | null {
+  const text = value.trim()
+  if (text === '') return null
+
+  if (isIsoDate(text)) return text
+
+  const match = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})$/.exec(text)
+  if (!match) return null
+
+  const [, first, second, yearPart] = match as unknown as [string, string, string, string]
+
+  const day = Number(first)
+  const month = Number(second)
+  const rawYear = Number(yearPart)
+  const year = yearPart.length === 4 ? rawYear : rawYear <= 79 ? 2000 + rawYear : 1900 + rawYear
+
+  const iso = `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+
+  // isIsoDate round-trips through Date, so 2026-02-31 and month 13 are rejected here
+  // rather than silently becoming 3 March.
+  return isIsoDate(iso) ? iso : null
+}
+
+/** The formats accepted, for an error message that tells the reader what to do. */
+const DATE_HELP = 'Use 2026-04-01, or 01/04/2026 (day first).'
+
+// ---------------------------------------------------------------------------
 // funds.csv
 // ---------------------------------------------------------------------------
 
@@ -202,12 +253,13 @@ export function parseFundsCsv(text: string): ParseResult<Omit<Fund, 'id'>> {
       })
     }
 
-    if (!isIsoDate(openingDate)) {
+    const isoOpeningDate = toIsoDate(openingDate)
+    if (isoOpeningDate === null) {
       errors.push({
         line,
         column: 'opening_date',
         value: openingDate,
-        message: 'Use the format YYYY-MM-DD, e.g. 2026-04-01.',
+        message: DATE_HELP,
       })
     }
 
@@ -215,7 +267,7 @@ export function parseFundsCsv(text: string): ParseResult<Omit<Fund, 'id'>> {
       name,
       kind: kind as Fund['kind'],
       openingBalancePaise,
-      openingDate,
+      openingDate: isoOpeningDate ?? openingDate,
       active: (cells.active ?? 'yes').toLowerCase() !== 'no',
       ...(cells.notes ? { notes: cells.notes } : {}),
     })
@@ -310,12 +362,13 @@ export function parseTransactionsCsv(
     const source = cells.source ?? ''
     const description = cells.description ?? ''
 
-    if (!isIsoDate(date)) {
+    const isoDate = toIsoDate(date)
+    if (isoDate === null) {
       errors.push({
         line,
         column: 'date',
         value: date,
-        message: 'Use the format YYYY-MM-DD, e.g. 2026-04-15.',
+        message: DATE_HELP,
       })
     }
 
@@ -407,7 +460,7 @@ export function parseTransactionsCsv(
 
     rows.push({
       kind: kind as TransactionDraft['kind'],
-      date,
+      date: isoDate ?? date,
       amountPaise,
       fundId: fundId ?? '',
       ...(toFundId ? { toFundId } : {}),

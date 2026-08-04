@@ -212,39 +212,79 @@ npm run seed:finance -- --dir ../data/club --write
 
 Re-running is safe: anything already present by name is left alone.
 
-### ⚠️ Funds have zero opening balances and need the real figures
+### Opening balances
 
-Three funds exist — Cash box, Bank account, Club UPI — each with an opening balance of
-**0**, and each carries a note saying so. That is not a placeholder to be ignored: a
-fund's opening balance is what every closing figure in every later report is built on,
-so while these are zero, **every balance the system shows is wrong by whatever the club
-actually held**.
+A fund's opening balance is what every closing figure in every later report is built on.
+While one is wrong, **every balance the system shows is wrong by the same amount** — and
+nothing on screen can tell you, because the figure is arithmetically consistent either
+way.
 
-Nothing was invented here on purpose. Filling them in is a decision only the treasurer
-can make.
+Current state, as loaded from `data/club/funds.csv`:
 
-To set them:
+| Fund | Opening balance | On |
+| --- | --- | --- |
+| Bank account | ₹49,460.00 | 1 April 2026 |
+| Cash box | ₹0.00 | 1 April 2026 |
+| Club UPI | ₹0.00 | 1 April 2026 |
 
-1. Choose an **opening date** — the day the club starts keeping its books in this
-   system. The first of a month is easiest to reconcile.
+**Check the two zeros.** If the club held cash on 1 April, the cash box figure is wrong.
+
+To set or correct them:
+
+1. Choose an **opening date** — the day the club starts keeping its books here. 1 April
+   suits an Indian financial year and is easiest to reconcile.
 2. Get the real balance for each fund on that date: count the cash box, read the bank
-   statement, check any UPI balance held separately.
+   statement, check any UPI balance held separately from the bank.
 3. Edit `data/club/funds.csv`. Amounts are in rupees, decimals allowed:
 
    ```csv
    name,kind,opening_balance,opening_date,active,notes
-   Cash box,cash,4820.50,2026-08-01,yes,Counted by the treasurer
-   Bank account,bank,63400,2026-08-01,yes,Statement balance
-   Club UPI,upi,0,2026-08-01,yes,Swept to the bank daily
+   Cash box,cash,4820.50,01/04/2026,yes,Counted by the treasurer
+   Bank account,bank,49460,01/04/2026,yes,Statement balance
+   Club UPI,upi,0,01/04/2026,yes,Swept to the bank daily
    ```
 
-4. **The seed skips funds that already exist by name.** So to correct a fund that is
-   already loaded, change it in the Appwrite console — console → Databases → the
-   database → `finance_funds` → the row → `openingBalancePaise`. Note **paise**: ₹4,820.50
-   is `482050`.
+   Dates may be `2026-04-01` or `01/04/2026` — **day first**, so `01/04/26` is 1 April.
+   A spreadsheet reformats a typed date to the local convention on its own, so both are
+   accepted; the script prints what it read, and you should check that line.
 
-Get this right before recording many entries. Correcting an opening balance later is
-one number, but every statement printed in between was wrong.
+4. Apply it. Adding a fund and *changing* one are separate flags, because changing an
+   opening balance moves every balance in the accounts without leaving an entry anywhere:
+
+   ```bash
+   npm run seed:finance -- --dir ../data/club --update-funds            # shows the diff
+   npm run seed:finance -- --dir ../data/club --update-funds --write
+   ```
+
+   Without `--update-funds`, funds that already exist are left alone and the differences
+   are only reported.
+
+Get this right before recording many entries. Correcting it later is one number, but
+every statement printed in between was wrong.
+
+### Clearing the entries made while learning
+
+Everything recorded while trying the system out can be thrown away, so the club's first
+real entry is `TXN-2026-000001`:
+
+```bash
+npm run backup                       # first, always
+npm run reset:ledger                 # lists what would go
+npm run reset:ledger -- --write
+```
+
+It removes **every** finance entry whatever its status, every member payment
+declaration, the audit log, and the reference counters. It keeps the funds, the
+categories, the member profiles and every account.
+
+Payment declarations go with the entries deliberately: one left behind would tell its
+member "verified, entered as TXN-2026-000002" and point at an entry that no longer
+exists.
+
+This is the only thing in the system that deletes a posted entry, and it is a script
+rather than a button on purpose. Through the API the ledger is append-only — a mistake is
+cancelled by a reversal and both halves stay on the record. Wiping the books clean before
+the club starts is a different act, it happens once, and it needs the server key.
 
 ### Do not import historical transactions
 

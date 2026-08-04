@@ -19,6 +19,21 @@
  * `--with-transactions` is off by default and should stay off for real data: those
  * rows are written as PENDING and still need a second officer's approval, exactly
  * like a hand-typed entry. It is there for populating a test project.
+ *
+ * ## `--update-funds`
+ *
+ * Skipping by name is right for adding a fund and wrong for the commonest job of
+ * all: the club provisions three funds with zero opening balances, then finds out
+ * what was actually in the cash box on 1 April and puts it in the spreadsheet. Every
+ * subsequent run said "0 funds to add" and changed nothing.
+ *
+ *   npm run seed:finance -- --dir ../data/club --update-funds            # shows the diff
+ *   npm run seed:finance -- --dir ../data/club --update-funds --write
+ *
+ * It is a separate flag rather than the default because an opening balance is the
+ * one figure that moves every balance in the accounts without leaving an entry
+ * anywhere. The change is printed line by line, before and after, and needs
+ * `--write` like everything else here.
  */
 import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -48,6 +63,7 @@ async function main(): Promise<void> {
   const argv = process.argv.slice(2)
   const write = argv.includes('--write')
   const withTransactions = argv.includes('--with-transactions')
+  const updateFunds = argv.includes('--update-funds')
   const dirIndex = argv.indexOf('--dir')
   const dir = resolve(dirIndex === -1 ? '../data/demo' : (argv[dirIndex + 1] ?? '../data/demo'))
 
@@ -105,6 +121,62 @@ async function main(): Promise<void> {
     console.log(`  + category  ${category.name} (${category.kind})`)
   }
 
+  /**
+   * Funds that exist and whose spreadsheet row now says something different.
+   *
+   * Matched by name, the same way `newFunds` decides what is new, so the two are
+   * complementary and a row is never both. The opening date is shown for every
+   * change because the CSV accepts `01/04/26` — printing what that was read as is
+   * how a day/month mix-up gets noticed before it moves the accounts.
+   */
+  const changedFunds = existingFunds.flatMap((existing) => {
+    const desired = funds.rows.find(
+      (row) => row.name.toLowerCase() === existing.name.toLowerCase()
+    )
+    if (!desired) return []
+
+    const differences: string[] = []
+    if (desired.openingBalancePaise !== existing.openingBalancePaise) {
+      differences.push(
+        `opening balance ${formatPaise(existing.openingBalancePaise)} -> ${formatPaise(desired.openingBalancePaise)}`
+      )
+    }
+    if (desired.openingDate !== existing.openingDate) {
+      differences.push(`opening date ${existing.openingDate} -> ${desired.openingDate}`)
+    }
+    if (desired.kind !== existing.kind) {
+      differences.push(`kind ${existing.kind} -> ${desired.kind}`)
+    }
+    if (desired.active !== existing.active) {
+      differences.push(`${existing.active ? 'active -> inactive' : 'inactive -> active'}`)
+    }
+    if ((desired.notes ?? '') !== (existing.notes ?? '')) differences.push('notes')
+
+    return differences.length > 0 ? [{ existing, desired, differences }] : []
+  })
+
+  if (changedFunds.length > 0) {
+    console.log(
+      updateFunds
+        ? `\nWould change ${changedFunds.length} existing fund(s):`
+        : `\n${changedFunds.length} existing fund(s) differ from the spreadsheet:`
+    )
+    for (const change of changedFunds) {
+      console.log(`  ~ fund      ${change.existing.name}`)
+      for (const difference of change.differences) console.log(`                ${difference}`)
+    }
+
+    if (!updateFunds) {
+      console.log('\n  Not applied. Existing funds are left alone unless you pass --update-funds.')
+      console.log('  An opening balance changes every balance in the accounts without')
+      console.log('  leaving an entry in the ledger, so it is never changed by accident.')
+    } else {
+      console.log('\n  These change the club’s balances. Read the figures above before applying.')
+    }
+  } else if (updateFunds) {
+    console.log('\nNo existing fund differs from the spreadsheet — nothing to update.')
+  }
+
   if (!write) {
     console.log('\nThis was a check only. Add --write to apply it.\n')
     return
@@ -114,7 +186,18 @@ async function main(): Promise<void> {
   for (const fund of newFunds) createdFunds.push(await store.createFund(fund))
   for (const category of newCategories) await store.createCategory(category)
 
-  console.log(`\nWrote ${createdFunds.length} funds and ${newCategories.length} categories.`)
+  let updated = 0
+  if (updateFunds) {
+    for (const change of changedFunds) {
+      await store.updateFund(change.existing.id, change.desired)
+      updated += 1
+    }
+  }
+
+  console.log(
+    `\nWrote ${createdFunds.length} funds and ${newCategories.length} categories` +
+      (updateFunds ? `, and updated ${updated} existing fund(s).` : '.')
+  )
 
   if (!withTransactions) {
     console.log('\nDone. Record entries in Office → Entries; each needs a second officer.\n')

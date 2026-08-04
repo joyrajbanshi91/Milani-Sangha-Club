@@ -146,6 +146,15 @@ export class InMemoryFinanceStore implements FinanceStore {
     return Promise.resolve(created)
   }
 
+  updateFund(id: string, fund: Omit<Fund, 'id'>): Promise<Fund> {
+    const index = this.funds.findIndex((candidate) => candidate.id === id)
+    if (index === -1) throw new StoreConflictError('That fund no longer exists.')
+
+    const next: Fund = { ...fund, id }
+    this.funds[index] = next
+    return Promise.resolve(next)
+  }
+
   listCategories(): Promise<Category[]> {
     return Promise.resolve([...this.categories])
   }
