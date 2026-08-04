@@ -1,6 +1,9 @@
+import { AppwriteException } from 'node-appwrite'
+
+import { databaseId, getTables } from '../config/appwrite.js'
 import { COLLECTIONS } from '../config/constants.js'
+import { hasAppwriteCredentials, hasFirebaseCredentials, isProduction } from '../config/env.js'
 import { getDb } from '../config/firebase.js'
-import { hasFirebaseCredentials, isProduction } from '../config/env.js'
 
 /**
  * A member's own profile: the parts they may change themselves.
@@ -106,6 +109,68 @@ export class FirestoreProfileStore implements ProfileStore {
   }
 }
 
+/**
+ * Appwrite-backed profile store.
+ *
+ * Rows are keyed by the member's own account id rather than a generated one, so a
+ * profile can be fetched in a single read with no query or index — and so a member
+ * cannot end up with two.
+ *
+ * A profile row is created on first write, not at sign-up: a member who never sets a
+ * photograph needs no row, and `get` answering from the account's own name is
+ * correct rather than a placeholder.
+ */
+export class AppwriteProfileStore implements ProfileStore {
+  async get(uid: string, fallbackName: string): Promise<MemberProfile> {
+    try {
+      const row = await getTables().getRow({
+        databaseId: databaseId(),
+        tableId: COLLECTIONS.members,
+        rowId: uid,
+      })
+
+      const data = row as unknown as Partial<MemberProfile>
+
+      return {
+        uid,
+        name: data.name ?? fallbackName,
+        // Appwrite returns null for an unset column, which is already what
+        // MemberProfile uses for "no photograph".
+        photo: data.photo ?? null,
+        photoUpdatedAt: data.photoUpdatedAt ?? null,
+      }
+    } catch (error) {
+      // No row yet is the ordinary case for a member who has not set a photograph.
+      if (error instanceof AppwriteException && error.code === 404) {
+        return { uid, name: fallbackName, photo: null, photoUpdatedAt: null }
+      }
+      throw error
+    }
+  }
+
+  async setPhoto(uid: string, photo: string | null): Promise<MemberProfile> {
+    const photoUpdatedAt = photo ? new Date().toISOString() : null
+    const existing = await this.get(uid, 'Member')
+
+    // Upsert: the row may not exist yet, and this is also how a photograph is
+    // removed — `photo: null` clears the column rather than deleting the profile.
+    await getTables().upsertRow({
+      databaseId: databaseId(),
+      tableId: COLLECTIONS.members,
+      rowId: uid,
+      data: { uid, name: existing.name, photo, photoUpdatedAt },
+    })
+
+    return { uid, name: existing.name, photo, photoUpdatedAt }
+  }
+}
+
+/**
+ * Appwrite first, for the same reason as the finance store: during the migration
+ * both may be configured, and a deployment carrying stale Firebase variables must
+ * not keep writing profiles to Firestore.
+ */
 export function buildProfileStore(): ProfileStore {
+  if (hasAppwriteCredentials) return new AppwriteProfileStore()
   return hasFirebaseCredentials ? new FirestoreProfileStore() : new InMemoryProfileStore()
 }
