@@ -96,9 +96,9 @@ export const isDevelopment = env.NODE_ENV === 'development'
  * implicitly as Application Default Credentials — there is no key file and no
  * FIREBASE_PRIVATE_KEY, which is the *safer* arrangement, not a missing one.
  *
- * Without this check the API would decide it had no credentials, fall back to the
- * in-memory demo store, and that store refuses to run in production — so every
- * cloud deployment would crash at boot with a confusing message.
+ * Without this check the API running on Google's own infrastructure would decide it
+ * had no credentials and quietly serve the demo ledger, when a perfectly good
+ * service account was sitting right there.
  */
 export const isGoogleCloudRuntime = Boolean(
   process.env.K_SERVICE ?? process.env.FUNCTION_TARGET ?? process.env.GAE_ENV
@@ -107,16 +107,17 @@ export const isGoogleCloudRuntime = Boolean(
 /**
  * Running as a short-lived function rather than a long-lived server?
  *
- * Netlify and AWS Lambda set AWS_LAMBDA_FUNCTION_NAME; Cloud Functions sets
- * FUNCTION_TARGET; Vercel sets VERCEL; **Appwrite sets APPWRITE_FUNCTION_ID**.
+ * **Netlify** and AWS Lambda set AWS_LAMBDA_FUNCTION_NAME, which is the case that
+ * matters here — netlify/functions/api.mts is how this API is deployed. Cloud
+ * Functions sets FUNCTION_TARGET, Vercel sets VERCEL, Appwrite sets
+ * APPWRITE_FUNCTION_ID; all three are kept so the same code reports itself honestly
+ * wherever it is put.
  *
- * The Appwrite one was missing, and its absence was not harmless. `buildStore()`
- * uses this to refuse the in-memory demo store in a deployment — a club's accounts
- * have no business living in a function's memory, and that store cannot persist
- * anything anyway. Without the check the API would have started happily on Appwrite
- * with an empty demo ledger and demo sign-in, which looks like a working site until
- * someone records a payment and it vanishes at the next cold start. Failing loudly
- * is the entire point of that guard.
+ * Used only to decide how loudly to talk about a missing database. `buildStore()`
+ * once used it to *refuse* to start without credentials, which turned a first
+ * deploy into 500s from every route; it now logs a warning naming the variables to
+ * set instead. The distinction between a warning and a crash is the difference
+ * between a site the club can look at and one they cannot.
  */
 export const isServerless = Boolean(
   process.env.AWS_LAMBDA_FUNCTION_NAME ??

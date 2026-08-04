@@ -2,7 +2,7 @@ import { AppwriteException } from 'node-appwrite'
 
 import { databaseId, getTables } from '../config/appwrite.js'
 import { COLLECTIONS } from '../config/constants.js'
-import { hasAppwriteCredentials, hasFirebaseCredentials, isProduction } from '../config/env.js'
+import { hasAppwriteCredentials, hasFirebaseCredentials } from '../config/env.js'
 import { getDb } from '../config/firebase.js'
 
 /**
@@ -59,13 +59,16 @@ export interface ProfileStore {
   setPhoto(uid: string, photo: string | null): Promise<MemberProfile>
 }
 
-/** Development store. Lost on restart, like the rest of the demo data. */
+/**
+ * Demo store. Lost on restart, like the rest of the demo data.
+ *
+ * No production guard, for the reason given in memoryStore.ts and container.ts: a
+ * throw here stopped a credential-less deployment from starting at all, which is a
+ * worse outcome than a profile photograph that does not survive a cold start. The
+ * signed-in banner says which store is in use.
+ */
 export class InMemoryProfileStore implements ProfileStore {
   private readonly profiles = new Map<string, MemberProfile>()
-
-  constructor() {
-    if (isProduction) throw new Error('InMemoryProfileStore must not run in production.')
-  }
 
   get(uid: string, fallbackName: string): Promise<MemberProfile> {
     return Promise.resolve(

@@ -10,21 +10,30 @@ import { getContainer } from '../services/container.js'
 
 export const authRouter = Router()
 
-const { auth } = getContainer()
+const { auth, store } = getContainer()
 
 /**
- * What sign-in options exist.
+ * What sign-in options exist, and what is behind them.
  *
  * The web app asks this before rendering the login screen, so it shows a password
- * form against Firebase or the demo account picker, without having to guess.
+ * form against Appwrite or the demo account picker without having to guess.
+ *
+ * `store` is reported alongside the sign-in mode because the two are configured
+ * separately and the *store* is the one whose absence loses data. A deployment with
+ * no credentials at all answers `mode: 'demo', store: 'memory'`, and the app turns
+ * that into a standing banner on every signed-in page. This is the whole reason the
+ * API is allowed to start without a database: it can say so.
  */
 authRouter.get('/config', (_req: Request, res: Response) => {
   res.json({
     mode: auth.mode,
+    store: store.kind,
     ...(auth.mode === 'demo'
       ? {
           accounts: DEMO_ACCOUNTS.map(({ email, name, role }) => ({ email, name, role })),
-          warning: 'Demo sign-in: fixed accounts, no passwords. Development only.',
+          warning:
+            'Demo sign-in: fixed accounts, no passwords. Anything recorded here is ' +
+            'sample data and is not kept.',
         }
       : {}),
   })

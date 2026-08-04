@@ -1,6 +1,6 @@
 import { Account, Client } from 'appwrite'
 
-import { env } from '@/config/env'
+import { env, hasAppwriteConfig } from '@/config/env'
 
 /**
  * Appwrite in the browser — **authentication only**.
@@ -16,11 +16,42 @@ import { env } from '@/config/env'
  * without a refresh, say — import the Databases service in that feature's own
  * module so the cost lands only on the page that uses it.
  */
-const client = new Client()
-  .setEndpoint(env.VITE_APPWRITE_ENDPOINT)
-  .setProject(env.VITE_APPWRITE_PROJECT_ID)
+/**
+ * Built on first use, not at import.
+ *
+ * This module is imported lazily, and only when the API has reported that it is in
+ * Appwrite mode. But the two halves are configured separately — the project id here
+ * is a build-time `VITE_` value, while the API's credentials are set on the function
+ * — so they can disagree: an API pointed at Appwrite against a bundle built without
+ * a project id. Constructing the client at import time would make that mismatch
+ * surface as an opaque Appwrite network error. Named here instead, once, with the
+ * variable to set.
+ */
+let client: Client | undefined
+let accountService: Account | undefined
 
-export const account = new Account(client)
+function getClient(): Client {
+  if (!hasAppwriteConfig) {
+    throw new Error(
+      'The API is using Appwrite for sign-in, but this build has no Appwrite project ' +
+        'id, so the browser cannot reach it. Set VITE_APPWRITE_PROJECT_ID in the ' +
+        'Netlify dashboard and redeploy — it is compiled into the bundle, so editing ' +
+        'it does not update a site that is already published. See docs/09-netlify.md.'
+    )
+  }
+
+  client ??= new Client()
+    .setEndpoint(env.VITE_APPWRITE_ENDPOINT)
+    .setProject(env.VITE_APPWRITE_PROJECT_ID)
+
+  return client
+}
+
+/** The Account service, built on first use. Mirrors `getTables()` on the API side. */
+export function getAccount(): Account {
+  accountService ??= new Account(getClient())
+  return accountService
+}
 
 /**
  * A short-lived JWT proving who the caller is, for the API to verify.
@@ -43,7 +74,7 @@ export async function getJwt(): Promise<string | null> {
   }
 
   try {
-    const { jwt } = await account.createJWT()
+    const { jwt } = await getAccount().createJWT()
     cached = { jwt, expiresAt: Date.now() + JWT_LIFETIME_MS }
     return jwt
   } catch {

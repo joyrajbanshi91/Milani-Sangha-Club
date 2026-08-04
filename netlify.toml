@@ -1,36 +1,61 @@
-# Netlify deployment.
+# ---------------------------------------------------------------------------
+# Netlify deployment. This is the only deployment configuration in the repository.
 #
 # Netlify serves the built PWA as static files and runs the Express API as a
-# function, so the whole application — including member sign-in and the finance
-# area — works from one origin on the free tier. No card, no Blaze plan.
+# function, so the whole application — public website, member sign-in and the
+# finance area — works from one origin on the free tier.
 #
-# Environment variables are NOT set here. Secrets belong in the Netlify dashboard
-# (Site configuration → Environment variables), never in a file in the repository.
-# The full list is in docs/09-netlify.md.
+# ## A deploy needs no environment variables
+#
+# Push, and the site comes up. With no database configured the API serves the
+# embedded demo ledger and offers demo sign-in, and every signed-in page carries a
+# banner saying so. That is deliberate: nothing here should be able to turn a
+# missing variable into a site that will not start.
+#
+# To connect a real database, add its variables in the Netlify dashboard
+# (Site configuration → Environment variables) and redeploy. Secrets belong there,
+# never in this file — it is committed. The full list is in docs/09-netlify.md.
+# ---------------------------------------------------------------------------
 
 [build]
-  # Both apps are installed and built. The backend is compiled first, because the
-  # function imports backend/dist.
+  # Both workspaces are installed and built. The backend is compiled first, because
+  # the function imports backend/dist.
+  #
+  # `install:all` matters twice over. This repository holds two npm projects and
+  # declares no workspaces, so a plain `npm install` installs the root only and the
+  # build dies at `vite: not found`. And that script passes `--include=dev`, because
+  # `tsc` and `vite` are devDependencies: with `NODE_ENV=production` in the build
+  # environment npm omits devDependencies entirely and the build dies instead at
+  # `tsc: command not found`. Both failures name a tool rather than the cause, which
+  # is what makes them expensive.
   command = "npm run install:all && npm --prefix backend run build && npm --prefix frontend run build"
   publish = "frontend/dist"
   functions = "netlify/functions"
 
 [build.environment]
-  # Matches the engines field in both package.json files.
-  NODE_VERSION = "22"
-  # The frontend calls a relative path, so the redirect below keeps it same-origin.
+  # Node version comes from .nvmrc (24), which Netlify reads, so it is not repeated
+  # here — two copies of a version number drift. Netlify's own default satisfies
+  # the `engines` field in both package.json files anyway.
+
+  # Compiled into the browser bundle. A relative path keeps the API same-origin via
+  # the redirect below, so CORS is never exercised. This matches the default in
+  # frontend/src/config/env.ts; it is stated anyway because someone reading this
+  # file should be able to see where the browser sends its requests.
   VITE_API_BASE_URL = "/api/v1"
 
 [functions]
   node_bundler = "esbuild"
   # firebase-admin is large and pulls in optional native dependencies that esbuild
   # should not try to inline. Shipped as a node_module instead of bundled.
+  #
+  # node-appwrite is deliberately absent: it is plain JavaScript and bundles
+  # cleanly, so externalising it would only add a package to install at cold start.
   external_node_modules = ["firebase-admin"]
 
 # /api/** reaches the function. Must come BEFORE the SPA fallback: the first
 # matching rule wins, so a catch-all above this would swallow every API call and
 # return index.html — which is exactly the "Could not reach the club's server"
-# failure this deployment exists to fix.
+# failure this arrangement exists to avoid.
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/api/:splat"
@@ -45,8 +70,7 @@
   status = 200
 
 # ---------------------------------------------------------------------------
-# Headers. Firebase Hosting gets these from firebase.json; Netlify needs its own
-# copy, and they must not drift apart.
+# Headers.
 # ---------------------------------------------------------------------------
 
 [[headers]]

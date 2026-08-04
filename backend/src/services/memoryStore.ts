@@ -1,9 +1,5 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
-
 import { parseCategoriesCsv, parseFundsCsv, parseTransactionsCsv } from '../domain/csv.js'
 import type { Category, Fund, Transaction } from '../domain/types.js'
-import { isProduction } from '../config/env.js'
 import { logger } from '../lib/logger.js'
 import {
   applyFilter,
@@ -14,14 +10,25 @@ import {
 } from './store.js'
 
 /**
- * In-memory finance store, seeded from data/demo/*.csv.
+ * In-memory finance store, seeded from the embedded demo ledger.
  *
- * Exists so the officer area can be run and demonstrated before a Firebase
- * project is set up. Data lives for the lifetime of the process and is lost on
- * restart — which is the point: it is a sandbox, not a ledger.
+ * Exists so the officer area can be run and shown before a real database is set
+ * up. Data lives for the lifetime of the process and is lost when it restarts —
+ * which is the point: it is a sandbox, not a ledger.
  *
- * It refuses to construct when NODE_ENV is production, because a club's accounts
- * silently living in RAM would be a catastrophe rather than a convenience.
+ * ## It no longer refuses to run in production
+ *
+ * It used to throw when `NODE_ENV` was production, on the reasoning that a club's
+ * accounts silently living in RAM would be a catastrophe. The instinct was right;
+ * the mechanism was wrong. A hosted deployment sets `NODE_ENV=production` as a
+ * matter of course, so the guard did not prevent a club from trusting demo data —
+ * it prevented the site from starting *at all* until a database was provisioned,
+ * which is why a first deploy showed nothing but 500s.
+ *
+ * The danger was never the store; it was the store being mistaken for a real one.
+ * So the defence moved to where it works: `kind === 'memory'` is reported by
+ * `/api/v1/health/ready`, returned in the auth config, and rendered as a standing
+ * banner across every signed-in page. Loud and true beats absent and broken.
  */
 export class InMemoryFinanceStore implements FinanceStore {
   readonly kind = 'memory' as const
@@ -31,26 +38,20 @@ export class InMemoryFinanceStore implements FinanceStore {
   private transactions: Transaction[] = []
   private sequence = 0
 
-  constructor() {
-    if (isProduction) {
-      throw new Error(
-        'InMemoryFinanceStore must never run in production. Configure Firebase Admin credentials.'
-      )
-    }
-  }
-
   /**
-   * Load the demo spreadsheets.
+   * Load the demo spreadsheets from their CSV contents.
+   *
+   * Takes the text rather than a directory: the caller passes the constants in
+   * services/demoSeed.ts, so there is no file to find and this behaves identically
+   * on a laptop and inside a bundled function. See that file for why.
    *
    * Every seeded entry is 'posted' with a recorded approval, so the dashboard has
-   * figures to show. Anything the club adds afterwards goes through the normal
-   * two-person flow.
+   * figures to show. Anything added afterwards goes through the normal two-person
+   * flow.
    */
-  seedFromDemoCsv(demoDir: string): void {
-    const read = (name: string) => readFileSync(join(demoDir, name), 'utf8')
-
-    const fundResult = parseFundsCsv(read('funds.csv'))
-    const categoryResult = parseCategoriesCsv(read('categories.csv'))
+  seed(csv: { funds: string; categories: string; transactions: string }): void {
+    const fundResult = parseFundsCsv(csv.funds)
+    const categoryResult = parseCategoriesCsv(csv.categories)
 
     if (fundResult.errors.length > 0 || categoryResult.errors.length > 0) {
       throw new Error(
@@ -64,7 +65,7 @@ export class InMemoryFinanceStore implements FinanceStore {
       id: `cat-${index + 1}`,
     }))
 
-    const transactionResult = parseTransactionsCsv(read('transactions.csv'), {
+    const transactionResult = parseTransactionsCsv(csv.transactions, {
       fundsByName: new Map(this.funds.map((fund) => [fund.name.toLowerCase(), fund.id])),
       categoriesByName: new Map(
         this.categories.map((category) => [

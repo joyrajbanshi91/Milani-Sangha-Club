@@ -84,14 +84,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /** Appwrite email and password sign-in. */
   const signIn = useCallback(
     async (email: string, password: string) => {
-      const { account, clearJwt } = await import('@/lib/appwrite')
+      const { getAccount, clearJwt } = await import('@/lib/appwrite')
 
       // A stale JWT from a previous member on a shared computer must not be sent
       // as though it were this one's.
       clearJwt()
 
       try {
-        await account.createEmailPasswordSession({ email: email.trim(), password })
+        await getAccount().createEmailPasswordSession({ email: email.trim(), password })
       } catch (error) {
         // `cause` keeps the original Appwrite error for the console.
         throw new Error(describeAppwriteError(error), { cause: error })
@@ -103,10 +103,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const requestPasswordReset = useCallback(async (email: string) => {
-    const { account } = await import('@/lib/appwrite')
+    const { getAccount } = await import('@/lib/appwrite')
 
     try {
-      await account.createRecovery({
+      await getAccount().createRecovery({
         email: email.trim(),
         // Where the emailed link lands. Appwrite appends the userId and secret it
         // needs, which the reset page reads back.
@@ -139,9 +139,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     if (mode === 'appwrite') {
-      const { account, clearJwt } = await import('@/lib/appwrite')
+      const { getAccount, clearJwt } = await import('@/lib/appwrite')
       try {
-        await account.deleteSession({ sessionId: 'current' })
+        await getAccount().deleteSession({ sessionId: 'current' })
       } catch {
         // An already-expired session is not a failure to sign out.
       }

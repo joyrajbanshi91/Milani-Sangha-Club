@@ -11,6 +11,14 @@ export interface SignedInUser {
 
 export interface AuthConfig {
   mode: 'appwrite' | 'demo'
+  /**
+   * Which store is behind the API.
+   *
+   * Reported separately from `mode` because sign-in and the ledger are configured
+   * separately, and it is `store: 'memory'` that means figures are not being kept.
+   * Optional so an older API that predates the field does not fail to parse.
+   */
+  store?: 'memory' | 'firestore' | 'appwrite'
   accounts?: Array<{ email: string; name: string; role: Role }>
   warning?: string
 }
