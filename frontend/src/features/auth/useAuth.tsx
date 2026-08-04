@@ -178,26 +178,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [queryClient]
   )
 
+  /**
+   * Sign out, and **never reject**.
+   *
+   * The old version could throw before doing anything, and then the caller's
+   * `.then(() => navigate('/login'))` never ran — so the button appeared completely
+   * dead. `await import('@/lib/appwrite')` sat outside any try/catch, and that import
+   * is a lazily-fetched chunk: a cache miss, a flaky connection or a stale service
+   * worker was enough to make signing out impossible with no message anywhere.
+   *
+   * The order is now deliberate. Local state is cleared **first**, because that is the
+   * part that must not depend on anything: whatever the network does, this browser
+   * stops holding a usable token. The server is told afterwards, and a failure there is
+   * logged rather than propagated.
+   *
+   * Telling Appwrite still matters — until the session is deleted, anyone who can reach
+   * this browser's storage could mint a fresh JWT from it — so the failure is reported
+   * to the console for a developer, just never to the caller as a rejection.
+   */
   const signOut = useCallback(async () => {
+    // 1. Stop this browser being able to authenticate, whatever happens next.
+    setToken(null)
+    setTokenProvider(() => Promise.resolve(null))
+
+    // 2. Tell the server. Best effort, and each step guarded separately so one
+    //    failure cannot skip the next.
     if (mode === 'appwrite') {
-      const { getAccount, clearJwt } = await import('@/lib/appwrite')
       try {
+        const { getAccount, clearJwt } = await import('@/lib/appwrite')
+        clearJwt()
         await getAccount().deleteSession({ sessionId: 'current' })
-      } catch {
-        // An already-expired session is not a failure to sign out. Note that this
-        // used to swallow something much less benign: Appwrite refuses a browser
-        // request from an origin that is not registered as a Web platform on the
-        // project, so with none registered `deleteSession` failed on every attempt
-        // and sign-out silently did nothing at all.
+      } catch (error) {
+        // An already-expired session is not a failure to sign out. This also used to
+        // swallow something much less benign: Appwrite refuses browser requests from an
+        // origin that is not a registered Web platform on the project, so with none
+        // registered `deleteSession` failed every time and sign-out did nothing at all.
+        console.warn('Could not delete the Appwrite session; signed out locally.', error)
       }
-      clearJwt()
     } else {
       try {
         await api.post('/auth/logout')
       } catch {
         // Signing out locally matters more than telling the server about it.
       }
-      setToken(null)
     }
 
     /**

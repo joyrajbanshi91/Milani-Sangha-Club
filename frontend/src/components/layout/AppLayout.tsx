@@ -62,7 +62,12 @@ export function AppLayout() {
 
             <button
               type="button"
-              onClick={() => void signOut().then(() => navigate('/login', { replace: true }))}
+              onClick={() => {
+                // `finally`, not `then`: the member must always end up at the sign-in
+                // page. An earlier `.then()` meant a rejected signOut left them
+                // staring at a button that had apparently done nothing.
+                void signOut().finally(() => navigate('/login', { replace: true }))
+              }}
               className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-ink-200 px-3 text-xs font-medium text-ink-700 hover:bg-ink-100"
             >
               <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
