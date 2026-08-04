@@ -99,15 +99,50 @@ function netlify(args, { capture = false } = {}) {
   })
 }
 
-/** Which project is this directory linked to? Refuse to guess. */
-function linkedProject() {
+/**
+ * Which project is this directory linked to, and is that link still good?
+ *
+ * Three failure states, three different fixes, and they are easy to confuse. The
+ * nastiest is the third: `.netlify/state.json` holds a site id that no longer exists,
+ * usually because the project was deleted and recreated. The CLI then reports a
+ * `Project Id` with `Admin URL: undefined`, and `netlify deploy` fails with a bare
+ * `JSONHTTPError: Not Found` that mentions neither the site nor the stale id.
+ *
+ * An earlier version of this function collapsed all three into "not linked, or not
+ * logged in", which sent someone to re-run `login` and `link` when they were already
+ * logged in and the real fix was to unlink first.
+ */
+function inspectLink() {
+  let status
   try {
-    const status = netlify(['status', '--json'], { capture: true })
-    const parsed = JSON.parse(status)
-    return parsed.siteData?.name ?? parsed.siteData?.url ?? null
-  } catch {
-    return null
+    status = JSON.parse(netlify(['status', '--json'], { capture: true }))
+  } catch (error) {
+    const text = `${error.stdout ?? ''}${error.stderr ?? ''}`
+    if (/not logged in|log in|Not authorized/i.test(text)) return { state: 'logged-out' }
+    return { state: 'unknown', detail: text.trim().split('\n').slice(-3).join(' ') }
   }
+
+  // `netlify status --json` uses hyphenated keys — `site-name`, `site-url`, `site-id`
+  // — not the camelCase ones the rest of the CLI's output suggests. Reading `name`
+  // and `url` returned undefined for a perfectly good link, so this reported every
+  // correctly-linked directory as stale. The fallbacks cover a future rename.
+  const site = status.siteData ?? {}
+  const name = site['site-name'] ?? site.name
+  const url = site['site-url'] ?? site.url
+
+  // A site id on disk with nothing behind it. Read the id straight from the file
+  // rather than from the CLI, so the message can name it.
+  if (!name && !url) {
+    let staleId
+    try {
+      staleId = JSON.parse(readFileSync(`${root}.netlify/state.json`, 'utf8')).siteId
+    } catch {
+      staleId = undefined
+    }
+    return staleId ? { state: 'stale', staleId } : { state: 'unlinked' }
+  }
+
+  return { state: 'linked', name: name ?? url, url }
 }
 
 function mask(value) {
@@ -116,6 +151,26 @@ function mask(value) {
 }
 
 // ---------------------------------------------------------------------------
+
+// Read the link first, so the two URL-derived variables can be shown in the dry run
+// rather than appearing only once --write is used. This call changes nothing.
+const link = inspectLink()
+
+/**
+ * The site's own address, which two variables need and nobody should have to type.
+ *
+ * `CORS_ORIGINS` and `APP_BASE_URL` were on the "worth setting either way" list in the
+ * docs, which meant they were usually not set — and `APP_BASE_URL` is what receipts and
+ * QR verification links are built from, so wrong is worse than absent there. Taking
+ * them from the linked project removes the transcription error entirely, and they
+ * change on their own when the project changes.
+ */
+if (link.state === 'linked' && link.url) {
+  PLAN.push(
+    { key: 'CORS_ORIGINS', literal: link.url, required: false, fromSite: true },
+    { key: 'APP_BASE_URL', literal: link.url, required: false, fromSite: true }
+  )
+}
 
 const resolved = []
 const missing = []
@@ -143,7 +198,9 @@ if (missing.length > 0) {
 }
 
 for (const entry of resolved) {
-  const shown = entry.secret ? `${mask(entry.value)}  (not printed, sent with --secret)` : entry.value
+  const shown = entry.secret
+    ? `${mask(entry.value)}  (not printed, sent with --secret)`
+    : `${entry.value}${entry.fromSite ? '   ← from the linked project' : ''}`
   process.stdout.write(`  ${entry.key.padEnd(22)} functions   ${shown}\n`)
 }
 
@@ -157,25 +214,57 @@ if (!write) {
   process.exit(0)
 }
 
-const project = linkedProject()
-if (!project) {
-  process.stderr.write(
-    'This directory is not linked to a Netlify project, or the CLI is not logged in:\n\n' +
+if (link.state !== 'linked') {
+  const advice = {
+    'logged-out':
+      'The Netlify CLI is not logged in:\n\n' +
       '  npx netlify-cli login\n' +
+      '  npx netlify-cli link\n',
+
+    unlinked:
+      'This directory is not linked to a Netlify project:\n\n' +
       '  npx netlify-cli link\n\n' +
-      'Then run this again. Linking is per directory, so a new Netlify project needs\n' +
-      'a fresh `link` even though nothing else changed.\n\n'
-  )
+      'Linking is per directory, so a new project needs a fresh `link` even though\n' +
+      'nothing else about the repository changed.\n',
+
+    stale:
+      `This directory is linked to a Netlify project that no longer exists:\n\n` +
+      `  stale site id  ${link.staleId ?? '(unreadable)'}\n\n` +
+      'That happens when the project is deleted and recreated. It is not a login\n' +
+      'problem — `netlify deploy` fails with a bare `JSONHTTPError: Not Found` and\n' +
+      '`netlify status` shows a Project Id with `Admin URL: undefined`.\n\n' +
+      'Point it at the right one:\n\n' +
+      '  npx netlify-cli sites:list                 # find the id you want\n' +
+      '  npx netlify-cli link --id <the-site-id>    # relinks, no prompts\n',
+
+    unknown: `Could not read the Netlify link state.\n\n  ${link.detail ?? 'no detail'}\n`,
+  }[link.state]
+
+  process.stderr.write(`${advice}\nThen run this again.\n\n`)
   process.exit(1)
 }
 
-process.stdout.write(`Applying to: ${project}\n\n`)
+process.stdout.write(`Applying to: ${link.name}${link.url ? `  (${link.url})` : ''}\n\n`)
 
 let failed = 0
 
 for (const entry of resolved) {
   const args = ['env:set', entry.key, entry.value, '--scope', 'functions', '--force']
-  if (entry.secret) args.push('--secret')
+
+  /**
+   * A secret value cannot cover the `dev` context, so it needs the others named.
+   *
+   * Netlify refuses `--secret` without an explicit non-development `--context`:
+   * "To set a secret environment variable value, please specify a non-development
+   * context". Left implicit, the API key was the one variable of the nine that failed
+   * to set — and it is the one without which nothing works.
+   *
+   * Losing the `dev` context costs nothing: `netlify dev` reads backend/.env locally,
+   * which is where the key already lives.
+   */
+  if (entry.secret) {
+    args.push('--secret', '--context', 'production', 'deploy-preview', 'branch-deploy')
+  }
 
   try {
     netlify(args, { capture: true })
