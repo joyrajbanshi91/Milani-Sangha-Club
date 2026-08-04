@@ -17,7 +17,7 @@
  * a sentence about the missing variable. A guard must not depend on the
  * toolchain it is guarding, so the .env parsing below is deliberately its own.
  */
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -91,22 +91,68 @@ function readEnvironment() {
   return { ...fromFiles, ...process.env }
 }
 
-const environment = readEnvironment()
-const missing = REQUIRED.filter((key) => !environment[key]?.trim())
+/**
+ * Was this workspace installed at all?
+ *
+ * This repository holds three npm projects and declares no workspaces, so
+ * `npm install` at the root installs the root only — `frontend/node_modules` stays
+ * empty and the build dies at `vite: not found`, which says nothing about the
+ * cause. A hosted build that has not been told where the app lives fails exactly
+ * this way.
+ *
+ * Skipped when there is no package.json beside this script, so that running the
+ * checker on its own — to verify the .env parsing, say — does not trip it.
+ */
+function findInstallProblem() {
+  if (!existsSync(join(frontendDir, 'package.json'))) return null
+  if (existsSync(join(frontendDir, 'node_modules', 'vite'))) return null
 
-if (missing.length > 0) {
-  const list = missing.map((key) => `  • ${key}`).join('\n')
-  process.stderr.write(
-    `\nCannot build the frontend — ${missing.length} required environment ` +
-      `variable(s) are not set:\n${list}\n\n` +
-      'Locally: copy frontend/.env.example to frontend/.env.local and fill it in.\n\n' +
-      'On a hosted build, add them in the platform dashboard. These are compiled\n' +
-      'into the bundle, so adding one requires a new build — editing it does not\n' +
-      'update a site that is already published.\n\n' +
-      '  Appwrite Sites: your site → Settings → Environment variables\n' +
-      '  Netlify:        Site configuration → Environment variables\n' +
-      '                  (needs the "Builds" scope and all deploy contexts)\n\n' +
-      'See docs/03-environment-variables.md.\n\n'
+  return (
+    'The frontend dependencies are not installed, so the build would fail at\n' +
+    '`vite: not found`. The install step did not reach this workspace.\n\n' +
+    'On Appwrite Sites, set the root directory to the app rather than the repo:\n\n' +
+    '  Root directory    ./frontend\n' +
+    '  Install command   npm install\n' +
+    '  Build command     npm run build\n' +
+    '  Output directory  ./dist\n\n' +
+    'To keep the root directory at /, install this workspace explicitly:\n\n' +
+    '  Install command   npm --prefix frontend install\n' +
+    '  Build command     npm run build:web\n' +
+    '  Output directory  ./frontend/dist\n\n' +
+    'Locally: run `npm install` in frontend/, or `npm run install:all` at the root.'
   )
+}
+
+function findEnvironmentProblem() {
+  const environment = readEnvironment()
+  const missing = REQUIRED.filter((key) => !environment[key]?.trim())
+  if (missing.length === 0) return null
+
+  const list = missing.map((key) => `  • ${key}`).join('\n')
+
+  return (
+    `${missing.length} required environment variable(s) are not set:\n${list}\n\n` +
+    'Locally: copy frontend/.env.example to frontend/.env.local and fill it in.\n\n' +
+    'On a hosted build, add them in the platform dashboard. These are compiled\n' +
+    'into the bundle, so adding one requires a new build — editing it does not\n' +
+    'update a site that is already published.\n\n' +
+    '  Appwrite Sites: your site → Settings → Environment variables\n' +
+    '  Netlify:        Site configuration → Environment variables\n' +
+    '                  (needs the "Builds" scope and all deploy contexts)\n\n' +
+    'See docs/03-environment-variables.md and docs/10-appwrite.md.'
+  )
+}
+
+// Both are reported together. Fixing one and rediscovering the other on the next
+// build is two wasted deploys, and on a hosted build each is several minutes.
+const problems = [findInstallProblem(), findEnvironmentProblem()].filter(Boolean)
+
+if (problems.length > 0) {
+  const heading =
+    problems.length === 1
+      ? '\nCannot build the frontend.\n\n'
+      : `\nCannot build the frontend — ${problems.length} problems.\n\n`
+
+  process.stderr.write(heading + problems.join('\n\n---\n\n') + '\n\n')
   process.exit(1)
 }
