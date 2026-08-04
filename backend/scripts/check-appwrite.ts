@@ -114,6 +114,61 @@ async function discoverApiUrl(): Promise<string | null> {
   }
 }
 
+/**
+ * Is a push to main still going to deploy?
+ *
+ * Worth asking on every check, because this is the failure mode that reported
+ * nothing at all. `appwrite push site` sends appwrite.config.json as a full replace,
+ * that file has no VCS fields, and so each CLI deploy silently blanked the site's
+ * GitHub connection. The site kept serving, the function kept following the
+ * repository, and the website quietly stopped — for seven deploys.
+ *
+ * A missing connection is reported, not treated as a failure: a project that has
+ * never been connected is a legitimate state, and `deploy-appwrite.sh` is a complete
+ * way to ship. What must not happen is nobody noticing the difference.
+ */
+async function reportVcsLinks(): Promise<void> {
+  const headers = {
+    'X-Appwrite-Project': appwriteProjectId ?? '',
+    'X-Appwrite-Key': env.APPWRITE_API_KEY ?? '',
+  }
+  const base = env.APPWRITE_ENDPOINT.replace(/\/+$/, '')
+
+  log()
+
+  for (const [label, path] of [
+    ['website', '/sites/milani-web'],
+    ['api', '/functions/api'],
+  ] as const) {
+    try {
+      const response = await fetch(`${base}${path}`, { headers })
+
+      if (!response.ok) {
+        log(`git        ${label.padEnd(8)} not checked (HTTP ${response.status})`)
+        continue
+      }
+
+      const body = (await response.json()) as {
+        providerRepositoryId?: string
+        providerBranch?: string
+        providerRootDirectory?: string
+      }
+
+      if (body.providerRepositoryId) {
+        log(
+          `git        ${label.padEnd(8)} follows ${body.providerBranch || '?'} (root "${body.providerRootDirectory ?? ''}")`
+        )
+      } else {
+        log(`git        ${label.padEnd(8)} NOT connected — a push to main will not deploy it`)
+        log('             npm run appwrite:github -- --write')
+      }
+    } catch {
+      // No network, or a key without the Sites/Functions scope. Not fatal.
+      log(`git        ${label.padEnd(8)} not checked`)
+    }
+  }
+}
+
 async function probeDeployedApi(): Promise<boolean> {
   const base = await discoverApiUrl()
 
@@ -293,6 +348,8 @@ async function main(): Promise<number> {
     ok = false
     log(`users      FAILED — ${explain(error, 'Users')}`)
   }
+
+  await reportVcsLinks()
 
   const apiReady = await probeDeployedApi()
   if (!apiReady) ok = false
