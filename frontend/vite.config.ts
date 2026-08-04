@@ -26,7 +26,12 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
       VitePWA({
-        registerType: 'prompt',
+        // 'autoUpdate', not 'prompt'. With 'prompt' the service worker waits for the
+        // visitor to accept an update they may never notice, so a browser can keep
+        // serving a months-old bundle — which during this project meant fixes were
+        // deployed, verified live with curl, and still absent for the person testing
+        // them. A club website has no reason to pin anyone to an old version.
+        registerType: 'autoUpdate',
         includeAssets: ['favicon.svg', 'robots.txt', 'icons/apple-touch-icon-180.png'],
         manifest: {
           id: '/',
