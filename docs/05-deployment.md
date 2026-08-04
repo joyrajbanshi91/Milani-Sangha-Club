@@ -1,117 +1,104 @@
-# Deployment
+# Deployment — operating a release
 
-> **Superseded — read [09-netlify.md](09-netlify.md) instead.**
->
-> This document describes a Firebase Hosting + Cloud Run topology that is no longer
-> configured in the repository. It required the Blaze plan to host the API, was
-> never successfully deployed, and its `deploy.yml` workflow has been removed. The
-> live deployment path is Netlify: the PWA on its CDN, the same Express app as a
-> Netlify Function, on the free tier.
->
-> Kept because the operational sections below — deploy order, verifying a release,
-> rollback, backups — still describe what the club should do, and because Firestore,
-> Auth and the security rules are unchanged by the change of host.
+**Setting Netlify up is [09-netlify.md](09-netlify.md).** This document is the other
+half: what to do around a release once it is set up — how a deploy happens, how to
+verify one, how to undo one, and what is *not* covered by it.
+
+An earlier version of this file described a Firebase Hosting + Cloud Run topology. It
+required the Blaze plan for the API, was never successfully deployed, and is no longer
+configured anywhere in the repository. It has been replaced rather than annotated,
+because a superseded page that still reads like instructions is worse than no page.
+
+---
 
 ## Topology
 
 | Component | Runs on | Notes |
 | --- | --- | --- |
-| PWA (`frontend/dist`) | Firebase Hosting | Global CDN, SPA rewrite, cache headers already set in `firebase.json` |
-| API (`backend/`) | Cloud Run (recommended) or 2nd-gen Cloud Functions | Reached via a Hosting rewrite, so the browser sees one origin |
-| Data | Firestore (`asia-south1`) | Rules in `firebase/firestore.rules` |
-| Files | Cloud Storage | Rules in `firebase/storage.rules` |
-| Auth | Firebase Authentication | Roles as custom claims |
+| PWA (`frontend/dist`) | Netlify CDN | SPA fallback and cache headers in `netlify.toml` |
+| API (`backend/`) | Netlify Function (`netlify/functions/api.mts`) | Same origin as the site, so CORS is never exercised |
+| Ledger | Appwrite Databases, or Firestore, or the embedded demo | Chosen by which credentials exist — `container.ts` |
+| Sign-in | Appwrite Authentication, or demo accounts | Chosen the same way — `authService.ts` |
 
-**The Blaze (pay-as-you-go) plan is required** for Cloud Run or Cloud Functions,
-and for outbound email. Hosting, Firestore and Storage alone work on Spark, but
-the API does not — worth knowing before committing to a launch date. For a club
-of this size the expected cost is small, but set a **budget alert** on the
-project as the first act after upgrading.
+There is one deployment target. Nothing else needs to be deployed for the site to
+work, which is the main practical difference from the arrangement this replaced.
 
-## Serving the API on the same origin
+---
 
-Once the API is deployed, add its rewrite to the `hosting` block in
-`firebase.json`, **before** the SPA catch-all (order matters — the first match
-wins):
+## How a deploy happens
 
-```jsonc
-"rewrites": [
-  { "source": "/api/**", "run": { "serviceId": "milani-api", "region": "asia-south1" } },
-  { "source": "**", "destination": "/index.html" }
-]
-```
+**Push to `main`.** Netlify builds both workspaces and publishes. There is no deploy
+workflow in GitHub Actions and deliberately so: `ci.yml` gates the code (lint,
+typecheck, tests, build) and Netlify publishes it, so the two concerns stay separate
+and a red CI run does not also mean a broken site.
 
-For a 2nd-generation Cloud Function use `{ "function": "api", "region": "asia-south1" }`
-instead. This is left out of `firebase.json` today because a rewrite to a service
-that does not exist yet returns errors to real visitors.
+Branch pushes and pull requests get **deploy previews** on their own URLs — the
+sensible way to look at a content change before it is on the club's address.
 
-With the rewrite in place, `VITE_API_BASE_URL=/api/v1` needs no change and CORS
-is not exercised in production at all — the allowlist stays as defence in depth.
+### What a deploy does not include
 
-## Deploy order
+- **Firestore rules and indexes**, if the club uses Firestore. Pushed deliberately
+  with `npm run rules:push`. Rules go first, so a page expecting new rules never
+  reaches members before the rules exist.
+- **The Appwrite schema**, if the club uses Appwrite. Created with
+  `npm run appwrite:provision -- --write`, which is safe to re-run — anything already
+  present is left alone. See [10-appwrite.md](10-appwrite.md).
+- **Backups.** See below.
 
-Always in this order. Rules that lag behind the code they protect are an open door:
-
-1. `firebase deploy --only firestore:indexes` — indexes take time to build
-2. `firebase deploy --only firestore:rules,storage`
-3. Deploy the API (Cloud Run / Functions)
-4. `firebase deploy --only hosting`
-
-## Manual deploy
-
-```bash
-npm run build
-firebase deploy --only firestore:rules,firestore:indexes,storage
-firebase deploy --only hosting
-```
-
-## Automated deploy
-
-There is no longer a deployment workflow in GitHub Actions. `deploy.yml` deployed
-to Firebase Hosting, needed a service account secret that was never configured, and
-failed on every run; it has been removed.
-
-**Netlify deploys on push to `main` instead**, building both the site and the API
-function — see [09-netlify.md](09-netlify.md). Actions now runs only `ci.yml`
-(lint, typecheck, tests, a placeholder build), which gates the code rather than
-publishing it.
-
-Rules and indexes are not part of that deploy and are still pushed deliberately,
-with `npm run rules:deploy`. That is the one step where the order matters: rules
-first, so a page expecting new rules never reaches members before the rules exist.
+---
 
 ## Verifying a release
 
-1. `GET https://<site>/api/v1/health` → `status: "ok"`, expected `version`.
-2. `GET https://<site>/api/v1/health/ready` → `status: "ready"`.
-3. Load the site, confirm the install prompt appears, install it, and confirm the
-   installed app opens offline (shell only, until Phase 14).
-4. Confirm `/api/v1/health` is **not** answered by the SPA shell — a
-   navigate-fallback misconfiguration shows up exactly here.
-5. Check Hosting response headers: `index.html` and `sw.js` uncached,
-   `/assets/*` immutable.
-6. Rules: attempt an unauthenticated read in the console's rules playground; it
-   must be denied.
+1. `GET https://<site>/api/v1/health` → `status: "ok"`, and the `version` you expect.
+2. `GET https://<site>/api/v1/health/ready` → `status: "ready"` with the store you
+   intended (`appwrite` or `firestore`). **`"store":"memory"` means the deploy has no
+   database and is showing sample data** — expected before the club connects one, a
+   fault afterwards.
+3. Confirm `/api/v1/health` is **not** answered by the SPA shell. HTML here means the
+   `/api/*` redirect is wrong, and it is the one failure that makes every other check
+   misleading.
+4. Sign in as an officer; confirm the amber **Sample data** bar is *absent*.
+5. Record an entry and try to approve it yourself — it must be refused. Then approve
+   as a second officer and confirm the figures move.
+6. **Reports → Download PDF** opens a real PDF. Binary responses from a function need
+   base64 encoding, so this is where that goes wrong and nothing else looks broken.
+7. Load the site, confirm the install prompt appears, install it, and confirm the
+   installed app opens offline.
+8. Check response headers: `index.html` and `sw.js` uncached, `/assets/*` immutable.
+
+The full first-deploy table is in [09-netlify.md § 3](09-netlify.md#3-check-the-deploy-in-this-order).
+
+---
 
 ## Rollback
 
-```bash
-firebase hosting:releases:list
-firebase hosting:rollback              # previous release, instantly
-```
+**Deploys → pick the previous successful deploy → Publish deploy.** It is instant and
+does not rebuild, because Netlify keeps every deploy's output.
 
-Rules must be rolled back by redeploying the previous revision from git — there is
-no one-command rules rollback, which is another reason rules changes ship
-separately from feature code.
+Two things do not roll back with it, and both are reasons schema changes should ship
+separately from feature code:
+
+- **Firestore rules** — redeploy the previous revision from git with
+  `npm run rules:push`. There is no one-command rules rollback.
+- **Appwrite schema** — the provisioning script only adds. Removing a column is a
+  deliberate manual act in the console.
+
+A rollback also does not undo data written by the version being rolled back. For the
+ledger that is correct: entries are records, not state to be reverted.
+
+---
 
 ## Backups
 
-Firestore does not back itself up. Before launch, schedule daily exports to a
-Cloud Storage bucket with a retention policy:
+Neither Appwrite's free plan nor Firestore backs itself up.
 
-```bash
-gcloud firestore export gs://<project>-backups --async
-```
+- **Appwrite:** `npm run backup`, and `bash scripts/backup-to-drive.sh` to put copies
+  in Google Drive on a schedule. Full detail, including why passwords are excluded and
+  how to verify a dump, is in [10-appwrite.md § Backups](10-appwrite.md#backups).
+- **Firestore:** schedule exports to a Cloud Storage bucket with a retention policy,
+  e.g. `gcloud firestore export gs://<project>-backups --async`.
 
-A club's membership and payment history is not reconstructible from anywhere else.
-Test a restore into a scratch project at least once, before it matters.
+**Check every backup you take.** `npm run restore -- --file …` without `--write`
+validates a dump and reports what it would do, in seconds. An untested backup is a
+guess, and a club's membership and payment history is not reconstructible from
+anywhere else.

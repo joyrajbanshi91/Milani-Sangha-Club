@@ -38,9 +38,10 @@ approved before the next begins. This file is the running record.
   request logging with correlation ids and redaction, rate limiting, a typed error
   contract, lazy Firebase Admin initialisation, health and readiness endpoints,
   Vitest + Supertest.
-- Firebase: `firebase.json` with SPA rewrite, PWA-correct cache headers and
-  security headers; emulator ports; Firestore and Storage rules that **deny all
-  access** as the baseline; empty index manifest.
+- Hosting: `netlify.toml` with the `/api/*` redirect ahead of the SPA fallback,
+  PWA-correct cache headers and security headers. `firebase.json` retains the
+  emulator ports and the paths to the Firestore and Storage rules, which **deny all
+  client access** as the baseline; empty index manifest.
 - Boot-time environment validation in both apps, with a readable failure screen in
   the browser instead of a blank page.
 - Shared domain constants (roles, membership types, payment statuses, identifier
@@ -108,12 +109,15 @@ Everything below was executed, not assumed:
 
 **Known gaps to resolve before the next phase**
 
-1. `.firebaserc` holds a placeholder project id, so a stray `firebase deploy`
-   cannot hit the wrong project. Run `firebase use --add`.
+1. ~~`.firebaserc` holds a placeholder project id.~~ Resolved: the file is gone, and
+   the project comes from `FIREBASE_PROJECT_ID` — see `firebase/README.md`.
 2. The PWA icons are generated placeholders (a white **M** on club green).
    Replace them with the club's logo, keeping the filenames.
-3. `frontend/.env.local` and `backend/.env` contain placeholder values so the app
-   boots. Real Firebase configuration is required from Phase 3.
+3. ~~`frontend/.env.local` and `backend/.env` contain placeholder values so the app
+   boots.~~ Resolved: neither app needs any environment variable to boot. With none
+   set the API serves the embedded demo ledger and demo sign-in, and says so on
+   every signed-in page. Real credentials are needed before the club keeps real
+   records, not before the site runs.
 4. The initial bundle is 125 kB gzipped (React + Router + Query) with no features
    yet. Route-level lazy loading and manual chunk splitting are Phase 14 work,
    after the real weight is measurable.
