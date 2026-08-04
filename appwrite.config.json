@@ -33,7 +33,9 @@
       "events": [],
       "schedule": "",
       "path": ".",
-      "specification": "s-1vcpu-512mb",
+      "deploymentRetention": 0,
+      "buildSpecification": "s-2vcpu-2gb",
+      "runtimeSpecification": "s-0.5vcpu-512mb",
       "ignore": [
         "node_modules",
         "**/node_modules",
