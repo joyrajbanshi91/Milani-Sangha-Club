@@ -129,6 +129,7 @@ Receiver in Control Centre, which answers with an unhelpful `403`.
 - [Operating a release](docs/05-deployment.md) — verifying a deploy, rollback, backups
 - **[Editing the website](docs/06-editing-the-website.md)** — how to change each section
 - **[Member area and club finances](docs/07-member-and-finance-area.md)** — the two-person rule, statements
+- **[Running the club office](docs/11-running-the-club-office.md)** — accounts, roles, passwords, funds, testing
 - **[Running it for real](docs/08-going-live.md)** — real sign-in, creating officers
 
 ## Licence
