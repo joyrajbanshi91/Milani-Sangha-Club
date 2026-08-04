@@ -48,14 +48,6 @@ type Row = Models.Row
 
 const APPROVALS_COLUMN = 'approvalsJson'
 
-/** Widest string column the ledger uses. Appwrite requires an explicit size. */
-export const TEXT_SIZE = {
-  id: 64,
-  short: 128,
-  medium: 512,
-  json: 16384,
-} as const
-
 function stripMeta(row: Row): Record<string, unknown> {
   return Object.fromEntries(Object.entries(row).filter(([key]) => !key.startsWith('$')))
 }

@@ -2,7 +2,7 @@
   "name": "milani-sangha-club",
   "version": "0.1.0",
   "private": true,
-  "description": "Club Management Platform \u2014 PWA for members, payments, events and administration",
+  "description": "Club Management Platform — PWA for members, payments, events and administration",
   "engines": {
     "node": ">=20.0.0",
     "npm": ">=10.0.0"
@@ -33,7 +33,9 @@
     "firebase": "npx --yes firebase-tools",
     "rules:push": "npm --prefix backend run rules:push",
     "dev:lan": "bash scripts/dev.sh --host",
-    "netlify:dev": "npx --yes netlify-cli dev"
+    "netlify:dev": "npx --yes netlify-cli dev",
+    "backup": "npm --prefix backend run backup --",
+    "restore": "npm --prefix backend run restore --"
   },
   "dependencies": {
     "firebase-admin": "^14.2.0",

@@ -63,3 +63,7 @@ frontend/.icon-backups/
 
 # Local Netlify folder
 .netlify
+
+# Data exports from `npm run backup`. Never commit these: the repository is
+# public, and a dump contains member data.
+backups/
