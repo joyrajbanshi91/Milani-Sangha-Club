@@ -1,5 +1,5 @@
 /**
- * Load the club's funds and categories into Firestore.
+ * Load the club's funds and categories into Appwrite.
  *
  *   npm run seed:finance -- --dir ../data/demo            # check only
  *   npm run seed:finance -- --dir ../data/demo --write
@@ -25,9 +25,9 @@ import { join, resolve } from 'node:path'
 
 import { parseCategoriesCsv, parseFundsCsv, parseTransactionsCsv } from '../src/domain/csv.js'
 import { formatPaise } from '../src/domain/money.js'
-import { hasFirebaseCredentials } from '../src/config/env.js'
-import { FirestoreFinanceStore } from '../src/services/firestoreStore.js'
-import { getDb } from '../src/config/firebase.js'
+import { databaseId, getTables } from '../src/config/appwrite.js'
+import { hasAppwriteCredentials } from '../src/config/env.js'
+import { AppwriteFinanceStore } from '../src/services/appwriteStore.js'
 import type { RowError } from '../src/domain/csv.js'
 
 function exit(message: string): never {
@@ -51,9 +51,9 @@ async function main(): Promise<void> {
   const dirIndex = argv.indexOf('--dir')
   const dir = resolve(dirIndex === -1 ? '../data/demo' : (argv[dirIndex + 1] ?? '../data/demo'))
 
-  if (!hasFirebaseCredentials) {
+  if (!hasAppwriteCredentials) {
     exit(
-      'Firebase Admin credentials are not configured, so there is no database to seed.\n' +
+      'Appwrite credentials are not configured, so there is no database to seed.\n' +
         '       Without them the API already loads data/demo automatically.\n' +
         '       See docs/08-going-live.md.'
     )
@@ -77,7 +77,7 @@ async function main(): Promise<void> {
   console.log(`\nReading from ${dir}`)
   console.log(`  ${funds.rows.length} funds, ${categories.rows.length} categories`)
 
-  const store = new FirestoreFinanceStore(getDb)
+  const store = new AppwriteFinanceStore(getTables, databaseId)
   const existingFunds = await store.listFunds()
   const existingCategories = await store.listCategories()
 
@@ -92,7 +92,7 @@ async function main(): Promise<void> {
   )
 
   console.log(
-    `\nAlready in Firestore: ${existingFunds.length} funds, ${existingCategories.length} categories`
+    `\nAlready in Appwrite: ${existingFunds.length} funds, ${existingCategories.length} categories`
   )
   console.log(`Would add: ${newFunds.length} funds, ${newCategories.length} categories`)
 

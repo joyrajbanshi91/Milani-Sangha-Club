@@ -2,8 +2,7 @@ import { AppwriteException } from 'node-appwrite'
 
 import { databaseId, getTables } from '../config/appwrite.js'
 import { COLLECTIONS } from '../config/constants.js'
-import { hasAppwriteCredentials, hasFirebaseCredentials } from '../config/env.js'
-import { getDb } from '../config/firebase.js'
+import { hasAppwriteCredentials } from '../config/env.js'
 
 /**
  * A member's own profile: the parts they may change themselves.
@@ -88,30 +87,6 @@ export class InMemoryProfileStore implements ProfileStore {
   }
 }
 
-export class FirestoreProfileStore implements ProfileStore {
-  async get(uid: string, fallbackName: string): Promise<MemberProfile> {
-    const doc = await getDb().collection(COLLECTIONS.members).doc(uid).get()
-    const data = doc.data()
-
-    return {
-      uid,
-      name: (data?.name as string | undefined) ?? fallbackName,
-      photo: (data?.photo as string | undefined) ?? null,
-      photoUpdatedAt: (data?.photoUpdatedAt as string | undefined) ?? null,
-    }
-  }
-
-  async setPhoto(uid: string, photo: string | null): Promise<MemberProfile> {
-    const updatedAt = photo ? new Date().toISOString() : null
-    await getDb()
-      .collection(COLLECTIONS.members)
-      .doc(uid)
-      .set({ photo, photoUpdatedAt: updatedAt }, { merge: true })
-
-    return this.get(uid, 'Member')
-  }
-}
-
 /**
  * Appwrite-backed profile store.
  *
@@ -168,12 +143,7 @@ export class AppwriteProfileStore implements ProfileStore {
   }
 }
 
-/**
- * Appwrite first, for the same reason as the finance store: during the migration
- * both may be configured, and a deployment carrying stale Firebase variables must
- * not keep writing profiles to Firestore.
- */
+/** Appwrite when it is configured, the demo store otherwise. */
 export function buildProfileStore(): ProfileStore {
-  if (hasAppwriteCredentials) return new AppwriteProfileStore()
-  return hasFirebaseCredentials ? new FirestoreProfileStore() : new InMemoryProfileStore()
+  return hasAppwriteCredentials ? new AppwriteProfileStore() : new InMemoryProfileStore()
 }
