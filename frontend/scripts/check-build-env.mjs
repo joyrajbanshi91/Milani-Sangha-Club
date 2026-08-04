@@ -123,22 +123,60 @@ function findInstallProblem() {
   )
 }
 
+/** `VITE_FIREBASE_APP_ID` and `vitefirebaseappid` compare equal. */
+function normalise(key) {
+  return key.toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+/**
+ * Say *why* a variable counts as unset, not merely that it does.
+ *
+ * Typing six names into a dashboard by hand goes wrong in three distinct ways,
+ * and they need three different fixes. Reporting them identically as "not set"
+ * sends someone to re-check the value they already pasted, and each wrong guess
+ * costs another hosted build.
+ */
+function diagnose(key, environment) {
+  const raw = environment[key]
+
+  if (typeof raw === 'string' && raw.trim() === '') {
+    return `${key} — present but empty. The name was added without a value.`
+  }
+
+  const target = normalise(key)
+  const lookalike = Object.keys(environment).find(
+    (candidate) => candidate !== key && normalise(candidate) === target
+  )
+
+  if (lookalike) {
+    return `${key} — missing, but ${lookalike} is set. Check the spelling.`
+  }
+
+  return `${key} — not set.`
+}
+
 function findEnvironmentProblem() {
   const environment = readEnvironment()
   const missing = REQUIRED.filter((key) => !environment[key]?.trim())
   if (missing.length === 0) return null
 
-  const list = missing.map((key) => `  • ${key}`).join('\n')
+  const list = missing.map((key) => `  • ${diagnose(key, environment)}`).join('\n')
+  const supplied = REQUIRED.length - missing.length
 
   return (
-    `${missing.length} required environment variable(s) are not set:\n${list}\n\n` +
+    `${missing.length} of ${REQUIRED.length} required environment variables are ` +
+    `unusable${supplied > 0 ? ` (${supplied} came through fine)` : ''}:\n${list}\n\n` +
     'Locally: copy frontend/.env.example to frontend/.env.local and fill it in.\n\n' +
     'On a hosted build, add them in the platform dashboard. These are compiled\n' +
     'into the bundle, so adding one requires a new build — editing it does not\n' +
     'update a site that is already published.\n\n' +
-    '  Appwrite Sites: your site → Settings → Environment variables\n' +
+    '  Appwrite Sites: your site → Settings → Environment variables.\n' +
+    '                  Set them on the *site*; project and function variables are\n' +
+    '                  separate and are not visible to this build.\n' +
     '  Netlify:        Site configuration → Environment variables\n' +
     '                  (needs the "Builds" scope and all deploy contexts)\n\n' +
+    'To print the values from your own .env.local, ready to paste:\n' +
+    "  grep -E '^VITE_' frontend/.env.local\n\n" +
     'See docs/03-environment-variables.md and docs/10-appwrite.md.'
   )
 }
