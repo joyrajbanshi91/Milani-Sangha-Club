@@ -8,7 +8,7 @@ import {
   type SignedInUser,
 } from '@/features/auth/authContext'
 import { ApiError, api } from '@/lib/api'
-import { getToken, setToken, setTokenProvider } from '@/lib/session'
+import { getToken, resetTokenProvider, setToken, setTokenProvider } from '@/lib/session'
 
 /**
  * Who is signed in.
@@ -91,14 +91,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /** Appwrite email and password sign-in. */
   const signIn = useCallback(
     async (email: string, password: string) => {
-      const { getAccount, clearJwt, clearStoredSession } = await import('@/lib/appwrite')
+      const { getAccount, clearJwt, clearStoredSession, getJwt } = await import('@/lib/appwrite')
 
       // A stale JWT from a previous member on a shared computer must not be sent
       // as though it were this one's.
       clearJwt()
 
-      const attempt = () =>
-        getAccount().createEmailPasswordSession({ email: email.trim(), password })
+      /**
+       * Mint the session, then make sure requests can actually be signed.
+       *
+       * `setTokenProvider` here rather than only in the mount effect: that effect runs
+       * once and `mode` never changes, so after a sign-out reset it would never install
+       * the Appwrite provider again. Doing it on every sign-in makes the provider follow
+       * the session rather than the lifetime of the component.
+       */
+      const attempt = async () => {
+        await getAccount().createEmailPasswordSession({ email: email.trim(), password })
+        setTokenProvider(getJwt)
+      }
 
       try {
         await attempt()
@@ -250,7 +260,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
      * a fetch.
      */
     setToken(null)
-    setTokenProvider(() => Promise.resolve(null))
+    // Back to the default provider, which reads the storage just emptied above. NOT a
+    // permanent null-returning provider: the Appwrite provider is installed once behind
+    // a ref guard that `mode` never re-triggers, so poisoning this left the app unable
+    // to authenticate again for the life of the page — sign in succeeded and every
+    // request after it still went out unauthenticated.
+    resetTokenProvider()
 
     // Abort in-flight requests so their 401 replies never land on a mounted page.
     void queryClient.cancelQueries()
