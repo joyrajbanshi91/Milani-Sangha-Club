@@ -39,9 +39,15 @@ The required keys are also checked **before the build**, by
 cannot skip it). This matters for hosted builds: `VITE_*` values are compiled into
 the bundle, so one missing on the build machine cannot be recovered at runtime — the
 deploy would succeed and the published site would then refuse to start for every
-visitor. The check reads the environment through Vite's own `loadEnv`, so it sees
-what the build will see: the `.env` files plus `process.env` (Netlify dashboard
-variables, GitHub Actions `env:`).
+visitor.
+
+It reads the same sources the build will: the `.env` files, overlaid with
+`process.env` for values supplied by a hosting dashboard or a CI `env:` block.
+It **imports nothing** — not even Vite. An earlier version used Vite's `loadEnv`,
+which read the files correctly but broke in the one situation the check exists for:
+a hosted build whose install step had not yet created `node_modules`, where it
+failed with `ERR_MODULE_NOT_FOUND: vite` instead of naming the missing variable. A
+guard must not depend on the toolchain it is guarding.
 
 ---
 
