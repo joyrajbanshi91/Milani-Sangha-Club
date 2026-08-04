@@ -149,6 +149,29 @@ instead, these are the ones that matter:
 | Timeout        | `30` — the cap for a synchronous execution anyway                               |
 | Execute access | **Any**                                                                         |
 
+### `NODE_ENV=production` breaks the build, not the runtime
+
+The build command installs the backend with `--include=dev`, and that flag is not
+decoration. Appwrite applies a function's environment variables **during the build**
+as well as at runtime, and npm omits `devDependencies` when `NODE_ENV=production`.
+TypeScript is a devDependency, so the build fails with:
+
+```
+> tsc -p tsconfig.build.json
+sh: tsc: not found
+Build failed with exit code 127
+```
+
+The package count in the log is the tell: 420 installed where a full install is
+about 603. `--include=dev` overrides the omission for the one step that needs a
+compiler; the deployed function still runs with `NODE_ENV=production`, which is what
+that variable is for.
+
+**The same trap is waiting on the site.** Vite is a devDependency too, so setting
+`NODE_ENV=production` on the Site would break the frontend build in exactly this
+way. Don't — the site needs no `NODE_ENV` at all, and Vite already builds in
+production mode for `npm run build`.
+
 ### Why execute access is "Any"
 
 A function reached through its own domain treats every caller as a guest, so Appwrite

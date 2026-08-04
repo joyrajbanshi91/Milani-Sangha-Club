@@ -28,7 +28,7 @@
       "enabled": true,
       "logging": true,
       "entrypoint": "functions/api/main.mjs",
-      "commands": "npm install && npm --prefix backend install && npm --prefix backend run build",
+      "commands": "npm install && npm --prefix backend install --include=dev && npm --prefix backend run build",
       "timeout": 30,
       "events": [],
       "schedule": "",
