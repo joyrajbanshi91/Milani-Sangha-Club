@@ -170,6 +170,58 @@ Without them, a restore means each member uses "Reset password" once — a small
 inconvenience against a standing risk. `--include-credentials` overrides it; if you
 use that flag, treat the file as you would the cash box.
 
+### Sending them to Google Drive
+
+Google Drive for Desktop syncs an ordinary folder, so a backup reaches Drive simply
+by being written into it. No API key, no service account, no OAuth — which for a
+club is the point: fewer credentials to leak, and none to expire unnoticed.
+
+1. Install [Google Drive for Desktop](https://www.google.com/drive/download/) and
+   sign in. It mounts at
+   `~/Library/CloudStorage/GoogleDrive-<your-email>/My Drive`.
+2. Run it:
+
+   ```bash
+   bash scripts/backup-to-drive.sh
+   ```
+
+   The folder is found automatically and created on first use as
+   **Milani Sangha Club backups**. Override with `BACKUP_DIR=…` for a different
+   folder or an external disk. `KEEP=30` sets how many copies to retain.
+
+3. **Check the Drive folder is not shared with anyone who should not see member
+   data.** Right-click → Share. A backup carries every member's name, email and
+   the whole ledger.
+
+Pruning is by count, not by age — deliberately. Pruning by age empties the folder
+entirely if backups stop running, which is exactly when the old ones become
+precious.
+
+To run it weekly, put this in `~/Library/LaunchAgents/club.backup.plist` and load it
+with `launchctl load ~/Library/LaunchAgents/club.backup.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>club.backup</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/CHANGEME/Documents/Milani_Sangha_Club/scripts/backup-to-drive.sh</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict><key>Weekday</key><integer>0</integer><key>Hour</key><integer>20</integer></dict>
+  <key>StandardOutPath</key><string>/tmp/club-backup.log</string>
+  <key>StandardErrorPath</key><string>/tmp/club-backup.log</string>
+</dict></plist>
+```
+
+Read `/tmp/club-backup.log` occasionally. The script exits non-zero on failure and
+refuses to report success unless a new file actually appeared — a scheduled job that
+claims to work while writing nothing is the failure that goes unnoticed for months.
+
 ### Where to keep them
 
 `backups/` is git-ignored and must stay that way — **this repository is public**, and
