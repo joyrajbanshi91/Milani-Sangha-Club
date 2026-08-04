@@ -35,7 +35,8 @@
     "dev:lan": "bash scripts/dev.sh --host",
     "netlify:dev": "npx --yes netlify-cli dev",
     "backup": "npm --prefix backend run backup --",
-    "restore": "npm --prefix backend run restore --"
+    "restore": "npm --prefix backend run restore --",
+    "appwrite:check": "npm --prefix backend run appwrite:check"
   },
   "dependencies": {
     "firebase-admin": "^14.2.0",
