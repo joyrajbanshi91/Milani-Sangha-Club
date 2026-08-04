@@ -1,1 +1,4 @@
 name,kind,opening_balance,opening_date,active,notes
+Cash box,cash,0,2026-08-04,yes,OPENING BALANCE NOT SET - replace 0 with the cash actually held on the opening date
+Bank account,bank,0,2026-08-04,yes,OPENING BALANCE NOT SET - replace 0 with the bank statement balance on the opening date
+Club UPI,upi,0,2026-08-04,yes,OPENING BALANCE NOT SET - replace 0 if a UPI balance is held separately from the bank
