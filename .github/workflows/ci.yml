@@ -137,3 +137,26 @@ jobs:
 
       - name: Invoke the function with no credentials
         run: npm run test:function
+
+  # Netlify's free plan refuses per-variable scoping, so every variable a site has
+  # reaches the build environment — including the Appwrite server key. Vite only
+  # inlines VITE_-prefixed values, which keeps it out of the bundle. That guarantee
+  # sits between a live credential and a public CDN, so it is tested rather than
+  # remembered.
+  bundle-secrets:
+    name: No secrets in the browser bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm --prefix frontend ci
+
+      - name: Build with canary credentials and search the output
+        run: npm run check:bundle
