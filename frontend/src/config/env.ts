@@ -26,8 +26,38 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>
 
+/**
+ * Values Appwrite Sites supplies about itself, baked in by vite.config.ts.
+ *
+ * `typeof` rather than a direct read: under vitest there is no `define` step, so
+ * the identifier does not exist. `typeof` on an undeclared name is safe where
+ * reading it would throw.
+ */
+declare const __APPWRITE_PROJECT_ID__: string
+declare const __APPWRITE_ENDPOINT__: string
+
+function fromHost(): Record<string, string> {
+  const values: Record<string, string> = {}
+
+  if (typeof __APPWRITE_PROJECT_ID__ === 'string' && __APPWRITE_PROJECT_ID__ !== '') {
+    values.VITE_APPWRITE_PROJECT_ID = __APPWRITE_PROJECT_ID__
+  }
+  if (typeof __APPWRITE_ENDPOINT__ === 'string' && __APPWRITE_ENDPOINT__ !== '') {
+    values.VITE_APPWRITE_ENDPOINT = __APPWRITE_ENDPOINT__
+  }
+
+  return values
+}
+
 function parseEnv(): Env {
-  const result = envSchema.safeParse(import.meta.env)
+  // The host's own values fill only the gaps: anything set explicitly wins, and an
+  // empty string counts as unset so a variable created without a value in a
+  // dashboard cannot shadow what Appwrite already told us.
+  const supplied = Object.fromEntries(
+    Object.entries(import.meta.env).filter(([, value]) => value !== '')
+  )
+
+  const result = envSchema.safeParse({ ...fromHost(), ...supplied })
 
   if (!result.success) {
     const missing = result.error.issues

@@ -40,12 +40,12 @@ Values checked against `node-appwrite`'s own enums rather than documentation pro
 
 **Your site → Settings → Build settings:**
 
-| Setting | Value |
-| --- | --- |
-| Root directory | `./frontend` |
-| Install command | `npm install` |
-| Build command | `npm run build` |
-| Output directory | `./dist` |
+| Setting          | Value           |
+| ---------------- | --------------- |
+| Root directory   | `./frontend`    |
+| Install command  | `npm install`   |
+| Build command    | `npm run build` |
+| Output directory | `./dist`        |
 
 Pointing the root directory at `frontend` is what makes the other three ordinary.
 The site is a static bundle, so the backend has no part in this build and should
@@ -54,11 +54,11 @@ not be installed or compiled by it.
 If you would rather keep the root directory at `/`, this is the equivalent — note
 it installs only the frontend, deliberately:
 
-| Setting | Value |
-| --- | --- |
-| Install command | `npm --prefix frontend install` |
-| Build command | `npm run build:web` |
-| Output directory | `./frontend/dist` |
+| Setting          | Value                           |
+| ---------------- | ------------------------------- |
+| Install command  | `npm --prefix frontend install` |
+| Build command    | `npm run build:web`             |
+| Output directory | `./frontend/dist`               |
 
 ### SPA fallback
 
@@ -73,19 +73,35 @@ by clicking. Set the fallback file to `index.html` in the site's settings.
 **Your site → Settings → Environment variables.** These are compiled into the
 browser bundle by Vite, so **changing one needs a new build**, not a restart.
 
-**Exactly one is required.**
+**On Appwrite Sites, none are required.**
 
-| Variable | Value |
-| --- | --- |
-| `VITE_APPWRITE_PROJECT_ID` | your project id, from the Appwrite console |
-| `VITE_APPWRITE_ENDPOINT` | optional; set it if your project is not on `https://cloud.appwrite.io/v1` |
-| `VITE_API_BASE_URL` | `/api/v1` until the function exists, then the function's URL |
+Appwrite injects `APPWRITE_SITE_PROJECT_ID` and `APPWRITE_SITE_API_ENDPOINT` into
+every deployment, and `vite.config.ts` falls back to them. A site hosted inside the
+project therefore already knows which project it belongs to, and which region — the
+part most easily got wrong by hand. There is nothing to type, and so nothing to
+mistype.
+
+Set these only to override that:
+
+| Variable                   | When                                                         |
+| -------------------------- | ------------------------------------------------------------ |
+| `VITE_APPWRITE_PROJECT_ID` | a site deployed from one project against another             |
+| `VITE_APPWRITE_ENDPOINT`   | as above                                                     |
+| `VITE_API_BASE_URL`        | `/api/v1` until the function exists, then the function's URL |
+
+An explicit value wins over the injected one. An **empty** variable does not: a name
+created in a dashboard without a value counts as unset, so it cannot shadow what
+Appwrite already supplied. That case cost several failed deploys before the fallback
+existed.
 
 The six `VITE_FIREBASE_*` variables are gone — sign-in is Appwrite now. If they are
 still set on your site you can delete them; nothing reads them.
 
+Locally there is no injection, so `frontend/.env.local` still needs
+`VITE_APPWRITE_PROJECT_ID`.
+
 `frontend/scripts/check-build-env.mjs` fails the build if a required variable is
-missing, saying which and *why* — absent, present but empty, or misspelt. It imports
+missing, saying which and _why_ — absent, present but empty, or misspelt. It imports
 nothing, so it reports the problem even when the install step has not run.
 
 ### For the API (stage 2, not yet deployed)
@@ -93,13 +109,13 @@ nothing, so it reports the problem even when the install step has not run.
 The function will need these. `APPWRITE_API_KEY` is a **server** credential with
 project-wide reach and must never be set on the site, only on the function.
 
-| Variable | Value |
-| --- | --- |
-| `APPWRITE_ENDPOINT` | `https://<region>.cloud.appwrite.io/v1` — region-specific |
-| `APPWRITE_PROJECT_ID` | your project id |
-| `APPWRITE_API_KEY` | server key, Databases + Users scopes |
-| `APPWRITE_DATABASE_ID` | `club` |
-| `CLUB_NAME`, `APP_BASE_URL`, `CORS_ORIGINS` | as in `backend/.env.example` |
+| Variable                                    | Value                                                     |
+| ------------------------------------------- | --------------------------------------------------------- |
+| `APPWRITE_ENDPOINT`                         | `https://<region>.cloud.appwrite.io/v1` — region-specific |
+| `APPWRITE_PROJECT_ID`                       | your project id                                           |
+| `APPWRITE_API_KEY`                          | server key, Databases + Users scopes                      |
+| `APPWRITE_DATABASE_ID`                      | `club`                                                    |
+| `CLUB_NAME`, `APP_BASE_URL`, `CORS_ORIGINS` | as in `backend/.env.example`                              |
 
 ---
 
@@ -156,12 +172,12 @@ Sources, worth re-checking as the platform changes:
 
 ## Where this stands
 
-| Stage | What it covers | State |
-| --- | --- | --- |
-| 1 | Appwrite data layer — `appwriteStore.ts`, provisioning script, config | **done** |
-| 2a | Sign-in on Appwrite Auth; Firebase gone from the frontend | **done** |
-| 2b | The API as an Appwrite Function | not started |
-| 3 | Remove Firestore from the backend; finish the documentation | not started |
+| Stage | What it covers                                                        | State       |
+| ----- | --------------------------------------------------------------------- | ----------- |
+| 1     | Appwrite data layer — `appwriteStore.ts`, provisioning script, config | **done**    |
+| 2a    | Sign-in on Appwrite Auth; Firebase gone from the frontend             | **done**    |
+| 2b    | The API as an Appwrite Function                                       | not started |
+| 3     | Remove Firestore from the backend; finish the documentation           | not started |
 
 The frontend no longer contains Firebase at all — no SDK, no `lib/firebase.ts`, no
 `VITE_FIREBASE_*`. Sign-in, password reset and sign-out go through the Appwrite

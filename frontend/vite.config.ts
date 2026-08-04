@@ -11,7 +11,31 @@ export default defineConfig(({ mode }) => {
   // of the browser bundle — are still readable here.
   const env = loadEnv(mode, process.cwd(), '')
 
+  /**
+   * Where Appwrite lives, worked out rather than demanded.
+   *
+   * Appwrite Sites injects `APPWRITE_SITE_PROJECT_ID` and
+   * `APPWRITE_SITE_API_ENDPOINT` into every deployment, so a site hosted inside the
+   * project already knows both — including the region, which is the part most
+   * easily got wrong by hand. Falling back to them means a deployment needs no
+   * environment variables of its own at all.
+   *
+   * An explicit VITE_ value still wins, for local development and for the case of
+   * a site deployed from one project against another.
+   *
+   * Exposed as plain constants rather than by defining `import.meta.env.VITE_*`,
+   * to stay out of the way of Vite's own env replacement instead of racing it.
+   */
+  const appwriteProjectId =
+    env.VITE_APPWRITE_PROJECT_ID?.trim() || env.APPWRITE_SITE_PROJECT_ID?.trim() || ''
+  const appwriteEndpoint =
+    env.VITE_APPWRITE_ENDPOINT?.trim() || env.APPWRITE_SITE_API_ENDPOINT?.trim() || ''
+
   return {
+    define: {
+      __APPWRITE_PROJECT_ID__: JSON.stringify(appwriteProjectId),
+      __APPWRITE_ENDPOINT__: JSON.stringify(appwriteEndpoint),
+    },
     plugins: [
       react(),
       tailwindcss(),
