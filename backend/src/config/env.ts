@@ -108,12 +108,21 @@ export const isGoogleCloudRuntime = Boolean(
  * Running as a short-lived function rather than a long-lived server?
  *
  * Netlify and AWS Lambda set AWS_LAMBDA_FUNCTION_NAME; Cloud Functions sets
- * FUNCTION_TARGET; Vercel sets VERCEL. Used to pick the Firestore transport, where
- * the right answer differs between a process that lives for weeks and one that
- * handles a single request.
+ * FUNCTION_TARGET; Vercel sets VERCEL; **Appwrite sets APPWRITE_FUNCTION_ID**.
+ *
+ * The Appwrite one was missing, and its absence was not harmless. `buildStore()`
+ * uses this to refuse the in-memory demo store in a deployment — a club's accounts
+ * have no business living in a function's memory, and that store cannot persist
+ * anything anyway. Without the check the API would have started happily on Appwrite
+ * with an empty demo ledger and demo sign-in, which looks like a working site until
+ * someone records a payment and it vanishes at the next cold start. Failing loudly
+ * is the entire point of that guard.
  */
 export const isServerless = Boolean(
-  process.env.AWS_LAMBDA_FUNCTION_NAME ?? process.env.FUNCTION_TARGET ?? process.env.VERCEL
+  process.env.AWS_LAMBDA_FUNCTION_NAME ??
+  process.env.FUNCTION_TARGET ??
+  process.env.VERCEL ??
+  process.env.APPWRITE_FUNCTION_ID
 )
 
 /** Whether Firebase Admin can be initialised with the current configuration. */
@@ -124,9 +133,25 @@ export const hasFirebaseCredentials =
   Boolean(process.env.FIRESTORE_EMULATOR_HOST)
 
 /**
+ * Which Appwrite project, worked out rather than demanded.
+ *
+ * Appwrite injects `APPWRITE_FUNCTION_PROJECT_ID` into every function execution, so
+ * the API running as a function already knows which project it belongs to. An
+ * explicit `APPWRITE_PROJECT_ID` still wins — that is how a local shell, a script or
+ * a differently-hosted deployment points itself somewhere — but one fewer variable
+ * to set by hand is one fewer to set wrongly, and a project id that cannot disagree
+ * with its own host cannot be mismatched.
+ *
+ * An empty string counts as unset, so a variable created in a dashboard without a
+ * value cannot shadow what the platform supplied.
+ */
+export const appwriteProjectId =
+  env.APPWRITE_PROJECT_ID?.trim() || process.env.APPWRITE_FUNCTION_PROJECT_ID?.trim() || undefined
+
+/**
  * Whether the Appwrite server SDK can be initialised.
  *
  * Both halves are required and neither is useful alone: the project id says
  * *which* project, the API key is what authorises writing to it.
  */
-export const hasAppwriteCredentials = Boolean(env.APPWRITE_PROJECT_ID && env.APPWRITE_API_KEY)
+export const hasAppwriteCredentials = Boolean(appwriteProjectId && env.APPWRITE_API_KEY)

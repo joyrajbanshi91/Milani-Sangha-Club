@@ -14,7 +14,7 @@ import { AppwriteException, Query } from 'node-appwrite'
 
 import { getTables, getUsers } from '../src/config/appwrite.js'
 import { TABLES } from '../src/config/appwriteSchema.js'
-import { env, hasAppwriteCredentials } from '../src/config/env.js'
+import { appwriteProjectId, env, hasAppwriteCredentials } from '../src/config/env.js'
 
 function log(message = ''): void {
   process.stdout.write(`${message}\n`)
@@ -32,14 +32,14 @@ function explain(error: unknown, scope: string): string {
 
 async function main(): Promise<number> {
   log(`endpoint   ${env.APPWRITE_ENDPOINT}`)
-  log(`project    ${env.APPWRITE_PROJECT_ID ?? '(not set)'}`)
+  log(`project    ${appwriteProjectId ?? '(not set)'}`)
   log(`database   ${env.APPWRITE_DATABASE_ID}`)
   log(`api key    ${env.APPWRITE_API_KEY ? 'set' : '(not set)'}`)
   log()
 
   if (!hasAppwriteCredentials) {
     log('Not configured yet. Missing from backend/.env:')
-    if (!env.APPWRITE_PROJECT_ID) {
+    if (!appwriteProjectId) {
       log('  APPWRITE_PROJECT_ID   Appwrite console → your project → Settings')
     }
     if (!env.APPWRITE_API_KEY) {

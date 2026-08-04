@@ -91,7 +91,9 @@ async function main(): Promise<void> {
     (category) => !categoryKeys.has(`${category.kind}:${category.name.toLowerCase()}`)
   )
 
-  console.log(`\nAlready in Firestore: ${existingFunds.length} funds, ${existingCategories.length} categories`)
+  console.log(
+    `\nAlready in Firestore: ${existingFunds.length} funds, ${existingCategories.length} categories`
+  )
   console.log(`Would add: ${newFunds.length} funds, ${newCategories.length} categories`)
 
   for (const fund of newFunds) {
@@ -126,7 +128,10 @@ async function main(): Promise<void> {
   const transactions = parseTransactionsCsv(read('transactions.csv'), {
     fundsByName: new Map(allFunds.map((fund) => [fund.name.toLowerCase(), fund.id])),
     categoriesByName: new Map(
-      allCategories.map((category) => [`${category.kind}:${category.name.toLowerCase()}`, category.id])
+      allCategories.map((category) => [
+        `${category.kind}:${category.name.toLowerCase()}`,
+        category.id,
+      ])
     ),
     actor: { uid: 'seed-script', name: 'Seed script' },
   })

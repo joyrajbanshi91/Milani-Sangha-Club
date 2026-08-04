@@ -1,6 +1,6 @@
 import { Client, TablesDB, Users } from 'node-appwrite'
 
-import { env, hasAppwriteCredentials } from './env.js'
+import { appwriteProjectId, env, hasAppwriteCredentials } from './env.js'
 
 /**
  * Appwrite server client.
@@ -31,7 +31,7 @@ function getClient(): Client {
 
   client ??= new Client()
     .setEndpoint(env.APPWRITE_ENDPOINT)
-    .setProject(env.APPWRITE_PROJECT_ID as string)
+    .setProject(appwriteProjectId as string)
     .setKey(env.APPWRITE_API_KEY as string)
 
   return client
@@ -61,7 +61,7 @@ export function getUsers(): Users {
 export function createCallerClient(jwt: string): Client {
   return new Client()
     .setEndpoint(env.APPWRITE_ENDPOINT)
-    .setProject(env.APPWRITE_PROJECT_ID as string)
+    .setProject(appwriteProjectId as string)
     .setJWT(jwt)
 }
 
