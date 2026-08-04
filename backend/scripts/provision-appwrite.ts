@@ -22,7 +22,7 @@
 import { AppwriteException, Client, OrderBy, TablesDB, TablesDBIndexType } from 'node-appwrite'
 
 import { TABLES, type Index } from '../src/config/appwriteSchema.js'
-import { env, hasAppwriteCredentials } from '../src/config/env.js'
+import { appwriteProjectId, env, hasAppwriteCredentials } from '../src/config/env.js'
 
 /**
  * The schema itself lives in src/config/appwriteSchema.ts, shared with the backup
@@ -95,7 +95,7 @@ async function main(): Promise<number> {
   const databaseId = env.APPWRITE_DATABASE_ID
 
   log(`Endpoint  ${env.APPWRITE_ENDPOINT}`)
-  log(`Project   ${env.APPWRITE_PROJECT_ID as string}`)
+  log(`Project   ${appwriteProjectId as string}`)
   log(`Database  ${databaseId}`)
   log('')
 
@@ -114,7 +114,7 @@ async function main(): Promise<number> {
 
   const client = new Client()
     .setEndpoint(env.APPWRITE_ENDPOINT)
-    .setProject(env.APPWRITE_PROJECT_ID as string)
+    .setProject(appwriteProjectId as string)
     .setKey(env.APPWRITE_API_KEY as string)
 
   const tables = new TablesDB(client)

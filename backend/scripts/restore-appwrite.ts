@@ -31,7 +31,7 @@ import { AppwriteException, type Models } from 'node-appwrite'
 
 import { getTables, getUsers } from '../src/config/appwrite.js'
 import { TABLES } from '../src/config/appwriteSchema.js'
-import { env, hasAppwriteCredentials } from '../src/config/env.js'
+import { appwriteProjectId, env, hasAppwriteCredentials } from '../src/config/env.js'
 
 interface BackupFile {
   formatVersion: number
@@ -130,7 +130,7 @@ async function main(): Promise<number> {
   }
 
   const databaseId = option('database') ?? env.APPWRITE_DATABASE_ID
-  const target = env.APPWRITE_PROJECT_ID as string
+  const target = appwriteProjectId as string
 
   if (file.projectId !== target) {
     log(`NOTE: this backup came from project ${file.projectId}, and you are restoring`)

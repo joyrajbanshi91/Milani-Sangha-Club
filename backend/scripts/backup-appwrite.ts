@@ -39,7 +39,7 @@ import { AppwriteException, Query, type Models, type TablesDB, type Users } from
 
 import { getTables, getUsers } from '../src/config/appwrite.js'
 import { TABLES } from '../src/config/appwriteSchema.js'
-import { env, hasAppwriteCredentials } from '../src/config/env.js'
+import { appwriteProjectId, env, hasAppwriteCredentials } from '../src/config/env.js'
 
 /** Appwrite's documented ceiling is 5000; 500 keeps each response small. */
 const PAGE = 500
@@ -163,7 +163,7 @@ async function main(): Promise<number> {
   const tables = getTables()
   const users = getUsers()
 
-  log(`project  ${env.APPWRITE_PROJECT_ID as string}`)
+  log(`project  ${appwriteProjectId as string}`)
   log(`database ${env.APPWRITE_DATABASE_ID}`)
   log('')
 
@@ -189,7 +189,7 @@ async function main(): Promise<number> {
     formatVersion: 1,
     takenAt,
     endpoint: env.APPWRITE_ENDPOINT,
-    projectId: env.APPWRITE_PROJECT_ID as string,
+    projectId: appwriteProjectId as string,
     databaseId: env.APPWRITE_DATABASE_ID,
     includesCredentials: includeCredentials,
     counts,
