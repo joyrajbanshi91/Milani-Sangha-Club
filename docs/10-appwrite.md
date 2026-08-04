@@ -141,6 +141,63 @@ express: two-person approval, gapless reference numbers, the audit trail.
 
 ---
 
+## Backups
+
+Appwrite Cloud's own [database backups](https://appwrite.io/docs/products/databases/backups)
+are a **paid feature** — Pro takes a daily backup kept for seven days, the free plan
+takes none. So the club's backup is its own:
+
+```bash
+npm run backup                                   # writes backups/<timestamp>.json
+npm run restore -- --file backups/<file>.json    # checks it; --write to restore
+```
+
+It uses only the ordinary Databases and Users APIs, so it costs nothing on any plan.
+Every row of every table in `src/config/appwriteSchema.ts`, plus every account and
+its role labels — the schema is shared with the provisioning script precisely so a
+table added there cannot go unbacked-up.
+
+**Check every backup you take.** `npm run restore -- --file …` without `--write`
+validates the file and reports what it would do, in seconds. It refuses a file whose
+recorded counts disagree with its contents, which is what a truncated or edited dump
+looks like. An untested backup is a guess.
+
+### Passwords are left out by default
+
+Appwrite can return password hashes, and this does not take them. With them the file
+becomes a credential store: whoever obtains it can attack the hashes at leisure.
+Without them, a restore means each member uses "Reset password" once — a small
+inconvenience against a standing risk. `--include-credentials` overrides it; if you
+use that flag, treat the file as you would the cash box.
+
+### Where to keep them
+
+`backups/` is git-ignored and must stay that way — **this repository is public**, and
+a dump contains member data.
+
+Keep copies **off Appwrite**: a backup inside the thing that failed is no backup.
+Google Drive is the club's own storage and is a sensible home. Running it on a
+schedule is a shell one-liner in `cron` or a launchd job on whichever machine the
+treasurer uses; the script exits non-zero on failure so a scheduler can tell.
+
+GitHub Actions would be the obvious free scheduler and is **not** suitable here:
+artifacts and commits on a public repository are readable by anyone. It becomes an
+option only if this repository is made private.
+
+### What a restore does and does not do
+
+Rows are upserted by their original id, so a restore is idempotent and can be re-run
+after an interruption. **Nothing is ever deleted** — it reinstates, it does not
+mirror, because asking a script to delete a club's financial records is a different
+and much more dangerous thing. For an exact copy of a moment, restore into a fresh
+database with `--database`.
+
+Reference-number counters live in the `settings` table and so are included. Without
+them a restored ledger would reissue reference numbers that already exist, which is
+the sort of thing an audit notices years later.
+
+---
+
 ## Things worth knowing about the platform
 
 Checked while planning this migration, because each one shaped a decision:

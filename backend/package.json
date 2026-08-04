@@ -21,7 +21,9 @@
     "user": "tsx scripts/manage-user.ts",
     "seed:finance": "tsx scripts/seed-finance.ts",
     "rules:push": "tsx scripts/deploy-rules.ts",
-    "provision:appwrite": "tsx scripts/provision-appwrite.ts"
+    "provision:appwrite": "tsx scripts/provision-appwrite.ts",
+    "backup": "tsx scripts/backup-appwrite.ts",
+    "restore": "tsx scripts/restore-appwrite.ts"
   },
   "overrides": {
     "uuid": "^11.1.1"
