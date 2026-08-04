@@ -22,12 +22,16 @@ describe('GET /api/v1/health', () => {
     expect(response.body.uptimeSeconds).toBeGreaterThanOrEqual(0)
   })
 
-  it('reports not ready when Firebase credentials are absent', async () => {
+  it('reports not ready when no real database is configured', async () => {
     const response = await request(app).get('/api/v1/health/ready').expect(503)
 
+    // The store's own name, not a product name: the probe follows whichever store
+    // is in use, so this stays true when the database changes underneath it. It
+    // asserted `firestore: 'not_configured'` until the ledger moved to Appwrite,
+    // at which point the endpoint reported a healthy deployment as unconfigured.
     expect(response.body).toMatchObject({
       status: 'not_ready',
-      checks: { firestore: 'not_configured' },
+      checks: { database: 'not_configured', store: 'memory' },
     })
   })
 })
