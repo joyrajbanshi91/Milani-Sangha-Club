@@ -35,12 +35,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   })
 
   const mode = config.data?.mode
+  const appwriteTarget = config.data?.appwrite
 
   /**
    * In Appwrite mode, point the API client at the SDK.
    *
    * The Appwrite module is imported lazily so a visitor who only reads the public
    * website never downloads the SDK.
+   *
+   * `configureAppwrite` comes first, and must: it hands the SDK the endpoint and
+   * project id the *server* reported, which is what removed the build-time
+   * `VITE_APPWRITE_PROJECT_ID` from the deployment. Nothing below can mint a JWT
+   * until the client knows which project to mint it against.
    *
    * There is no session listener to register: unlike Firebase, Appwrite has no
    * `onAuthStateChanged`. Every call that changes the session below invalidates the
@@ -52,13 +58,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     appwriteReady.current = true
 
     void (async () => {
-      const { getJwt } = await import('@/lib/appwrite')
+      const { configureAppwrite, getJwt } = await import('@/lib/appwrite')
+      if (appwriteTarget) configureAppwrite(appwriteTarget)
       setTokenProvider(getJwt)
       // The provider was not in place when ['auth','me'] first ran, so that
       // attempt went out unauthenticated. Ask again now that it can be signed.
       await queryClient.invalidateQueries({ queryKey: ['auth', 'me'] })
     })()
-  }, [mode, queryClient])
+  }, [mode, appwriteTarget, queryClient])
 
   const me = useQuery({
     queryKey: ['auth', 'me'],

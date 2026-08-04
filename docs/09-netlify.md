@@ -139,40 +139,53 @@ around most completely — sign-in, roles, the ledger and profiles all have Appw
 implementations, and its free plan needs no card. Firestore works equally well if the
 club already has a Firebase project.
 
-Set these under **Project configuration → Environment variables**, then redeploy.
-(Netlify renamed "sites" to "projects", so older guides say *Site configuration*.)
+### Do it with one command
 
-Or set them from the command line, which avoids getting a scope wrong by clicking —
-`--scope` is the flag that matters, and `--secret` on the API key means it cannot be
-read back afterwards:
+Once Appwrite is set up locally and `backend/.env` holds the values
+([10-appwrite.md](10-appwrite.md)):
 
 ```bash
-npx netlify-cli login && npx netlify-cli link
-npx netlify-cli env:set APPWRITE_ENDPOINT "https://<region>.cloud.appwrite.io/v1" --scope functions
-npx netlify-cli env:set VITE_APPWRITE_PROJECT_ID "<project id>" --scope builds
+npx netlify-cli login
+npx netlify-cli link            # per directory — a new Netlify project needs this again
+
+npm run netlify:setup           # shows exactly what it would set, changes nothing
+npm run netlify:setup -- --write
 ```
-Secrets belong there and never in `netlify.toml`, which is committed to the
-repository.
 
-### Appwrite
+That reads `backend/.env`, sets every variable in the **Functions** scope, and passes
+the API key with `--secret` so Netlify stores it write-only. Nothing to retype and no
+scope to tick.
 
-Full setup — creating the project, the database, the tables and the officer
-accounts — is [10-appwrite.md](10-appwrite.md). `npm run appwrite:provision` creates
-the schema; `npm run appwrite:check` diagnoses a deployment.
+### Or by hand
+
+**Project configuration → Environment variables.** (Netlify renamed "sites" to
+"projects", so older guides say *Site configuration*.) Secrets belong there and never
+in `netlify.toml`, which is committed.
 
 | Variable | Scope | Value |
 | --- | --- | --- |
 | `APPWRITE_ENDPOINT` | Functions | e.g. `https://fra.cloud.appwrite.io/v1` — **region-specific**, copy it from the console |
 | `APPWRITE_PROJECT_ID` | Functions | Appwrite console → your project → Settings |
 | `APPWRITE_API_KEY` | Functions | A **server** key. Scopes: Databases read/write, Users read/write |
-| `APPWRITE_DATABASE_ID` | Functions | `club`, unless you named it otherwise |
-| `VITE_APPWRITE_ENDPOINT` | **Builds** | The same endpoint as above |
-| `VITE_APPWRITE_PROJECT_ID` | **Builds** | The same project id as above |
+| `APPWRITE_DATABASE_ID` | Functions | The database id, or `club` if you named it that |
 
-`APPWRITE_API_KEY` is a server credential with project-wide reach. It must be scoped
-to **Functions only** — never Builds, which would compile it into the browser bundle
-where anyone can read it. The two `VITE_` values are the opposite: they are public by
-design and must be scoped to Builds to reach the bundle at all.
+**Four variables, all one scope.** There used to be six across two scopes, and that was
+the single biggest source of failed deployments here. Two of them —
+`VITE_APPWRITE_ENDPOINT` and `VITE_APPWRITE_PROJECT_ID` — were build-time values
+compiled into the browser bundle, which meant they had to go in a *different* scope
+from the API's own credentials, they were invisible to the running function so nothing
+could detect a mismatch, and editing one did nothing until a cache-clearing rebuild.
+Set all six and you could still get the demo account picker with no way to tell which
+half was wrong.
+
+Neither value was ever a secret, so the API now simply reports them from
+`/api/v1/auth/config` and the browser reads them at runtime. **They are no longer used
+— you can delete them if a previous attempt left them set.** Nothing about the backing
+service is compiled into the bundle any more, which is why nothing here needs the
+Builds scope.
+
+`APPWRITE_API_KEY` remains a server credential with project-wide reach. Functions scope
+only: Builds scope would compile it into the browser bundle, where anyone can read it.
 
 ### Firestore instead
 
@@ -209,7 +222,7 @@ with `auth/unauthorized-domain` while everything else looks correct.
 | `TRUST_PROXY` | Functions | `1` — one proxy hop, so rate limiting sees the real client IP |
 | `CORS_ORIGINS` | Functions | Your Netlify URL. Same-origin already, so this is defence in depth |
 | `APP_BASE_URL` | Functions | The same URL — used in receipts and QR verification links |
-| `CLUB_NAME` | Both | The club's name as it should appear on generated PDFs |
+| `CLUB_NAME` | Functions | The club's name as it should appear on generated PDFs |
 
 > **Scope `NODE_ENV` to Functions, not to Builds.** The variable editor defaults to
 > *all* scopes, and with `NODE_ENV=production` in the **build** environment npm omits
@@ -222,27 +235,43 @@ with `auth/unauthorized-domain` while everything else looks correct.
 
 ### After adding them
 
-**Deploys → Trigger deploy → Clear cache and deploy site.**
+Environment variables only take effect on a new deploy, so trigger one:
 
-A plain retry can reuse the previous bundle. The `VITE_` values are compiled into the
-browser bundle at build time, so editing one changes nothing until a build runs after
-it exists — this is the single most common reason a variable "did not take effect".
+```bash
+npx netlify-cli deploy --build --prod
+```
 
-Then re-check `/api/v1/health/ready`: it should report `ready`, the **Sample data**
-bar should be gone, and `/login` should show an **email and password form** instead of
-the demo account picker. Still seeing the picker means the credentials reached the
-build but not the function — check the variable's scope.
+or **Deploys → Trigger deploy → Deploy site** in the dashboard. **Clear cache** is no
+longer necessary — nothing about the backing service is compiled into the bundle any
+more, so there is no stale bundle to discard.
+
+Then confirm it, from the repository rather than by eye:
+
+```bash
+API_PROBE_URL=https://<your-site>.netlify.app npm run appwrite:check
+```
+
+You want `6 of 6 expected tables exist` and `store "appwrite"`. On the site itself: the
+amber **Sample data** bar gone, and `/login` showing an **email and password form**
+instead of the demo account picker.
+
+Still seeing the demo picker means the function has no Appwrite credentials — it is
+reporting `mode: "demo"`, which is a variable scope or a typo, not a browser problem.
+`GET /api/v1/auth/config` on the live site answers this directly: it should say
+`"mode":"appwrite"` and carry an `"appwrite"` block with your endpoint and project id.
 
 ---
 
-## Two things about the environment variable editor
+## One thing about the environment variable editor
 
-Both default to something wider than you need, and a variable that exists but is out
-of scope behaves *exactly* like one that was never set:
+**Scopes.** Netlify's four are Builds, Functions, Runtime and Post processing, and the
+editor defaults to all of them. A variable that exists but is out of scope behaves
+*exactly* like one that was never set, with no error anywhere.
 
-- **Scopes.** Netlify's four are Builds, Functions, Runtime and Post processing. As
-  above: `VITE_*` needs Builds, everything else needs Functions, and the API key must
-  not have Builds.
+Everything this application needs is **Functions**. There is deliberately nothing left
+in the Builds scope — see the note in step 5 about why the two `VITE_APPWRITE_*`
+variables were removed. The only scope mistake still available to you is putting
+`APPWRITE_API_KEY` or `NODE_ENV` in Builds, and `npm run netlify:setup` avoids both.
 - **Deploy contexts.** Use **All deploy contexts** unless production is deliberately
   meant to differ. Set for production only, every branch deploy and deploy preview
   builds a site that behaves differently from the one you tested.
