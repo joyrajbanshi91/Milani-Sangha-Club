@@ -25,14 +25,17 @@ node --version    # v24.x (v22.x also fine)
 npm --version     # 10.x or newer
 ```
 
-The **Firebase CLI** is needed only for deploying and for the emulator suite —
-steps 1, 2 and 6 work without it:
+**No global CLIs are needed.** Nothing else has to be installed to run the app, to
+test it, or to deploy it — Netlify builds from a push, and both `firebase-tools` and
+`netlify-cli` are invoked through `npx` by the scripts that use them:
 
 ```bash
-npm install -g firebase-tools
-firebase --version
-firebase login
+npm run firebase -- --version     # nothing installed globally
+npm run netlify:dev               # Netlify's own runtime, locally
 ```
+
+The Firebase CLI is only relevant at all if the club chooses Firestore over Appwrite
+as its database.
 
 ## 2. Install project dependencies
 

@@ -142,7 +142,7 @@ A global install needs `sudo` on a stock Node installation. You do not need one:
 ```bash
 npm run firebase -- --version     # runs it through npx, nothing installed
 npm run firebase -- login
-npm run firebase -- deploy --only firestore:rules,firestore:indexes --project club-app-8ce22
+npm run firebase -- deploy --only firestore:rules,firestore:indexes --project your-project-id
 ```
 
 ### Without an interactive login
@@ -348,21 +348,26 @@ published at the club's real address.
 **Free, and no card.** Netlify serves the PWA and runs the same Express app as a
 Netlify Function, so the member area and the finance area work online. The full
 walkthrough is [09-netlify.md](09-netlify.md); the short version is: connect the
-GitHub repository, add the environment variables, deploy.
+GitHub repository and push. There is nothing to configure for a first deploy and no
+database needed — the site comes up showing sample figures, clearly labelled, and the
+club connects a real ledger when it is ready.
 
-The Firebase **Blaze** plan is not needed for any of this. Firebase remains the
-database and the identity provider, both of which run on the free Spark plan — it
-was only ever *hosting the API* that required Blaze, and Netlify does that instead.
+No paid plan is needed at any point. Appwrite's free plan covers the database and
+sign-in; Netlify's free plan covers the site and the API. Firebase's **Blaze** plan
+was only ever required for *hosting the API*, which Netlify now does instead — so it
+is not needed even if the club picks Firestore.
 
 Two things people get wrong on the first attempt, both covered in that guide:
 
-- The six `VITE_FIREBASE_*` variables are compiled into the bundle at build time.
-  Missing on the build machine, the deploy succeeds and the published site then
-  refuses to start. `frontend/scripts/check-build-env.mjs` now fails the build
-  instead.
-- The Netlify hostname must be added to **Firebase console → Authentication →
-  Settings → Authorised domains**, or sign-in fails with
-  `auth/unauthorized-domain`.
+- **`VITE_` variables are compiled into the bundle at build time.** Adding or editing
+  one changes nothing until a build runs afterwards — use **Clear cache and deploy
+  site**, not a plain retry. This no longer breaks a deploy, because none of them is
+  required, but it is still why a value "did not take effect".
+- **Scope matters.** `VITE_APPWRITE_PROJECT_ID` needs the *Builds* scope to reach the
+  bundle; `APPWRITE_API_KEY` must have *Functions* and **not** Builds, or a server
+  credential ends up in the browser. If the club uses Firestore instead, the Netlify
+  hostname must also be added to **Firebase console → Authentication → Settings →
+  Authorised domains**, or sign-in fails with `auth/unauthorized-domain`.
 
 ### Hosting the API somewhere else
 
@@ -371,9 +376,10 @@ code — `npm start` is all it needs on anything running Node 22.
 
 Whichever host you pick, two settings connect it up:
 
-1. On the API host, set `CORS_ORIGINS` to the website's URL, plus the Firebase
-   credentials (the `FIREBASE_PROJECT_ID` / `FIREBASE_CLIENT_EMAIL` /
-   `FIREBASE_PRIVATE_KEY` trio, since there is no key file to mount).
+1. On the API host, set `CORS_ORIGINS` to the website's URL, plus the database
+   credentials — the three `APPWRITE_*` values, or the `FIREBASE_PROJECT_ID` /
+   `FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY` trio where there is no key file
+   to mount.
 2. Rebuild the frontend with `VITE_API_BASE_URL=https://your-api-host/api/v1`, then
    redeploy the site.
 

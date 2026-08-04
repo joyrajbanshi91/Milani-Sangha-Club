@@ -1,235 +1,88 @@
-# Appwrite
+# Appwrite — the database and sign-in
 
-The club is moving from Firebase to Appwrite: Appwrite Sites for the website,
-Appwrite Databases for the ledger, Appwrite Authentication for sign-in, and one
-Appwrite Function for the API.
+Appwrite provides two things to this application: **Databases** for the ledger and
+**Authentication** for member sign-in. Its free plan needs no card, which is why it is
+the recommended backing store.
 
-**This migration is part-way done.** Read [Where this stands](#where-this-stands)
-before expecting the member area to work on a deployed site.
+**Appwrite does not host the site.** Hosting is Netlify —
+[09-netlify.md](09-netlify.md) — and this document assumes it. An earlier plan put the
+website on Appwrite Sites and the API in an Appwrite Function; that arrangement was
+abandoned, and everything specific to it (`appwrite.config.json`, the Appwrite
+function entrypoint, the Sites build settings) has been removed from the repository.
+What survives is the part that was always the valuable bit: the data layer, the
+provisioning script and the backups.
 
----
-
-## Build settings for the site
-
-Appwrite Sites does not detect a monorepo on its own, and this repository holds
-three npm projects — root, `frontend/` and `backend/`. With the defaults it runs
-`npm install` at the root, which installs neither, and then tries to build the
-frontend anyway. That fails at the first thing to need a dependency.
-
-### The settings are in the repository
-
-`appwrite.config.json` holds all of them — `path`, install and build commands,
-output directory and the SPA fallback — so they are reviewed and version-controlled
-rather than retyped into a form. Put your project id in it, then:
-
-```bash
-npx --yes appwrite-cli login
-npx --yes appwrite-cli push sites
-```
-
-This is the reliable route. A git-connected site takes its build settings from the
-**console**, not from this file, so if the two disagree the console wins and the
-file is documentation only. Pushing from the CLI applies exactly what is written
-here — which is why it is worth preferring when a console-configured build is
-failing for reasons that are hard to see.
-
-Values checked against `node-appwrite`'s own enums rather than documentation prose:
-`framework: vite`, `adapter: static`, `buildRuntime: node-22`.
-
-### Or set them by hand in the console
-
-**Your site → Settings → Build settings:**
-
-| Setting          | Value           |
-| ---------------- | --------------- |
-| Root directory   | `./frontend`    |
-| Install command  | `npm install`   |
-| Build command    | `npm run build` |
-| Output directory | `./dist`        |
-
-Pointing the root directory at `frontend` is what makes the other three ordinary.
-The site is a static bundle, so the backend has no part in this build and should
-not be installed or compiled by it.
-
-If you would rather keep the root directory at `/`, this is the equivalent — note
-it installs only the frontend, deliberately:
-
-| Setting          | Value                           |
-| ---------------- | ------------------------------- |
-| Install command  | `npm --prefix frontend install` |
-| Build command    | `npm run build:web`             |
-| Output directory | `./frontend/dist`               |
-
-### SPA fallback
-
-The app is a single-page application: React Router owns every path. Without a
-fallback, `/login` returns 404 on a fresh visit even though it works when reached
-by clicking. Set the fallback file to `index.html` in the site's settings.
+**None of this is required to deploy.** With no Appwrite project configured the API
+serves an embedded sample ledger and offers demo sign-in, and the site works. Set this
+up when the club is ready to keep real records.
 
 ---
 
-## Environment variables
+## 1. Create the project
 
-**Your site → Settings → Environment variables.** These are compiled into the
-browser bundle by Vite, so **changing one needs a new build**, not a restart.
+1. [cloud.appwrite.io](https://cloud.appwrite.io) → create a project. **Choose the
+   region deliberately** — it is fixed afterwards, and it decides your API endpoint.
+2. Copy the endpoint and project id from **your project → Settings**. The endpoint is
+   region-specific, e.g. `https://fra.cloud.appwrite.io/v1`. Copy it rather than
+   guessing; a wrong region looks exactly like a wrong project id.
+3. Create a **server API key** under **Overview → Integrations → API keys**, with
+   scopes **Databases read/write** and **Users read/write**.
 
-**On Appwrite Sites, none are required.**
+Neither the endpoint nor the project id is a secret. The API key is: it has
+project-wide reach and bypasses every permission check.
 
-Appwrite injects `APPWRITE_SITE_PROJECT_ID` and `APPWRITE_SITE_API_ENDPOINT` into
-every deployment, and `vite.config.ts` falls back to them. A site hosted inside the
-project therefore already knows which project it belongs to, and which region — the
-part most easily got wrong by hand. There is nothing to type, and so nothing to
-mistype.
+Put all three in `backend/.env` for local work:
 
-Set these only to override that:
+```ini
+APPWRITE_ENDPOINT=https://<region>.cloud.appwrite.io/v1
+APPWRITE_PROJECT_ID=<your project id>
+APPWRITE_API_KEY=<your server key>
+APPWRITE_DATABASE_ID=club
+```
 
-| Variable                   | When                                                         |
-| -------------------------- | ------------------------------------------------------------ |
-| `VITE_APPWRITE_PROJECT_ID` | a site deployed from one project against another             |
-| `VITE_APPWRITE_ENDPOINT`   | as above                                                     |
-| `VITE_API_BASE_URL`        | `/api/v1` until the function exists, then the function's URL |
+and in `frontend/.env.local` — the two public ones only:
 
-An explicit value wins over the injected one. An **empty** variable does not: a name
-created in a dashboard without a value counts as unset, so it cannot shadow what
-Appwrite already supplied. That case cost several failed deploys before the fallback
-existed.
+```ini
+VITE_APPWRITE_ENDPOINT=https://<region>.cloud.appwrite.io/v1
+VITE_APPWRITE_PROJECT_ID=<your project id>
+```
 
-The six `VITE_FIREBASE_*` variables are gone — sign-in is Appwrite now. If they are
-still set on your site you can delete them; nothing reads them.
-
-Locally there is no injection, so `frontend/.env.local` still needs
-`VITE_APPWRITE_PROJECT_ID`.
-
-`frontend/scripts/check-build-env.mjs` fails the build if a required variable is
-missing, saying which and _why_ — absent, present but empty, or misspelt. It imports
-nothing, so it reports the problem even when the install step has not run.
-
-### For the API (stage 2, not yet deployed)
-
-The function will need these. `APPWRITE_API_KEY` is a **server** credential with
-project-wide reach and must never be set on the site, only on the function.
-
-| Variable                                    | Value                                                     |
-| ------------------------------------------- | --------------------------------------------------------- |
-| `APPWRITE_ENDPOINT`                         | `https://<region>.cloud.appwrite.io/v1` — region-specific |
-| `APPWRITE_PROJECT_ID`                       | your project id                                           |
-| `APPWRITE_API_KEY`                          | server key, Databases + Users scopes                      |
-| `APPWRITE_DATABASE_ID`                      | `club`                                                    |
-| `CLUB_NAME`, `APP_BASE_URL`, `CORS_ORIGINS` | as in `backend/.env.example`                              |
+For the deployed site, the same values go in the Netlify dashboard with the scopes set
+out in [09-netlify.md § 5](09-netlify.md#5-optional-connect-a-real-database). The
+`VITE_` pair must be scoped to **Builds**; the API key must be scoped to **Functions
+only**, or it is compiled into the browser bundle where anyone can read it.
 
 ---
 
-## The API function
-
-The whole Express API runs as **one** Appwrite Function. Appwrite hands a function
-`{ req, res, log, error }` rather than Node's request and response, so Express cannot
-be mounted directly — `serverless-http` bridges that, and `createApp()` is reused
-completely unchanged. Helmet, CORS, the rate limiter, request logging and body
-parsing all keep working, and the backend's 148 tests exercise the same code.
-
-One function rather than one per route, because the free plan allows two per project
-and because `req.path` carries the full path, which is all the routing needs.
-
-### Deploy it
+## 2. Create the officers' accounts
 
 ```bash
-npx --yes appwrite-cli login
-npx --yes appwrite-cli push functions
+npm run user -- list                                          # who exists, and their roles
+npm run user -- create --email … --name "…"                   # create an account
+npm run user -- role --email … --role treasurer               # grant a role
 ```
 
-`appwrite.config.json` holds the settings. If you configure it in the console
-instead, these are the ones that matter:
+**Roles are Appwrite labels**, which only a server key can set. Deliberately not
+prefs: a signed-in member can write their own prefs, so a role kept there could be
+self-granted. The API reads the labels on every request, so a role change takes effect
+on the member's very next call rather than waiting for a token to refresh.
 
-| Setting        | Value                                                                           |
-| -------------- | ------------------------------------------------------------------------------- |
-| Root directory | `.` — the repo root, so the function can reach `backend/`                       |
-| Entrypoint     | `functions/api/main.mjs`                                                        |
-| Build commands | `npm install && npm --prefix backend install && npm --prefix backend run build` |
-| Runtime        | `node-22`                                                                       |
-| Timeout        | `30` — the cap for a synchronous execution anyway                               |
-| Execute access | **Any**                                                                         |
+The roles the finance area recognises are `president`, `secretary` and `treasurer`;
+anyone signed in without a role label is an ordinary `member`. The two-person approval
+rule needs at least two of the three officer accounts to be real people with their own
+passwords — sharing one account defeats it entirely.
 
-### `NODE_ENV=production` breaks the build, not the runtime
+---
 
-The build command installs the backend with `--include=dev`, and that flag is not
-decoration. Appwrite applies a function's environment variables **during the build**
-as well as at runtime, and npm omits `devDependencies` when `NODE_ENV=production`.
-TypeScript is a devDependency, so the build fails with:
-
-```
-> tsc -p tsconfig.build.json
-sh: tsc: not found
-Build failed with exit code 127
-```
-
-The package count in the log is the tell: 420 installed where a full install is
-about 603. `--include=dev` overrides the omission for the one step that needs a
-compiler; the deployed function still runs with `NODE_ENV=production`, which is what
-that variable is for.
-
-**The same trap is waiting on the site.** Vite is a devDependency too, so setting
-`NODE_ENV=production` on the Site would break the frontend build in exactly this
-way. Don't — the site needs no `NODE_ENV` at all, and Vite already builds in
-production mode for `npm run build`.
-
-### Why execute access is "Any"
-
-A function reached through its own domain treats every caller as a guest, so Appwrite
-requires `any` (or `guests`) or the domain does not work at all. That is not the
-boundary being relied on: every privileged route verifies an Appwrite JWT through
-`AuthService` and reads the caller's role from their account **labels**, which only a
-server API key can set. The open door leads directly to a locked one.
-
-### Environment variables for the function
-
-Set these on the **function**, not the site. `APPWRITE_API_KEY` especially — it is a
-server credential and must never be given to a browser.
-
-| Variable               | Value                                                                                     |
-| ---------------------- | ----------------------------------------------------------------------------------------- |
-| `APPWRITE_ENDPOINT`    | `https://fra.cloud.appwrite.io/v1`                                                        |
-| `APPWRITE_PROJECT_ID`  | `6a71561d000b4f4a06cb`                                                                    |
-| `APPWRITE_API_KEY`     | the server key, Databases + Users scopes                                                  |
-| `APPWRITE_DATABASE_ID` | `6a7187ed001ca816b1aa`                                                                    |
-| `NODE_ENV`             | `production`                                                                              |
-| `TRUST_PROXY`          | `1` — behind Appwrite's proxy, or the rate limiter throttles the whole club as one caller |
-| `CLUB_NAME`            | `New Milani Sangha Club`                                                                  |
-| `CORS_ORIGINS`         | the site's URL                                                                            |
-| `APP_BASE_URL`         | the site's URL                                                                            |
-
-### Then connect the site to it
-
-The function has **its own domain**, separate from the site's, and Appwrite Sites has
-no documented path rewrite to hide that. So unlike the single-origin arrangement
-Netlify allowed, this is genuinely cross-origin:
-
-1. Copy the function's domain from its **Domains** tab.
-2. On the **site**, set `VITE_API_BASE_URL` to `https://<function-domain>/api/v1` and
-   redeploy — it is compiled into the bundle, so a redeploy is required.
-3. On the **function**, set `CORS_ORIGINS` to the site's URL. Miss this and the
-   browser discards every response the API sends, which looks like the API being
-   down rather than a header being absent.
-
-### Check it
-
-```
-/api/v1/health         → {"status":"ok"…}   JSON, not HTML
-/api/v1/health/ready   → {"status":"ready","checks":{...}}
-```
-
-HTML means the request never reached Express. Then sign in on the site.
-
-### Testing the adapter without deploying
+## 3. Diagnose a deployment
 
 ```bash
-npm run test:function
+npm run appwrite:check
 ```
 
-Runs the real Express app through the real adapter with a faked Appwrite context, and
-checks the things an adapter gets quietly wrong: that requests arrive, that the app's
-own 404 comes back rather than Appwrite's HTML, that the query string and a JSON body
-survive, and that helmet's headers are still on the response. Included in
-`npm run verify`, after the build, because it drives `backend/dist`.
+Reports whether the credentials work, which tables exist, and what the schema in
+`src/config/appwriteSchema.ts` expects but does not find. Run it before concluding
+that something in the application is broken.
 
 ---
 
@@ -338,8 +191,9 @@ claims to work while writing nothing is the failure that goes unnoticed for mont
 
 ### Where to keep them
 
-`backups/` is git-ignored and must stay that way — **this repository is public**, and
-a dump contains member data.
+`backups/` is git-ignored and must stay that way — a dump contains every member's
+name and email and the whole ledger, and a repository that is public today may have
+been public when the file was committed.
 
 Keep copies **off Appwrite**: a backup inside the thing that failed is no backup.
 Google Drive is the club's own storage and is a sensible home. Running it on a
@@ -363,60 +217,52 @@ them a restored ledger would reissue reference numbers that already exist, which
 the sort of thing an audit notices years later.
 
 ---
-
 ## Things worth knowing about the platform
 
-Checked while planning this migration, because each one shaped a decision:
+Each of these shaped a decision, and each is worth re-checking as Appwrite changes:
 
-- **Express does not run in an Appwrite Function.** The handler receives
-  `({ req, res, log, error })` with Appwrite's own objects, not Node's — so
-  `serverless-http`, which is how the API ran on Netlify, has nothing to adapt.
-  `req.path` is available, so one function routes every `/api/v1/*` path itself.
-- **The free plan allows two functions per project**, reduced from five on
-  8 January 2026. One function with internal routing is therefore the design, not
-  a shortcut.
-- **Synchronous executions are terminated at 30 seconds** (asynchronous ones get
-  up to 900). Report and receipt generation must stay well inside that.
-- **Transactions are available** — the Transactions API arrived in October 2025 and
+- **Transactions are available.** The Transactions API arrived in October 2025 and
   gives ACID multi-row writes. Without it the gapless reference sequence and the
-  two-person approval lock could not have been ported honestly.
-- **A function has its own domain**, and there is no documented Sites-to-Function
-  path rewrite. `/api` is therefore cross-origin, so `CORS_ORIGINS` matters again —
-  the single-origin arrangement Netlify allowed does not carry over for free.
+  two-person approval lock could not have been ported honestly — they are the two
+  places where a partial write would corrupt the ledger rather than merely lose an
+  entry.
+- **Database backups are a paid feature.** Pro takes a daily backup kept for seven
+  days; the free plan takes none. Hence the club's own backup script above, which uses
+  only the ordinary APIs and so costs nothing on any plan.
+- **The browser never gets a database handle.** `frontend/src/lib/appwrite.ts`
+  imports `Account` and deliberately not `Databases`. Every figure comes through the
+  Express API, because the rules that matter cannot be expressed as table
+  permissions: two-person approval, gapless reference numbers, the audit trail. A
+  client-side database handle would be a second, weaker path to the same data.
+- **Sign-in is a JWT, minted per page-load and refreshed.** Appwrite JWTs last
+  fifteen minutes. The browser mints one from the session on demand and re-mints it
+  near expiry; minting per request would add a round trip to every call, and holding
+  one for a whole visit would sign the treasurer out mid-entry.
 
-Sources, worth re-checking as the platform changes:
-[Sites: deploy from Git](https://appwrite.io/docs/products/sites/deploy-from-git) ·
-[Functions: develop](https://appwrite.io/docs/products/functions/develop) ·
-[Transactions](https://appwrite.io/docs/products/databases/transactions) ·
-[Tables](https://appwrite.io/docs/products/databases/tables) ·
-[Free plan function limit](https://appwrite.io/changelog/entry/2026-01-08)
+Sources:
+[Databases: transactions](https://appwrite.io/docs/products/databases/transactions) ·
+[Databases: tables](https://appwrite.io/docs/products/databases/tables) ·
+[Databases: backups](https://appwrite.io/docs/products/databases/backups) ·
+[Authentication: JWT](https://appwrite.io/docs/products/auth/jwt) ·
+[Pricing](https://appwrite.io/pricing)
 
 ---
 
 ## Where this stands
 
-| Stage | What it covers                                                        | State       |
-| ----- | --------------------------------------------------------------------- | ----------- |
-| 1     | Appwrite data layer — `appwriteStore.ts`, provisioning script, config | **done**    |
-| 2a    | Sign-in on Appwrite Auth; Firebase gone from the frontend             | **done**    |
-| 2b    | The API as an Appwrite Function                                       | not started |
-| 3     | Remove Firestore from the backend; finish the documentation           | not started |
+| Part                                                    | State                          |
+| ------------------------------------------------------- | ------------------------------ |
+| Appwrite data layer — `appwriteStore.ts`, provisioning   | **done**                       |
+| Sign-in, roles and password reset on Appwrite Auth      | **done**                       |
+| Profiles (`profileStore.ts`)                             | **done**                       |
+| The API as a function                                    | **done** — on Netlify, not Appwrite |
+| Firestore as an alternative store                        | kept, unused when `APPWRITE_*` is set |
 
-The frontend no longer contains Firebase at all — no SDK, no `lib/firebase.ts`, no
-`VITE_FIREBASE_*`. Sign-in, password reset and sign-out go through the Appwrite
-Account API, and each request carries a fifteen-minute JWT minted from the session.
+`container.ts` prefers Appwrite whenever both are configured, so a deployment still
+carrying stale `FIREBASE_*` variables cannot quietly keep writing the ledger to
+Firestore.
 
-**Roles are Appwrite labels**, set only with a server API key
-(`npm run user -- role --email … --role treasurer`). Deliberately not prefs: a
-signed-in member can write their own prefs, so a role kept there could be
-self-granted. The API reads the labels on every request, so a role change takes
-effect immediately rather than waiting for a token to refresh.
-
-The backend still holds Firestore as an alternative store, unused when the
-`APPWRITE_*` variables are set — `container.ts` prefers Appwrite. That comes out in
-stage 3.
-
-**What does not work yet:** the officer area, because 2b has not been written — the
-API is still an Express app with nowhere to run. A deployed site serves the public
-pages, and sign-in will work as soon as the API is reachable. Expected, not a
-misconfiguration.
+Firestore is retained rather than removed: it is a working alternative for a club that
+already has a Firebase project, and `firebase/firestore.rules` still describes the
+access model for that case. Nothing selects it unless its credentials are the only
+ones present.
