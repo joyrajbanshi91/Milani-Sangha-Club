@@ -10,9 +10,13 @@ import { useAuth } from '@/features/auth/authContext'
  * Route guards.
  *
  * These decide what to *render*. They are not the security boundary — the API
- * refuses a member's request regardless of what the browser shows, and the
- * Firestore rules refuse it again. Hiding a link is a courtesy; the server is the
- * control.
+ * refuses a member's request regardless of what the browser shows, verifying the
+ * caller's Appwrite JWT and reading their role from account labels, which only a
+ * server key can set. Hiding a link is a courtesy; the server is the control.
+ *
+ * This is also why the two sign-in doors on /login grant nothing: they change the
+ * wording and the landing page, and a member who picks the office door is refused
+ * here, politely, rather than at the point of signing in.
  */
 
 function Waiting() {

@@ -1,0 +1,22 @@
+# Everything here is already covered by the repository root .gitignore. This file
+# exists because the Appwrite CLI needs it.
+#
+# `appwrite push site` tars the site's `path` — frontend/ — and reports "Ignoring
+# using: .gitignore", but it looks for that file *inside* the directory it is
+# packing, not at the repository root. With no .gitignore here it excluded nothing
+# and tried to upload 391 MB of node_modules, failing with "The file size is either
+# not valid or exceeds the maximum allowed size" — which names a size limit rather
+# than the 391 MB of dependencies that should never have been in the archive. The
+# tracked source is about 1 MB.
+#
+# Keep this in step with the root .gitignore for anything large that lands in
+# frontend/.
+
+node_modules/
+dist/
+dev-dist/
+.icon-backups/
+coverage/
+*.tsbuildinfo
+.vite/
+.DS_Store
