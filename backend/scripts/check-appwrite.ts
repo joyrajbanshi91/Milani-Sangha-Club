@@ -47,16 +47,86 @@ function explain(error: unknown, scope: string): string {
  *
  *   API_PROBE_URL=https://your-site.netlify.app npm run appwrite:check
  */
+/**
+ * Where the deployed API lives, discovered rather than demanded.
+ *
+ * Appwrite gives a function a domain through a proxy rule, so the project already
+ * knows the answer and nobody should have to paste it in. `API_PROBE_URL` still wins,
+ * for an API hosted somewhere else.
+ *
+ * Discovery matters more than convenience here: a function's *deployment*-scoped
+ * domain changes every time it is redeployed, so any URL written down by hand goes
+ * stale silently and the probe then reports a healthy deployment as unreachable.
+ */
+async function discoverApiUrl(): Promise<string | null> {
+  const explicit = process.env.API_PROBE_URL?.replace(/\/+$/, '')
+  if (explicit) return explicit
+
+  if (!hasAppwriteCredentials) return null
+
+  try {
+    const response = await fetch(`${env.APPWRITE_ENDPOINT.replace(/\/+$/, '')}/proxy/rules`, {
+      headers: {
+        'X-Appwrite-Project': appwriteProjectId ?? '',
+        'X-Appwrite-Key': env.APPWRITE_API_KEY ?? '',
+      },
+    })
+
+    if (!response.ok) return null
+
+    const body = (await response.json()) as {
+      rules?: Array<{
+        domain?: string
+        trigger?: string
+        deploymentResourceType?: string
+        deploymentResourceId?: string
+      }>
+    }
+
+    const forApi = (body.rules ?? []).filter(
+      (candidate) =>
+        candidate.deploymentResourceType === 'function' && candidate.deploymentResourceId === 'api'
+    )
+
+    /**
+     * Prefer the domain somebody chose over the one Appwrite generated.
+     *
+     * Both carry `trigger: 'manual'`, so that field cannot tell them apart. What can
+     * is the shape of the name: Appwrite's own is a twenty-character generated id
+     * (`6a71eb550029f8324d44.fra.appwrite.run`), while a deliberately created rule has
+     * a readable label (`milani-api.fra.appwrite.run`). The readable one is what the
+     * website is built against, because it survives a redeploy — so it is the one to
+     * report, and a mismatch between it and the generated one is exactly the confusion
+     * worth avoiding here.
+     */
+    const generatedId = /^[0-9a-f]{16,32}$/i
+    const named = forApi.find((candidate) => {
+      const label = candidate.domain?.split('.')[0] ?? ''
+      return label !== '' && !generatedId.test(label)
+    })
+
+    const rule = named ?? forApi[0]
+
+    return rule?.domain ? `https://${rule.domain}` : null
+  } catch {
+    // A key without the Proxy scope, or no network. Not fatal: the rest still reports.
+    return null
+  }
+}
+
 async function probeDeployedApi(): Promise<boolean> {
-  const base = process.env.API_PROBE_URL?.replace(/\/+$/, '')
+  const base = await discoverApiUrl()
 
   log()
 
   if (!base) {
-    log('api        not probed — set API_PROBE_URL to the deployed site to check it')
-    log('             e.g. API_PROBE_URL=https://your-site.netlify.app')
+    log('api        not probed — no function domain found for this project.')
+    log('             Deploy it with `npm run appwrite:deploy`, or set API_PROBE_URL')
+    log('             if the API is hosted somewhere else.')
     return true
   }
+
+  log(`api        ${base}`)
 
   let healthy = true
 

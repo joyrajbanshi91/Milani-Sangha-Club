@@ -1,6 +1,6 @@
-import { AlertTriangle, KeyRound, LogIn, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, KeyRound, LogIn, ShieldCheck, Users } from 'lucide-react'
 import { useState } from 'react'
-import { Navigate, useLocation, useNavigate } from 'react-router'
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router'
 
 import { PageHero } from '@/components/layout/PageHero'
 import { Container } from '@/components/ui/Container'
@@ -10,33 +10,77 @@ import { useAuth } from '@/features/auth/authContext'
 import { cn } from '@/lib/cn'
 import { hueByIndex } from '@/lib/hues'
 
+/**
+ * Which door someone came in by.
+ *
+ * Presentation only. It changes the wording and where a successful sign-in lands,
+ * and it grants nothing: the API decides what a caller may do from the role label on
+ * their account, so an ordinary member who picks the office door signs in perfectly
+ * well and simply has no finance area to be shown. `RequireOfficer` says so in plain
+ * words rather than failing.
+ *
+ * Kept in the query string rather than the path so that no router change is needed
+ * and a link like /login?as=office survives a reload and the back button.
+ */
+type Door = 'office' | 'member'
+
+function parseDoor(value: string | null): Door | null {
+  return value === 'office' || value === 'member' ? value : null
+}
+
 export function LoginPage() {
   const { user, loading, config } = useAuth()
   const location = useLocation()
+  const [params] = useSearchParams()
 
   const destination = (location.state as { from?: string } | null)?.from
+  const door = parseDoor(params.get('as'))
 
   if (user) {
-    // Officers land in the finance area, members in their own portal.
+    // Where they actually belong, from the role the server reported — never from the
+    // door they chose.
     return <Navigate to={destination ?? (user.isFinanceOfficer ? '/office' : '/portal')} replace />
   }
+
+  // A guard sent them here from somewhere specific, so skip the chooser: they have
+  // already said where they were going.
+  const chooserNeeded = door === null && destination === undefined
 
   return (
     <>
       <PageHero
         eyebrow="Member area"
-        title="Sign in"
-        lead="Members can view their membership and pay their dues. Office bearers also see the club's financial records."
+        title={door === 'office' ? 'Office bearer sign-in' : 'Sign in'}
+        lead={
+          door === 'office'
+            ? "For the president, secretary and treasurer. As well as the club's financial records, you have the same membership page as every other member."
+            : 'Members can view their membership and pay their dues. Office bearers also see the club’s financial records.'
+        }
       />
 
       <Section>
         <Container className="max-w-lg">
           {loading ? (
             <p className="text-ink-500 text-sm">Loading…</p>
-          ) : config?.mode === 'appwrite' ? (
-            <PasswordForm destination={destination} />
           ) : config?.mode === 'demo' ? (
             <DemoPicker destination={destination} />
+          ) : config?.mode === 'appwrite' ? (
+            chooserNeeded ? (
+              <DoorChooser />
+            ) : (
+              <>
+                <PasswordForm destination={destination} door={door ?? 'member'} />
+                {door ? (
+                  <Link
+                    to="/login"
+                    className="text-ink-500 hover:text-ink-800 mt-5 inline-flex items-center gap-1.5 text-xs font-medium"
+                  >
+                    <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                    Choose a different sign-in
+                  </Link>
+                ) : null}
+              </>
+            )
           ) : (
             <p role="alert" className="rounded-card bg-red-50 p-4 text-sm text-red-700">
               Could not reach the club's server. Is the API running?
@@ -48,8 +92,83 @@ export function LoginPage() {
   )
 }
 
+/**
+ * The two doors.
+ *
+ * Both lead to the same form and the same Appwrite sign-in. The split exists because
+ * the two groups arrive with different questions — an officer wants the club's books,
+ * a member wants their own subscription — and one undifferentiated form answers
+ * neither.
+ *
+ * Deliberately says out loud that the choice does not decide access. Otherwise the
+ * obvious reading of two doors is that picking the left one makes you a president,
+ * and the first member to try it would think the site was broken when it did not.
+ */
+function DoorChooser() {
+  const doors = [
+    {
+      to: '/login?as=office',
+      icon: ShieldCheck,
+      title: 'Office bearers',
+      who: 'President · Secretary · Treasurer',
+      body: "The club's funds, entries and reports, plus your own membership page.",
+    },
+    {
+      to: '/login?as=member',
+      icon: Users,
+      title: 'General members',
+      who: 'Every member of the club',
+      body: 'Your membership status, dues and payment history.',
+    },
+  ]
+
+  return (
+    <>
+      <ul className="grid gap-3">
+        {doors.map((door, index) => {
+          const hue = hueByIndex(index)
+
+          return (
+            <li key={door.to}>
+              <Link
+                to={door.to}
+                className={cn(
+                  'rounded-card shadow-soft flex w-full items-start gap-4 border bg-white p-5 text-left transition-all duration-300',
+                  'hover:shadow-lift hover:-translate-y-0.5',
+                  hue.border
+                )}
+              >
+                <span
+                  className={cn(
+                    'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl',
+                    hue.tile
+                  )}
+                >
+                  <door.icon className="h-5 w-5" aria-hidden="true" />
+                </span>
+
+                <span className="min-w-0 flex-1">
+                  <span className="text-ink-900 block font-medium">{door.title}</span>
+                  <span className="text-ink-500 mt-0.5 block text-xs">{door.who}</span>
+                  <span className="text-ink-600 mt-2 block text-sm/relaxed">{door.body}</span>
+                </span>
+              </Link>
+            </li>
+          )
+        })}
+      </ul>
+
+      <p className="text-ink-500 mt-5 text-xs/relaxed">
+        Both use the same email address and password. What you can see is decided by the role the
+        club office has given your account, not by which of these you pick — so if you are unsure,
+        either one will sign you in.
+      </p>
+    </>
+  )
+}
+
 /** Real sign-in, against Appwrite Authentication. */
-function PasswordForm({ destination }: { destination?: string }) {
+function PasswordForm({ destination, door }: { destination?: string; door: Door }) {
   const { signIn, requestPasswordReset } = useAuth()
   const navigate = useNavigate()
 
@@ -68,7 +187,12 @@ function PasswordForm({ destination }: { destination?: string }) {
 
     try {
       await signIn(String(form.get('email')), String(form.get('password')))
-      navigate(destination ?? '/portal', { replace: true })
+
+      // The door only picks a destination. An ordinary member who came in by the
+      // office door lands on /office and RequireOfficer explains, in words, that the
+      // finances are not theirs — which is a better answer than refusing the sign-in
+      // and leaving them to guess why their password "did not work".
+      navigate(destination ?? (door === 'office' ? '/office' : '/portal'), { replace: true })
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Sign-in failed.')
     } finally {

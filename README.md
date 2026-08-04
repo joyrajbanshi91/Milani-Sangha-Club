@@ -13,9 +13,8 @@ Full requirements: [Club_Management_Platform_SRS.md](Club_Management_Platform_SR
 > [frontend/src/content/site.ts](frontend/src/content/site.ts) — guided
 > walkthrough in [docs/06-editing-the-website.md](docs/06-editing-the-website.md).
 >
-> **To put it online:** [docs/09-netlify.md](docs/09-netlify.md). Connect the
-> repository to Netlify and push — there is nothing to configure and no database
-> needed for a first deploy.
+> **To put it online:** `npm run appwrite:deploy`. Website, API, database and
+> sign-in all live in one Appwrite project — [docs/10-appwrite.md](docs/10-appwrite.md).
 
 ---
 
@@ -26,8 +25,8 @@ Full requirements: [Club_Management_Platform_SRS.md](Club_Management_Platform_SR
 | Frontend   | React 19, Vite 8, TypeScript 6, Tailwind CSS v4, React Router v8     |
 | Data layer | TanStack Query, React Hook Form + Zod                               |
 | Backend    | Node.js, Express 5, TypeScript                                      |
-| Hosting    | **Netlify** — static PWA + the Express API as a Netlify Function     |
-| Database   | Appwrite Databases (recommended) · Firestore (alternative) · embedded demo ledger when neither is configured |
+| Hosting    | **Appwrite Sites** (static PWA) + **Appwrite Functions** (the Express API) |
+| Database   | Appwrite Databases · embedded demo ledger when unconfigured           |
 | Auth       | Appwrite Authentication, roles as account labels · demo accounts when unconfigured |
 | Documents  | pdf-lib (receipts, membership cards), ExcelJS (reports)              |
 | Email      | Nodemailer                                                          |
@@ -46,12 +45,12 @@ signed-in page. Connecting a real database is a dashboard step taken later.
 .
 ├── frontend/            React + Vite PWA (public site, member portal, officer area)
 ├── backend/             Express REST API (privileged operations, PDFs, email)
-├── netlify/functions/   The API as a Netlify Function (the only deploy target)
-├── firebase/            Firestore & Storage rules — used only if the club picks Firestore
+├── functions/api/       The API as an Appwrite Function (the deploy target)
+├── netlify/functions/   The same API as a Netlify Function — kept, not deployed
 ├── data/                Chart-of-accounts templates and the demo ledger
 ├── docs/                Architecture, setup, deployment and phase documentation
 ├── scripts/             Developer utilities (dev runner, icons, function smoke test)
-├── netlify.toml         The deployment configuration
+├── appwrite.config.json The deployment configuration (site + function)
 └── package.json         Root task runner
 ```
 
@@ -109,8 +108,7 @@ Receiver in Control Centre, which answers with an unhelpful `403`.
 | `npm test`                | Unit tests (Vitest) for both apps                                  |
 | `npm run test:function`   | Invoke the API as a Netlify Function, with nothing configured       |
 | `npm run verify`          | Everything above, in the order CI runs it                          |
-| `npm run netlify:dev`     | Netlify's own runtime — the only way to test the `/api/*` redirect  |
-| `npm run netlify:build`   | Exactly the build command `netlify.toml` runs                      |
+| `npm run appwrite:deploy` | Deploy the website and the API to Appwrite                         |
 | `npm run appwrite:provision` | Create the Appwrite database, tables and indexes                |
 | `npm run appwrite:check`  | Diagnose an Appwrite deployment                                    |
 | `npm run backup`          | Export the ledger and accounts to `backups/`                       |
@@ -126,12 +124,11 @@ Receiver in Control Centre, which answers with an unhelpful `403`.
 - [Local setup](docs/02-local-setup.md)
 - [Environment variables](docs/03-environment-variables.md)
 - [Development phases](docs/04-development-phases.md)
-- **[Publishing to Netlify](docs/09-netlify.md)** — **start here to put it online.** Free, via GitHub, no configuration
+- **[Appwrite — hosting, database and sign-in](docs/10-appwrite.md)** — **start here to put it online**
 - [Operating a release](docs/05-deployment.md) — verifying a deploy, rollback, backups
 - **[Editing the website](docs/06-editing-the-website.md)** — how to change each section
 - **[Member area and club finances](docs/07-member-and-finance-area.md)** — the two-person rule, statements
 - **[Running it for real](docs/08-going-live.md)** — real sign-in, creating officers
-- [Appwrite — the database and sign-in](docs/10-appwrite.md) — optional; connect a real ledger
 
 ## Licence
 

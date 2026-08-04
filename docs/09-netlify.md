@@ -1,4 +1,22 @@
-# Publishing to Netlify
+# Publishing to Netlify — no longer the deployment path
+
+> **The application is deployed on Appwrite.** Site, API function, database and
+> sign-in all live in one Appwrite project — see
+> [10-appwrite.md § Hosting](10-appwrite.md#hosting-the-site-and-the-api). The Netlify
+> project was deleted, so nothing here is live.
+>
+> Kept because `netlify.toml` is still in the repository and still correct, and
+> because two of the traps below are not Netlify-specific: environment variables that
+> only take effect on a new deploy, and the difference between a variable that is
+> absent and one that is out of scope. If the club ever wants a second host, this is
+> a working recipe.
+>
+> What made Netlify awkward for this project, for the record: variable *scoping* is a
+> paid feature, so a free-plan site grants every variable all four scopes; and new
+> sites are private by default, which answered 401 to the site's own API calls and
+> looked exactly like the API being down.
+
+---
 
 Netlify hosts **the whole application** — the website *and* the API — on its free
 plan. One origin, so a member's browser never makes a cross-origin request and CORS

@@ -1,0 +1,68 @@
+{
+    "projectId": "6a71d08c0017ba748872",
+    "endpoint": "https://fra.cloud.appwrite.io/v1",
+    "functions": [
+        {
+            "$id": "api",
+            "name": "Club API",
+            "runtime": "node-22",
+            "execute": [
+                "any"
+            ],
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "functions/api/main.mjs",
+            "commands": "npm install && npm --prefix backend install --include=dev && npm --prefix backend run build",
+            "timeout": 30,
+            "events": [],
+            "schedule": "",
+            "path": ".",
+            "deploymentRetention": 0,
+            "buildSpecification": "s-2vcpu-2gb",
+            "runtimeSpecification": "s-0.5vcpu-512mb",
+            "ignore": [
+                "node_modules",
+                "**/node_modules",
+                ".git",
+                ".github",
+                ".netlify",
+                "frontend",
+                "backups",
+                "backend/dist",
+                "backend/tests",
+                "brand-masters",
+                "club_resources",
+                "data",
+                "docs",
+                "netlify",
+                "scripts",
+                "*.md",
+                ".env",
+                "**/.env",
+                "**/.env.*",
+                "**/*.log",
+                ".DS_Store",
+                "**/.DS_Store",
+                "*serviceAccount*.json",
+                "*service-account*.json"
+            ]
+        }
+    ],
+    "sites": [
+        {
+            "$id": "milani-web",
+            "name": "Milani Sangha Club",
+            "logging": true,
+            "framework": "vite",
+            "timeout": 30,
+            "path": "frontend",
+            "installCommand": "npm install --include=dev",
+            "buildCommand": "npm run build",
+            "outputDirectory": "./dist",
+            "adapter": "static",
+            "fallbackFile": "index.html",
+            "specification": "s-1vcpu-512mb",
+            "buildRuntime": "node-22"
+        }
+    ]
+}

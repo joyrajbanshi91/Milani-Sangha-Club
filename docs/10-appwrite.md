@@ -4,13 +4,12 @@ Appwrite provides two things to this application: **Databases** for the ledger a
 **Authentication** for member sign-in. Its free plan needs no card, which is why it is
 the recommended backing store.
 
-**Appwrite does not host the site.** Hosting is Netlify —
-[09-netlify.md](09-netlify.md) — and this document assumes it. An earlier plan put the
-website on Appwrite Sites and the API in an Appwrite Function; that arrangement was
-abandoned, and everything specific to it (`appwrite.config.json`, the Appwrite
-function entrypoint, the Sites build settings) has been removed from the repository.
-What survives is the part that was always the valuable bit: the data layer, the
-provisioning script and the backups.
+**Appwrite hosts everything.** The website is an Appwrite Site, the API is an
+Appwrite Function, and the database and sign-in are in the same project — see
+[Hosting the site and the API](#hosting-the-site-and-the-api) below. Netlify was the
+host until the club's project there was deleted;
+[09-netlify.md](09-netlify.md) is kept as a working recipe for a second host but
+nothing in it is live.
 
 **None of this is required to deploy.** With no Appwrite project configured the API
 serves an embedded sample ledger and offers demo sign-in, and the site works. Set this
@@ -47,10 +46,13 @@ VITE_APPWRITE_ENDPOINT=https://<region>.cloud.appwrite.io/v1
 VITE_APPWRITE_PROJECT_ID=<your project id>
 ```
 
-For the deployed site, the same values go in the Netlify dashboard with the scopes set
-out in [09-netlify.md § 5](09-netlify.md#5-optional-connect-a-real-database). The
-`VITE_` pair must be scoped to **Builds**; the API key must be scoped to **Functions
-only**, or it is compiled into the browser bundle where anyone can read it.
+For the deployment, `npm run appwrite:deploy` sets these on the Function itself, read
+from `backend/.env` — nothing to retype. The API key belongs on the **Function** and
+never on the Site: a Site variable is available to the website's build, and a
+project-wide server key has no business anywhere near the browser bundle.
+
+The key also needs **Sites, Functions and Proxy** scopes to deploy, not only the
+Databases and Users scopes listed above.
 
 ---
 
@@ -86,6 +88,87 @@ that something in the application is broken.
 
 ---
 
+## Hosting the site and the API
+
+One project holds all four pieces: the website as a **Site**, the Express API as a
+**Function**, plus the database and authentication.
+
+```
+  browser ──► https://<site-id>.appwrite.network        the website (static, SPA fallback)
+                      │
+                      └── fetch ──► https://milani-api.fra.appwrite.run/api/v1/**
+                                            │                the API, as a Function
+                                            └──► Appwrite Databases + Authentication
+```
+
+### Deploy
+
+```bash
+npm run appwrite:deploy          # API function and website
+npm run appwrite:deploy -- api   # just the API
+npm run appwrite:deploy -- web   # just the website
+```
+
+It configures the CLI from `backend/.env`, so there is no separate `appwrite login`.
+The API key needs **Sites, Functions and Proxy** scopes as well as Databases and
+Users — a key created only for the database cannot deploy, and the error it gives does
+not say so.
+
+### The site and the API are on different domains
+
+This is the one real difference from a single-origin host, and two things follow from
+it that are easy to get wrong:
+
+- **The website needs an absolute API URL.** `VITE_API_BASE_URL` is set as a *site*
+  variable to `https://milani-api.fra.appwrite.run/api/v1`. It is compiled into the
+  bundle, so changing it needs a rebuild — `npm run appwrite:deploy -- web`. Left
+  unset, the app falls back to the relative `/api/v1`, which hits the website's own
+  domain, finds no API, and reports *"Could not reach the club's server"*.
+- **CORS is genuinely exercised.** `CORS_ORIGINS` on the *function* must contain the
+  site's URL exactly. Wrong or missing, every call fails with
+  `403 cors_rejected` — and the browser console blames CORS while the API looks
+  perfectly healthy when you curl it directly.
+
+### Use the named API domain, not the generated one
+
+Appwrite gives a function a domain automatically, named after the deployment
+(`6a71eb550029f8324d44.fra.appwrite.run`). **That domain changes when the function is
+redeployed**, so a website built against it breaks on the next push.
+
+A second, named rule was created deliberately — `milani-api.fra.appwrite.run` — and it
+follows the active deployment. That is the one the website is built against, and
+`npm run appwrite:check` prefers it when reporting, telling the two apart by whether
+the label looks like a generated id.
+
+To create one for a new project:
+
+```bash
+curl -X POST "$APPWRITE_ENDPOINT/proxy/rules/function" \
+  -H "X-Appwrite-Project: $APPWRITE_PROJECT_ID" \
+  -H "X-Appwrite-Key: $APPWRITE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"domain":"milani-api.fra.appwrite.run","functionId":"api"}'
+```
+
+### frontend/.gitignore is load-bearing
+
+`appwrite push site` packs the site's `path` — `frontend/` — and looks for a
+`.gitignore` *inside that directory*, not at the repository root. Without one it
+excluded nothing and tried to upload 391 MB of `node_modules`, failing with *"The file
+size is either not valid or exceeds the maximum allowed size"* — a message about a
+limit rather than about the dependencies that should never have been in the archive.
+
+### Checking a deployment
+
+```bash
+npm run appwrite:check
+```
+
+Reports the credentials, the tables, the accounts, and probes the deployed API at the
+domain it discovers from the project itself. No URL to paste, and nothing to go stale.
+
+---
+
 ## Provisioning the database
 
 Once the project exists and `backend/.env` has the three `APPWRITE_*` values:
@@ -96,9 +179,13 @@ npm --prefix backend run provision:appwrite -- --write
 npm run seed:finance -- --dir ../data/demo --write     # chart of accounts
 ```
 
-This creates the database, six tables, their columns and their indexes —
-replacing `firebase/firestore.rules` and `firestore.indexes.json` together. It is
-safe to re-run: anything already present is left alone.
+This creates the database, six tables, their columns and their indexes. It is safe to
+re-run: anything already present is left alone.
+
+`npm run appwrite:provision -- --write` from the repository root does the same thing.
+That alias was broken for a while — it lacked a trailing `--`, so npm swallowed
+`--write` as its own flag, printed a warning, ran the dry run and exited 0. It looked
+like it had worked and created nothing.
 
 **Every table is created with no permissions.** That is the security posture, not
 an oversight. The browser never receives a database handle, so nothing signed in —

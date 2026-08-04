@@ -31,13 +31,11 @@
     "user": "npm --prefix backend run user --",
     "seed:finance": "npm --prefix backend run seed:finance --",
     "dev:lan": "bash scripts/dev.sh --host",
-    "netlify:dev": "npx --yes netlify-cli dev",
-    "netlify:setup": "node scripts/setup-netlify.mjs",
-    "netlify:build": "npm run install:all && npm --prefix backend run build && npm --prefix frontend run build",
     "backup": "npm --prefix backend run backup --",
     "restore": "npm --prefix backend run restore --",
     "appwrite:check": "npm --prefix backend run appwrite:check",
-    "appwrite:provision": "npm --prefix backend run provision:appwrite --"
+    "appwrite:provision": "npm --prefix backend run provision:appwrite --",
+    "appwrite:deploy": "bash scripts/deploy-appwrite.sh"
   },
   "dependencies": {
     "serverless-http": "^4.0.0"
