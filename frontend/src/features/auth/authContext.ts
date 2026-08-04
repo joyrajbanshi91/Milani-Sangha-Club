@@ -41,6 +41,22 @@ export interface AuthState {
   signIn: (email: string, password: string) => Promise<void>
   /** Appwrite mode. Sends a reset email; never reveals whether the account exists. */
   requestPasswordReset: (email: string) => Promise<void>
+  /**
+   * Change your own password while signed in.
+   *
+   * The current password is required by Appwrite and that is the point: without it,
+   * anyone who found an unlocked laptop could lock the real member out of their own
+   * account. This is the everyday path — a member who has forgotten their password
+   * cannot use it and needs `requestPasswordReset` instead.
+   */
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>
+  /**
+   * Finish a reset from the emailed link, which carries `userId` and `secret`.
+   *
+   * Separate from `changePassword` because there is no session yet — the secret from
+   * the email stands in for one, and it is valid for an hour.
+   */
+  completePasswordReset: (userId: string, secret: string, newPassword: string) => Promise<void>
   /** Demo mode only. */
   signInDemo: (email: string) => Promise<void>
   signOut: () => Promise<void>

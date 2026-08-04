@@ -131,6 +131,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  /**
+   * Change your own password. Appwrite requires the current one, deliberately.
+   */
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    const { getAccount } = await import('@/lib/appwrite')
+
+    try {
+      await getAccount().updatePassword({ password: newPassword, oldPassword: currentPassword })
+    } catch (error) {
+      throw new Error(describeAppwriteError(error), { cause: error })
+    }
+  }, [])
+
+  /**
+   * Finish a reset from the emailed link.
+   *
+   * No session is needed or created: the secret proves the person can read the
+   * mailbox. They still have to sign in afterwards, which is the correct outcome —
+   * being signed in automatically by following a link in an email is not a property
+   * worth having.
+   */
+  const completePasswordReset = useCallback(
+    async (userId: string, secret: string, newPassword: string) => {
+      const { getAccount } = await import('@/lib/appwrite')
+
+      try {
+        await getAccount().updateRecovery({ userId, secret, password: newPassword })
+      } catch (error) {
+        throw new Error(describeAppwriteError(error), { cause: error })
+      }
+    },
+    []
+  )
+
   const signInDemo = useCallback(
     async (email: string) => {
       const response = await api.post<{ token: string; user: SignedInUser }>(
@@ -150,7 +184,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         await getAccount().deleteSession({ sessionId: 'current' })
       } catch {
-        // An already-expired session is not a failure to sign out.
+        // An already-expired session is not a failure to sign out. Note that this
+        // used to swallow something much less benign: Appwrite refuses a browser
+        // request from an origin that is not registered as a Web platform on the
+        // project, so with none registered `deleteSession` failed on every attempt
+        // and sign-out silently did nothing at all.
       }
       clearJwt()
     } else {
@@ -162,8 +200,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(null)
     }
 
-    // Clear every cached query: finance figures must not survive a sign-out.
-    queryClient.clear()
+    /**
+     * Drop everything the signed-in person could see — but not the auth config.
+     *
+     * `queryClient.clear()` was wiping that too, and the config is what tells the app
+     * which sign-in to offer. Cleared, `mode` went briefly undefined and the login
+     * page rendered its "Could not reach the club's server" error at the very moment
+     * someone had just signed out successfully.
+     *
+     * Removing queries by predicate rather than clearing wholesale keeps the one
+     * cache entry that describes the *server* while discarding every one that
+     * describes the *member* — the finance figures especially, which must not be
+     * readable by the next person to use the browser.
+     */
+    queryClient.removeQueries({
+      predicate: (query) => {
+        const key = query.queryKey
+        return !(Array.isArray(key) && key[0] === 'auth' && key[1] === 'config')
+      },
+    })
+
+    // The signed-out state has to be established, not merely uncached: `['auth','me']`
+    // is refetched by the mounted provider and must resolve to null.
+    queryClient.setQueryData(['auth', 'me'], null)
   }, [mode, queryClient])
 
   const value = useMemo<AuthState>(
@@ -173,6 +232,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       config: config.data,
       signIn,
       requestPasswordReset,
+      changePassword,
+      completePasswordReset,
       signInDemo,
       signOut,
     }),
@@ -184,6 +245,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mode,
       signIn,
       requestPasswordReset,
+      changePassword,
+      completePasswordReset,
       signInDemo,
       signOut,
     ]

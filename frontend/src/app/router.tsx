@@ -76,6 +76,14 @@ export const router = createBrowserRouter([
         path: 'login',
         lazy: async () => ({ Component: (await import('@/pages/LoginPage')).LoginPage }),
       },
+      {
+        // Where the emailed password-reset link lands. Appwrite appends userId and
+        // secret. This route was missing, so every reset email led to Not Found.
+        path: 'reset-password',
+        lazy: async () => ({
+          Component: (await import('@/pages/ResetPasswordPage')).ResetPasswordPage,
+        }),
+      },
       { path: '*', element: <NotFoundPage /> },
     ],
   },
