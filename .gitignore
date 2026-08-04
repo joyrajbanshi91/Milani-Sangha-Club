@@ -67,3 +67,11 @@ frontend/.icon-backups/
 # Data exports from `npm run backup`. Never commit these: the repository is
 # public, and a dump contains member data.
 backups/
+
+# Google Drive for Desktop staging directories. This folder is synced by Drive,
+# which writes .tmp.driveupload while uploading — thousands of files that a
+# `git add -A` will otherwise stage, and whose contents are whatever Drive
+# happened to be uploading.
+.tmp.driveupload/
+.tmp.drivedownload/
+.shortcut-targets-by-id/
