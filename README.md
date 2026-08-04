@@ -114,6 +114,7 @@ Receiver in Control Centre, which answers with an unhelpful `403`.
 | `npm run appwrite:check`  | Diagnose an Appwrite deployment                                    |
 | `npm run backup`          | Export the ledger and accounts to `backups/`                       |
 | `npm run user -- list`    | Club accounts and their roles (needs a real database)              |
+| `npm run members:import` | Create accounts with roles in bulk from data/club/members.csv       |
 | `npm run seed:finance`    | Load funds and categories from CSV (needs a real database)         |
 
 ---

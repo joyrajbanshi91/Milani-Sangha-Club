@@ -36,7 +36,8 @@
     "appwrite:check": "npm --prefix backend run appwrite:check",
     "appwrite:provision": "npm --prefix backend run provision:appwrite --",
     "appwrite:deploy": "bash scripts/deploy-appwrite.sh",
-    "appwrite:github": "node scripts/connect-github.mjs"
+    "appwrite:github": "node scripts/connect-github.mjs",
+    "members:import": "npm --prefix backend run members:import --"
   },
   "dependencies": {
     "serverless-http": "^4.0.0"
