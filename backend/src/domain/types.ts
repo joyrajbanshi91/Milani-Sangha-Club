@@ -1,6 +1,9 @@
 import type {
   CategoryKind,
   FundKind,
+  PaymentMethod,
+  PaymentPurpose,
+  PaymentStatus,
   Role,
   TransactionKind,
   TransactionStatus,
@@ -122,3 +125,69 @@ export interface Actor {
   name: string
   role: Role
 }
+
+/**
+ * A member's declaration that they have paid the club something.
+ *
+ * Deliberately *not* a ledger entry. It is one member's claim, sitting outside the
+ * accounts until an officer checks it against the club's records — the UPI
+ * statement, the cash box, the cheque. Approving it creates a normal `Transaction`
+ * in the 'pending' state, so the money still needs a second officer before it
+ * reaches a balance. That is why this is a separate shape rather than a
+ * `Transaction` with an extra status: a member can write one, and nothing a member
+ * can write may ever be part of the ledger.
+ */
+export interface Payment {
+  id: string
+  /** Human-facing acknowledgement, e.g. 'REF-2026-000042'. Allocated server-side. */
+  reference: string
+  status: PaymentStatus
+
+  /** Whose payment this is — their account id, taken from the verified token. */
+  memberUid: string
+  memberName: string
+
+  purpose: PaymentPurpose
+  method: PaymentMethod
+  amountPaise: number
+  /** The date the member says they paid, 'YYYY-MM-DD'. */
+  paidOn: string
+
+  /** UPI transaction id or cheque number. Required for 'upi' and 'bank'. */
+  externalReference?: string
+  /** Which office bearer took the cash, in the member's words. Cash only. */
+  handedTo?: string
+  /** Anything else the member wants the treasurer to know. */
+  note?: string
+
+  /** ISO timestamp. */
+  submittedAt: string
+
+  /** Set when an officer recorded or declined it. */
+  reviewedAt?: string
+  reviewedBy?: string
+  reviewedByName?: string
+  /** Why an officer could not accept it. */
+  declineReason?: string
+
+  /** The pending ledger entry an officer created from this declaration. */
+  transactionId?: string
+  transactionReference?: string
+
+  /** Set when the member took their own declaration back. */
+  withdrawnAt?: string
+}
+
+/** What the member's form produces, before a reference or a status exists. */
+export type PaymentDraft = Pick<
+  Payment,
+  | 'memberUid'
+  | 'memberName'
+  | 'purpose'
+  | 'method'
+  | 'amountPaise'
+  | 'paidOn'
+  | 'externalReference'
+  | 'handedTo'
+  | 'note'
+>

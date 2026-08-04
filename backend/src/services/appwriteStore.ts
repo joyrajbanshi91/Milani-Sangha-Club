@@ -2,6 +2,7 @@ import { AppwriteException, ID, Query, type Models, type TablesDB } from 'node-a
 
 import { COLLECTIONS } from '../config/constants.js'
 import type { Approval, Category, Fund, Transaction } from '../domain/types.js'
+import { allocateSequence } from './appwriteCounter.js'
 import {
   applyFilter,
   formatReference,
@@ -198,44 +199,11 @@ export class AppwriteFinanceStore implements FinanceStore {
   /**
    * Allocate `count` consecutive sequence numbers for a year, returning the first.
    *
-   * `incrementRowColumn` is atomic and returns the counter's new value, so the
-   * allocated block is `value - count + 1 … value`. The counter row is created on
-   * first use; if two requests race to create it, the loser retries against the
-   * row the winner made rather than failing the officer's save.
+   * The atomic increment and its create-race handling live in `appwriteCounter.ts`,
+   * shared with the payment declarations, which allocate their own separate series.
    */
-  private async nextSequence(year: number, count = 1): Promise<number> {
-    const rowId = `counter_transactions_${year}`
-
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      try {
-        const row = await this.tables.incrementRowColumn({
-          databaseId: this.db,
-          tableId: COLLECTIONS.settings,
-          rowId,
-          column: 'value',
-          value: count,
-        })
-        const next = Number((row as unknown as { value: unknown }).value)
-        return next - count + 1
-      } catch (error) {
-        if (!isNotFound(error) || attempt === 1) throw error
-
-        try {
-          await this.tables.createRow({
-            databaseId: this.db,
-            tableId: COLLECTIONS.settings,
-            rowId,
-            data: { key: rowId, value: count },
-          })
-          return 1
-        } catch (createError) {
-          // Another request created it first — fall through and increment it.
-          if (!isConflict(createError)) throw createError
-        }
-      }
-    }
-
-    throw new Error(`Could not allocate a reference number for ${year}.`)
+  private nextSequence(year: number, count = 1): Promise<number> {
+    return allocateSequence(this.tables, this.db, `counter_transactions_${year}`, count)
   }
 
   async createTransaction(draft: Omit<Transaction, 'id' | 'reference'>): Promise<Transaction> {

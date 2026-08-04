@@ -1,7 +1,13 @@
 import { Router, type Request, type Response } from 'express'
 import { z } from 'zod'
 
-import { CATEGORY_KINDS, FUND_KINDS, TRANSACTION_KINDS, TRANSACTION_STATUSES } from '../config/constants.js'
+import {
+  CATEGORY_KINDS,
+  FUND_KINDS,
+  PAYMENT_STATUSES,
+  TRANSACTION_KINDS,
+  TRANSACTION_STATUSES,
+} from '../config/constants.js'
 import { isIsoDate, isIsoMonth, todayInIndia } from '../domain/dates.js'
 import { rupeesToPaise } from '../domain/money.js'
 import { monthRange } from '../domain/report.js'
@@ -20,7 +26,7 @@ import { StoreConflictError } from '../services/store.js'
  */
 export const financeRouter = Router()
 
-const { auth, finance, store } = getContainer()
+const { auth, finance, store, payments } = getContainer()
 
 financeRouter.use(requireAuth(auth), requireFinanceOfficer)
 
@@ -266,6 +272,60 @@ financeRouter.post('/transactions/:id/reverse', async (req: Request, res: Respon
   })
 })
 
+// ---------------------------------------------------------------------------
+// Members' payment declarations
+//
+// The officer's half of the flow that begins at POST /members/me/payments. The
+// member says what they paid; an officer checks it against the club's records and
+// either enters it in the books or says why not.
+//
+// Recording one creates an ordinary *pending* entry through the same service the
+// manual form uses, so it gathers the recording officer's signature and no more —
+// a second officer still has to approve it before any balance moves.
+// ---------------------------------------------------------------------------
+
+financeRouter.get('/payments', async (req: Request, res: Response) => {
+  const status = req.query.status
+  const parsedStatus =
+    typeof status === 'string' && (status === 'all' || PAYMENT_STATUSES.includes(status as never))
+      ? (status as 'all')
+      : 'pending_verification'
+
+  res.json({ payments: await payments.list({ status: parsedStatus }) })
+})
+
+const recordSchema = z.object({
+  fundId: z.string().min(1, 'Choose which fund the money went into'),
+  categoryId: z.string().min(1, 'Choose a category'),
+  note: z.string().trim().max(200).optional(),
+})
+
+financeRouter.post('/payments/:id/record', async (req: Request, res: Response) => {
+  const input = recordSchema.parse(req.body)
+  const id = param(req, 'id')
+
+  const result = await payments.record(id, actorOf(req), input)
+  if (!result.ok) throw toHttpError(result)
+
+  res.status(201).json({
+    payment: result.value.payment,
+    transaction: result.value.transaction,
+    message:
+      `Verified and entered as ${result.value.transaction.reference}. It needs a second officer’s ` +
+      'approval before it affects any balance.',
+  })
+})
+
+financeRouter.post('/payments/:id/decline', async (req: Request, res: Response) => {
+  const { reason } = reasonSchema.parse(req.body)
+  const id = param(req, 'id')
+
+  const result = await payments.decline(id, actorOf(req), reason)
+  if (!result.ok) throw toHttpError(result)
+
+  res.json({ payment: result.value, message: 'Declined. The member can see your reason.' })
+})
+
 /** Map a domain refusal onto the right HTTP status. */
 function toHttpError(result: { code: string; reason: string }): AppError {
   switch (result.code) {
@@ -273,6 +333,12 @@ function toHttpError(result: { code: string; reason: string }): AppError {
       return notFound(result.reason)
     case 'not_officer':
       return forbidden(result.reason)
+    case 'entry_orphaned':
+      // The ledger was written and the declaration was not. A 500 would be read as
+      // "nothing happened", which is the one thing that is not true.
+      return new AppError(409, result.code, result.reason)
+    case 'self_verification':
+    case 'not_open':
     case 'self_approval':
     case 'self_rejection':
     case 'already_approved':

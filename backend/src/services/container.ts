@@ -6,6 +6,8 @@ import { AuthService } from './authService.js'
 import { DEMO_CSV } from './demoSeed.js'
 import { FinanceService, type AuditEntry } from './financeService.js'
 import { InMemoryFinanceStore } from './memoryStore.js'
+import { PaymentService } from './paymentService.js'
+import { buildPaymentStore } from './paymentStore.js'
 import { buildProfileStore, type ProfileStore } from './profileStore.js'
 import type { FinanceStore } from './store.js'
 
@@ -23,6 +25,7 @@ export interface Container {
   finance: FinanceService
   store: FinanceStore
   profiles: ProfileStore
+  payments: PaymentService
 }
 
 let container: Container | undefined
@@ -57,11 +60,17 @@ export function getContainer(): Container {
     logger.info(record, 'audit')
   }
 
+  const finance = new FinanceService(store, env.CLUB_NAME, audit)
+
   container = {
     auth,
     store,
     profiles: buildProfileStore(),
-    finance: new FinanceService(store, env.CLUB_NAME, audit),
+    finance,
+    // Takes the finance service rather than the store: recording a member's payment
+    // must go through exactly the path an officer's own entry does, so the
+    // two-person rule cannot be bypassed by writing to the store directly.
+    payments: new PaymentService(buildPaymentStore(), finance, audit),
   }
 
   logger.info({ store: store.kind, auth: auth.mode }, 'services ready')

@@ -20,11 +20,14 @@ export function AppLayout() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
 
+  const officer = user?.isFinanceOfficer ?? false
+
   const links = [
     { to: '/portal', label: 'My membership', show: true },
-    { to: '/office', label: 'Dashboard', show: user?.isFinanceOfficer ?? false },
-    { to: '/office/entries', label: 'Entries', show: user?.isFinanceOfficer ?? false },
-    { to: '/office/reports', label: 'Reports', show: user?.isFinanceOfficer ?? false },
+    { to: '/office', label: 'Dashboard', show: officer },
+    { to: '/office/entries', label: 'Entries', show: officer },
+    { to: '/office/payments', label: "Members' payments", show: officer },
+    { to: '/office/reports', label: 'Reports', show: officer },
   ].filter((link) => link.show)
 
   return (

@@ -143,6 +143,45 @@ export const TABLES: Table[] = [
     indexes: [],
   },
   {
+    id: COLLECTIONS.payments,
+    name: 'Member payment declarations',
+    columns: [
+      str('reference', 32, true),
+      str('status', 32, true),
+      str('memberUid', TEXT_SIZE.id, true),
+      str('memberName', TEXT_SIZE.short, true),
+      str('purpose', 32, true),
+      str('method', 32, true),
+      int('amountPaise', true),
+      str('paidOn', 10, true),
+      str('externalReference', TEXT_SIZE.short),
+      str('handedTo', TEXT_SIZE.short),
+      str('note', TEXT_SIZE.medium),
+      str('submittedAt', 32, true),
+      str('reviewedAt', 32),
+      str('reviewedBy', TEXT_SIZE.id),
+      str('reviewedByName', TEXT_SIZE.short),
+      str('declineReason', TEXT_SIZE.medium),
+      str('transactionId', TEXT_SIZE.id),
+      str('transactionReference', 32),
+      str('withdrawnAt', 32),
+    ],
+    indexes: [
+      { key: 'unique_reference', type: 'unique', columns: ['reference'] },
+      // A member reads only their own declarations, so this is the index that
+      // every request from the portal uses.
+      { key: 'by_member', type: 'key', columns: ['memberUid', 'paidOn'], orders: ['asc', 'desc'] },
+      // The treasurer's queue: what is still awaiting verification, oldest first,
+      // because the member who has waited longest should be dealt with first.
+      {
+        key: 'by_status_submitted',
+        type: 'key',
+        columns: ['status', 'submittedAt'],
+        orders: ['asc', 'asc'],
+      },
+    ],
+  },
+  {
     id: COLLECTIONS.members,
     name: 'Member profiles',
     columns: [
