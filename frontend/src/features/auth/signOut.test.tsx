@@ -34,9 +34,12 @@ function Harness({ onReady }: { onReady: (auth: ReturnType<typeof useAuth>) => v
   return null
 }
 
+let clientRef: QueryClient | undefined
+
 function renderAuth() {
   let auth: ReturnType<typeof useAuth> | undefined
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  clientRef = client
 
   render(
     <QueryClientProvider client={client}>
@@ -80,6 +83,47 @@ describe('signOut', () => {
     })
 
     expect(getToken()).toBeNull()
+  })
+
+  it('does not refetch a mounted finance query, which is what showed a 401 error', async () => {
+    /**
+     * The bug this reproduces: signing out removed every cached query, and TanStack
+     * refetches an *active* query when it is removed. The office dashboard was still
+     * mounted, so its figures query went out again with the token already cleared, came
+     * back 401, and the page rendered "The figures could not be loaded. Is the API
+     * running?" — accusing the API of being down mid-sign-out, while it was fine.
+     */
+    const auth = renderAuth()
+    const client = clientRef!
+
+    let fetches = 0
+    const financeQuery = {
+      queryKey: ['finance', 'dashboard', '2026-08'],
+      queryFn: () => {
+        fetches += 1
+        return Promise.resolve({ total: 1 })
+      },
+    }
+
+    // Observe it, which is what a mounted page does.
+    const unobserve = client.getQueryCache().subscribe(() => {})
+    await client.fetchQuery(financeQuery)
+    const observer = client
+      .getQueryCache()
+      .find({ queryKey: ['finance', 'dashboard', '2026-08'] })
+    expect(observer).toBeDefined()
+    expect(fetches).toBe(1)
+
+    await act(async () => {
+      await auth()?.signOut()
+    })
+
+    expect(
+      fetches,
+      'signing out refetched the figures query, which is what produced the 401 error'
+    ).toBe(1)
+
+    unobserve()
   })
 
   it('leaves no way to obtain a token afterwards', async () => {

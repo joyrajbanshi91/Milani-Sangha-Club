@@ -197,9 +197,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * to the console for a developer, just never to the caller as a rejection.
    */
   const signOut = useCallback(async () => {
-    // 1. Stop this browser being able to authenticate, whatever happens next.
+    /**
+     * 1. Everything local, synchronously, before the first `await`.
+     *
+     * The ordering here is the whole correctness of sign-out, and getting it wrong
+     * produced a second bug that looked unrelated: "The figures could not be loaded.
+     * Is the API running?" appearing *while signing out*.
+     *
+     * What happened was that the office dashboard's `['finance','dashboard']` query
+     * was still mounted, and removing queries makes TanStack refetch the active ones.
+     * With the token already gone, that refetch went out unauthenticated, came back
+     * 401, and the dashboard rendered its error — accusing the API of being down at
+     * the exact moment everything was working.
+     *
+     * So: cancel what is in flight, then establish the signed-out state, which is what
+     * makes the guards unmount the finance pages. The member's cached figures are
+     * purged further down, once nothing is observing them and a removal cannot trigger
+     * a fetch.
+     */
     setToken(null)
     setTokenProvider(() => Promise.resolve(null))
+
+    // Abort in-flight requests so their 401 replies never land on a mounted page.
+    void queryClient.cancelQueries()
+
+    // Signed out, established now rather than after a network round trip: `user`
+    // becomes null on this very render, so RequireAuth and RequireOfficer redirect
+    // immediately and the finance pages come off the screen.
+    queryClient.setQueryData(['auth', 'me'], null)
 
     // 2. Tell the server. Best effort, and each step guarded separately so one
     //    failure cannot skip the next.
@@ -224,27 +249,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     /**
-     * Drop everything the signed-in person could see — but not the auth config.
+     * 3. Purge the member's cached data — last, and only what is no longer watched.
      *
-     * `queryClient.clear()` was wiping that too, and the config is what tells the app
-     * which sign-in to offer. Cleared, `mode` went briefly undefined and the login
-     * page rendered its "Could not reach the club's server" error at the very moment
-     * someone had just signed out successfully.
+     * `queryClient.clear()` used to do this and took the auth config with it, so `mode`
+     * went briefly undefined and the login page rendered "Could not reach the club's
+     * server" at the very moment someone had signed out successfully.
      *
-     * Removing queries by predicate rather than clearing wholesale keeps the one
-     * cache entry that describes the *server* while discarding every one that
-     * describes the *member* — the finance figures especially, which must not be
-     * readable by the next person to use the browser.
+     * Two filters now. The predicate keeps `['auth','config']`, which describes the
+     * *server* rather than the member. And `type: 'inactive'` means only queries nobody
+     * is observing are removed: an active one would be refetched by TanStack on
+     * removal, which is exactly what put a 401 error on the dashboard mid-sign-out.
+     * By this point the guards have unmounted those pages, so the figures are inactive
+     * and go quietly.
      */
     queryClient.removeQueries({
+      type: 'inactive',
       predicate: (query) => {
         const key = query.queryKey
         return !(Array.isArray(key) && key[0] === 'auth' && key[1] === 'config')
       },
     })
 
-    // The signed-out state has to be established, not merely uncached: `['auth','me']`
-    // is refetched by the mounted provider and must resolve to null.
+    // Re-asserted after the purge: `['auth','me']` is watched by this provider, so it
+    // is never inactive and the removal above deliberately leaves it alone. Setting it
+    // again costs nothing and guarantees the signed-out state survives step 3.
     queryClient.setQueryData(['auth', 'me'], null)
   }, [mode, queryClient])
 
