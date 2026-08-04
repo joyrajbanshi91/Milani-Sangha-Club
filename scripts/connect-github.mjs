@@ -125,23 +125,49 @@ process.stdout.write(
 )
 
 const wanted = repositoryName()
-const repos = await api(
-  `/vcs/installations/${installation.$id}/providerRepositories${wanted ? `?search=${encodeURIComponent(wanted)}` : ''}`
-)
 
-if (!repos.ok) {
-  process.stderr.write(`\nCould not list repositories (HTTP ${repos.status}).\n\n`)
-  process.exit(1)
+/**
+ * Find the repository behind the installation.
+ *
+ * Three details here were all wrong on the first attempt and none of them was
+ * guessable:
+ *
+ *   * the path is `/vcs/github/installations/…`, not `/vcs/installations/…` — the
+ *     latter 404s, which reads like a missing installation rather than a wrong URL;
+ *   * `type` is required and must be `framework` (for Sites) or `runtime` (for
+ *     Functions), not something sensible like `all`;
+ *   * the array comes back under `frameworkProviderRepositories` or
+ *     `runtimeProviderRepositories` — never a plain `providerRepositories`, so reading
+ *     that key finds nothing while `total` cheerfully says 1.
+ *
+ * Both types list the same repositories and a GitHub repository id is the same either
+ * way, so the first that answers is enough.
+ */
+async function findRepository() {
+  for (const type of ['framework', 'runtime']) {
+    const response = await api(
+      `/vcs/github/installations/${installation.$id}/providerRepositories?type=${type}`
+    )
+    if (!response.ok) continue
+
+    const list =
+      response.body?.[`${type}ProviderRepositories`] ?? response.body?.providerRepositories ?? []
+
+    const match =
+      list.find((candidate) => candidate.name?.toLowerCase() === wanted?.toLowerCase()) ?? list[0]
+
+    if (match) return match
+  }
+  return null
 }
 
-const list = repos.body?.providerRepositories ?? []
-const repo =
-  list.find((candidate) => candidate.name?.toLowerCase() === wanted?.toLowerCase()) ?? list[0]
+const repo = await findRepository()
 
 if (!repo) {
   process.stderr.write(
-    `\nThe installation has no repository matching "${wanted}".\n` +
-      'In GitHub, check the Appwrite app has been granted access to it.\n\n'
+    `\nThe installation lists no repository matching "${wanted}".\n` +
+      'In GitHub → Settings → Applications → Appwrite, check it has been granted\n' +
+      'access to this repository.\n\n'
   )
   process.exit(1)
 }
@@ -166,21 +192,78 @@ if (!write) {
   process.exit(0)
 }
 
-process.stdout.write('\n')
 let failed = 0
+process.stdout.write('\n')
+
+/**
+ * Fields to carry over when re-sending a resource.
+ *
+ * Appwrite updates with `PUT`, not `PATCH`, and a `PUT` is a full replace: send only
+ * the VCS fields and everything else is wiped or rejected. (A `PATCH` here does not
+ * fail cleanly either — it returns Appwrite's 404 *HTML console page*, which is a
+ * confusing thing to find in a JSON client.)
+ *
+ * So the current resource is read, these keys are carried across unchanged, and only
+ * the VCS ones are replaced. Whitelisted rather than spread wholesale, because the
+ * response also contains read-only fields like `$id` and `deploymentId` that the
+ * update endpoint rejects.
+ */
+const CARRY = {
+  'sites/milani-web': [
+    'name',
+    'framework',
+    'enabled',
+    'logging',
+    'timeout',
+    'installCommand',
+    'buildCommand',
+    'outputDirectory',
+    'buildRuntime',
+    'adapter',
+    'fallbackFile',
+    'specification',
+  ],
+  'functions/api': [
+    'name',
+    'runtime',
+    'execute',
+    'events',
+    'schedule',
+    'timeout',
+    'enabled',
+    'logging',
+    'entrypoint',
+    'commands',
+    'scopes',
+    'specification',
+  ],
+}
 
 for (const item of PLAN) {
-  const result = await api(`/${item.resource}`, {
-    method: 'PATCH',
-    body: {
-      installationId: installation.$id,
-      providerRepositoryId: String(repo.id),
-      providerBranch: 'main',
-      providerRootDirectory: item.rootDirectory,
-      // Comments on every commit would be noise on a club's repository.
-      providerSilentMode: true,
-    },
+  const current = await api(`/${item.resource}`)
+  if (!current.ok) {
+    failed += 1
+    process.stdout.write(`  FAILED     ${item.label} — could not read it (HTTP ${current.status})\n`)
+    continue
+  }
+
+  const body = {}
+  for (const field of CARRY[item.resource] ?? []) {
+    if (current.body[field] !== undefined && current.body[field] !== null) {
+      body[field] = current.body[field]
+    }
+  }
+
+  Object.assign(body, {
+    installationId: installation.$id,
+    providerRepositoryId: String(repo.id),
+    providerBranch: 'main',
+    providerRootDirectory: item.rootDirectory,
+    // Comments on every commit would be noise on a club's repository.
+    providerSilentMode: true,
   })
+
+  const result = await api(`/${item.resource}`, { method: 'PUT', body })
 
   if (result.ok) {
     process.stdout.write(`  connected  ${item.label}\n`)
