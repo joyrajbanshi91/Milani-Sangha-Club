@@ -21,10 +21,17 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-// The keys the schema in src/config/env.ts requires. Keys with a default there
-// (VITE_APPWRITE_ENDPOINT, VITE_API_BASE_URL, VITE_CLUB_NAME) are deliberately
-// absent: the build does not need them. Keep this list in step with that schema.
-const REQUIRED = ['VITE_APPWRITE_PROJECT_ID']
+/**
+ * The keys the schema in src/config/env.ts requires. Keys with a default there
+ * (VITE_APPWRITE_ENDPOINT, VITE_API_BASE_URL, VITE_CLUB_NAME) are deliberately
+ * absent: the build does not need them. Keep this list in step with that schema.
+ *
+ * `orFrom` names variables the *host* supplies that answer the same question.
+ * Appwrite Sites injects APPWRITE_SITE_PROJECT_ID into every deployment, so a site
+ * hosted inside the project is already configured and vite.config.ts picks it up —
+ * there is nothing for anyone to type, and so nothing to mistype.
+ */
+const REQUIRED = [{ key: 'VITE_APPWRITE_PROJECT_ID', orFrom: ['APPWRITE_SITE_PROJECT_ID'] }]
 
 // Resolved from this file rather than process.cwd(), so the check behaves the
 // same whether it is run from frontend/ or through `npm --prefix frontend`.
@@ -129,11 +136,12 @@ function normalise(key) {
  * sends someone to re-check the value they already pasted, and each wrong guess
  * costs another hosted build.
  */
-function diagnose(key, environment) {
+function diagnose({ key, orFrom = [] }, environment) {
   const raw = environment[key]
+  const alternatives = orFrom.length > 0 ? ` (nor ${orFrom.join(', ')})` : ''
 
   if (typeof raw === 'string' && raw.trim() === '') {
-    return `${key} — present but empty. The name was added without a value.`
+    return `${key} — present but empty. The name was added without a value${alternatives}.`
   }
 
   const target = normalise(key)
@@ -145,15 +153,19 @@ function diagnose(key, environment) {
     return `${key} — missing, but ${lookalike} is set. Check the spelling.`
   }
 
-  return `${key} — not set.`
+  return `${key} — not set${alternatives}.`
 }
 
 function findEnvironmentProblem() {
   const environment = readEnvironment()
-  const missing = REQUIRED.filter((key) => !environment[key]?.trim())
+
+  const isSatisfied = ({ key, orFrom = [] }) =>
+    [key, ...orFrom].some((name) => environment[name]?.trim())
+
+  const missing = REQUIRED.filter((entry) => !isSatisfied(entry))
   if (missing.length === 0) return null
 
-  const list = missing.map((key) => `  • ${diagnose(key, environment)}`).join('\n')
+  const list = missing.map((entry) => `  • ${diagnose(entry, environment)}`).join('\n')
   const supplied = REQUIRED.length - missing.length
 
   return (
@@ -163,9 +175,13 @@ function findEnvironmentProblem() {
     'On a hosted build, add them in the platform dashboard. These are compiled\n' +
     'into the bundle, so adding one requires a new build — editing it does not\n' +
     'update a site that is already published.\n\n' +
-    '  Appwrite Sites: your site → Settings → Environment variables.\n' +
-    '                  Set them on the *site*; project and function variables are\n' +
-    '                  separate and are not visible to this build.\n' +
+    '  Appwrite Sites: nothing should be needed — Appwrite injects\n' +
+    '                  APPWRITE_SITE_PROJECT_ID into every deployment and the build\n' +
+    '                  uses it. Seeing this here means the deployment did not carry\n' +
+    '                  it, so set VITE_APPWRITE_PROJECT_ID under\n' +
+    '                  your site → Settings → Environment variables. Set it on the\n' +
+    '                  *site*: project and function variables are separate and are\n' +
+    '                  not visible to this build.\n' +
     '  Netlify:        Site configuration → Environment variables\n' +
     '                  (needs the "Builds" scope and all deploy contexts)\n\n' +
     'To print the values from your own .env.local, ready to paste:\n' +
