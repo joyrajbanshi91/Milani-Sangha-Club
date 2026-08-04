@@ -51,23 +51,20 @@ by clicking. Set the fallback file to `index.html` in the site's settings.
 **Your site → Settings → Environment variables.** These are compiled into the
 browser bundle by Vite, so **changing one needs a new build**, not a restart.
 
+**Exactly one is required.**
+
 | Variable | Value |
 | --- | --- |
-| `VITE_FIREBASE_API_KEY` | from `frontend/.env.local` |
-| `VITE_FIREBASE_AUTH_DOMAIN` | `club-app-8ce22.firebaseapp.com` |
-| `VITE_FIREBASE_PROJECT_ID` | `club-app-8ce22` |
-| `VITE_FIREBASE_STORAGE_BUCKET` | `club-app-8ce22.firebasestorage.app` |
-| `VITE_FIREBASE_MESSAGING_SENDER_ID` | `5690789841` |
-| `VITE_FIREBASE_APP_ID` | `1:5690789841:web:e61dc9e50c74fe1ae5daf0` |
-| `VITE_API_BASE_URL` | `/api/v1` |
+| `VITE_APPWRITE_PROJECT_ID` | your project id, from the Appwrite console |
+| `VITE_APPWRITE_ENDPOINT` | optional; set it if your project is not on `https://cloud.appwrite.io/v1` |
+| `VITE_API_BASE_URL` | `/api/v1` until the function exists, then the function's URL |
 
-Yes, those are still the Firebase ones — sign-in has not moved yet. They go away
-in stage 2, replaced by `VITE_APPWRITE_ENDPOINT` and `VITE_APPWRITE_PROJECT_ID`.
+The six `VITE_FIREBASE_*` variables are gone — sign-in is Appwrite now. If they are
+still set on your site you can delete them; nothing reads them.
 
-`frontend/scripts/check-build-env.mjs` fails the build if any required variable is
-missing, with the list, rather than letting a bundle with no configuration in it
-reach a member's browser. It imports nothing, so it reports the missing variable
-even when the install step has not run.
+`frontend/scripts/check-build-env.mjs` fails the build if a required variable is
+missing, saying which and *why* — absent, present but empty, or misspelt. It imports
+nothing, so it reports the problem even when the install step has not run.
 
 ### For the API (stage 2, not yet deployed)
 
@@ -140,14 +137,25 @@ Sources, worth re-checking as the platform changes:
 | Stage | What it covers | State |
 | --- | --- | --- |
 | 1 | Appwrite data layer — `appwriteStore.ts`, provisioning script, config | **done** |
-| 2 | Sign-in on Appwrite Auth, and the API as an Appwrite Function | not started |
-| 3 | Remove Firebase and the Netlify function; documentation | not started |
+| 2a | Sign-in on Appwrite Auth; Firebase gone from the frontend | **done** |
+| 2b | The API as an Appwrite Function | not started |
+| 3 | Remove Firestore from the backend; finish the documentation | not started |
 
-Stage 1 is additive: Firebase is still wired up and selected when only Firebase
-credentials are present, so nothing about the current deployment changed. Set the
-`APPWRITE_*` variables and the ledger moves to Appwrite; `container.ts` prefers
-Appwrite when both are configured.
+The frontend no longer contains Firebase at all — no SDK, no `lib/firebase.ts`, no
+`VITE_FIREBASE_*`. Sign-in, password reset and sign-out go through the Appwrite
+Account API, and each request carries a fifteen-minute JWT minted from the session.
 
-**Until stage 2 lands, a site deployed here serves the public pages and signs
-members in through Firebase, and the officer area has no API to talk to.** That is
-expected, not a misconfiguration.
+**Roles are Appwrite labels**, set only with a server API key
+(`npm run user -- role --email … --role treasurer`). Deliberately not prefs: a
+signed-in member can write their own prefs, so a role kept there could be
+self-granted. The API reads the labels on every request, so a role change takes
+effect immediately rather than waiting for a token to refresh.
+
+The backend still holds Firestore as an alternative store, unused when the
+`APPWRITE_*` variables are set — `container.ts` prefers Appwrite. That comes out in
+stage 3.
+
+**What does not work yet:** the officer area, because 2b has not been written — the
+API is still an Express app with nowhere to run. A deployed site serves the public
+pages, and sign-in will work as soon as the API is reachable. Expected, not a
+misconfiguration.

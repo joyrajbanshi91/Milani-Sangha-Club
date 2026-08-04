@@ -22,16 +22,9 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 // The keys the schema in src/config/env.ts requires. Keys with a default there
-// (VITE_API_BASE_URL, VITE_CLUB_NAME) are deliberately absent: the build does
-// not need them. Keep this list in step with that schema.
-const REQUIRED = [
-  'VITE_FIREBASE_API_KEY',
-  'VITE_FIREBASE_AUTH_DOMAIN',
-  'VITE_FIREBASE_PROJECT_ID',
-  'VITE_FIREBASE_STORAGE_BUCKET',
-  'VITE_FIREBASE_MESSAGING_SENDER_ID',
-  'VITE_FIREBASE_APP_ID',
-]
+// (VITE_APPWRITE_ENDPOINT, VITE_API_BASE_URL, VITE_CLUB_NAME) are deliberately
+// absent: the build does not need them. Keep this list in step with that schema.
+const REQUIRED = ['VITE_APPWRITE_PROJECT_ID']
 
 // Resolved from this file rather than process.cwd(), so the check behaves the
 // same whether it is run from frontend/ or through `npm --prefix frontend`.

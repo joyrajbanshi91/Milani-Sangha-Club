@@ -1,23 +1,32 @@
 import { randomUUID } from 'node:crypto'
 
-import type { Role } from '../config/constants.js'
-import { hasFirebaseCredentials, isProduction } from '../config/env.js'
-import { getAdminAuth } from '../config/firebase.js'
+import { Account } from 'node-appwrite'
+
+import { createCallerClient, getUsers } from '../config/appwrite.js'
+import { ROLES, type Role } from '../config/constants.js'
+import { hasAppwriteCredentials, isProduction } from '../config/env.js'
 import type { Actor } from '../domain/types.js'
 import { logger } from '../lib/logger.js'
 
 /**
  * Establishing who is calling.
  *
- * Two modes, chosen by whether Firebase Admin credentials exist:
+ * Two modes, chosen by whether Appwrite credentials exist:
  *
- *   • **Firebase** — the bearer token is a Firebase ID token. It is verified with
- *     the Admin SDK and the role is read from a custom claim, which only the
- *     server can set. The client never sends its own role: that would be trivially
- *     forgeable.
+ *   • **Appwrite** — the bearer token is a short-lived JWT minted in the browser
+ *     from the member's session. It is verified by asking Appwrite who it belongs
+ *     to, using a client that carries *only* that JWT — never the server API key,
+ *     which would override the caller's identity and make every request look like
+ *     an administrator.
+ *
+ *     The role comes from the account's **labels**, which only a server key can
+ *     set. Prefs would have been the obvious-looking place and is exactly wrong:
+ *     the client can write its own prefs, so a member could promote themselves to
+ *     treasurer. The client never sends its own role either — that would be
+ *     trivially forgeable.
  *
  *   • **Demo** — a development-only sign-in with fixed accounts, so the officer
- *     area can be walked through before a Firebase project exists. It refuses to
+ *     area can be walked through before an Appwrite project exists. It refuses to
  *     start in production, and logs a warning on every boot.
  */
 
@@ -40,18 +49,18 @@ export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
 ]
 
 export class AuthService {
-  readonly mode: 'firebase' | 'demo'
+  readonly mode: 'appwrite' | 'demo'
 
   /** Demo mode only: opaque token → actor. Lost on restart, which is correct. */
   private readonly sessions = new Map<string, Actor>()
 
   constructor() {
-    this.mode = hasFirebaseCredentials ? 'firebase' : 'demo'
+    this.mode = hasAppwriteCredentials ? 'appwrite' : 'demo'
 
     if (this.mode === 'demo') {
       if (isProduction) {
         throw new Error(
-          'Demo sign-in cannot run in production. Configure Firebase Admin credentials.'
+          'Demo sign-in cannot run in production. Set APPWRITE_PROJECT_ID and APPWRITE_API_KEY.'
         )
       }
       logger.warn(
@@ -64,7 +73,7 @@ export class AuthService {
   /**
    * Demo sign-in. Deliberately has no password: inventing one would imply a
    * security property this mode does not have. It exists to let a person click
-   * through the roles, and it is unavailable the moment Firebase is configured.
+   * through the roles, and it is unavailable the moment Appwrite is configured.
    */
   demoSignIn(email: string): { token: string; actor: Actor } | null {
     if (this.mode !== 'demo') return null
@@ -96,35 +105,65 @@ export class AuthService {
     }
 
     try {
-      const decoded = await getAdminAuth().verifyIdToken(token, true)
-
-      // The role lives in a custom claim, set by the server. A token without one
-      // is a signed-in user who has not been given a role yet — treat them as an
-      // ordinary member rather than guessing upwards.
-      const role = (decoded.role as Role | undefined) ?? 'member'
+      // A client carrying the caller's JWT and nothing else. account.get() then
+      // answers as that member, which both verifies the token and identifies them
+      // in one call — an invalid or expired JWT simply throws.
+      const account = new Account(createCallerClient(token))
+      const user = await account.get()
 
       return {
-        uid: decoded.uid,
-        name: (decoded.name as string | undefined) ?? decoded.email ?? 'Member',
-        role,
+        uid: user.$id,
+        name: user.name || user.email || 'Member',
+        role: roleFromLabels(user.labels),
       }
     } catch (error) {
-      logger.warn({ err: error }, 'ID token verification failed')
+      logger.warn({ err: error }, 'JWT verification failed')
       return null
     }
   }
 
   /**
-   * Grant a role. Firebase mode only.
+   * Grant a role. Appwrite mode only.
    *
-   * Custom claims reach the client on its next token refresh, so a role change
-   * takes effect within the hour, or immediately if the client forces a refresh.
+   * Labels are read on every request rather than baked into the token, so unlike a
+   * Firebase custom claim a role change takes effect on the member's very next
+   * call — no waiting for a token to refresh.
+   *
+   * Replaces the label set rather than appending: two role labels on one account
+   * would make `roleFromLabels` depend on their order, which is not a decision
+   * anyone would have made deliberately.
    */
   async setRole(uid: string, role: Role): Promise<void> {
-    if (this.mode !== 'firebase') {
+    if (this.mode !== 'appwrite') {
       throw new Error('Roles cannot be assigned in demo mode; the accounts are fixed.')
     }
-    await getAdminAuth().setCustomUserClaims(uid, { role })
-    logger.info({ uid, role }, 'role claim updated')
+    await getUsers().updateLabels({ userId: uid, labels: [role] })
+    logger.info({ uid, role }, 'role label updated')
   }
+}
+
+/**
+ * Read the role out of an account's labels.
+ *
+ * Only labels that are actually roles are considered, so an unrelated label — a
+ * future 'beta-tester', say — cannot be mistaken for one. An account with no role
+ * label is a signed-in member who has not been given a role yet: treat them as an
+ * ordinary member rather than guessing upwards.
+ *
+ * Where several role labels somehow exist, the least privileged wins. That is the
+ * safe direction to fail, and it makes the outcome independent of label order.
+ */
+export function roleFromLabels(labels: readonly string[] | undefined): Role {
+  const found = (labels ?? []).filter((label): label is Role =>
+    (ROLES as readonly string[]).includes(label)
+  )
+
+  if (found.length === 0) return 'member'
+
+  // ROLES runs least privileged first ('visitor' … 'administrator'), so the
+  // *lowest* index is the weakest. Picking the weakest makes the outcome
+  // independent of label order and fails in the safe direction.
+  return found.reduce((weakest, role) =>
+    ROLES.indexOf(role) < ROLES.indexOf(weakest) ? role : weakest
+  )
 }

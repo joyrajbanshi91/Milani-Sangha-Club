@@ -32,8 +32,8 @@ export function LoginPage() {
       <Section>
         <Container className="max-w-lg">
           {loading ? (
-            <p className="text-sm text-ink-500">Loading…</p>
-          ) : config?.mode === 'firebase' ? (
+            <p className="text-ink-500 text-sm">Loading…</p>
+          ) : config?.mode === 'appwrite' ? (
             <PasswordForm destination={destination} />
           ) : config?.mode === 'demo' ? (
             <DemoPicker destination={destination} />
@@ -48,7 +48,7 @@ export function LoginPage() {
   )
 }
 
-/** Real sign-in, against Firebase Authentication. */
+/** Real sign-in, against Appwrite Authentication. */
 function PasswordForm({ destination }: { destination?: string }) {
   const { signIn, requestPasswordReset } = useAuth()
   const navigate = useNavigate()
@@ -98,7 +98,7 @@ function PasswordForm({ destination }: { destination?: string }) {
   }
 
   return (
-    <form onSubmit={submit} className="rounded-card border border-ink-200 bg-white p-6 shadow-soft">
+    <form onSubmit={submit} className="rounded-card border-ink-200 shadow-soft border bg-white p-6">
       <div className="space-y-5">
         <Field htmlFor="email" label="Email address" required>
           <Input
@@ -130,7 +130,7 @@ function PasswordForm({ destination }: { destination?: string }) {
         </p>
       ) : null}
       {notice ? (
-        <p role="status" className="mt-4 rounded-lg bg-brand-50 p-3 text-sm/relaxed text-brand-900">
+        <p role="status" className="bg-brand-50 text-brand-900 mt-4 rounded-lg p-3 text-sm/relaxed">
           {notice}
         </p>
       ) : null}
@@ -139,7 +139,7 @@ function PasswordForm({ destination }: { destination?: string }) {
         <button
           type="submit"
           disabled={busy}
-          className="inline-flex h-11 items-center gap-2 rounded-full bg-gradient-to-r from-brand-700 to-brand-500 px-6 text-sm font-medium text-white shadow-glow disabled:opacity-60"
+          className="from-brand-700 to-brand-500 shadow-glow inline-flex h-11 items-center gap-2 rounded-full bg-gradient-to-r px-6 text-sm font-medium text-white disabled:opacity-60"
         >
           <LogIn className="h-4 w-4" aria-hidden="true" />
           {busy ? 'Signing in…' : 'Sign in'}
@@ -149,14 +149,14 @@ function PasswordForm({ destination }: { destination?: string }) {
           type="button"
           disabled={busy}
           onClick={() => void reset()}
-          className="inline-flex h-11 items-center gap-2 rounded-full border border-ink-200 px-4 text-sm font-medium text-ink-700 disabled:opacity-60"
+          className="border-ink-200 text-ink-700 inline-flex h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium disabled:opacity-60"
         >
           <KeyRound className="h-4 w-4" aria-hidden="true" />
           Reset password
         </button>
       </div>
 
-      <p className="mt-5 text-xs/relaxed text-ink-500">
+      <p className="text-ink-500 mt-5 text-xs/relaxed">
         Accounts are created by the club office. If you are a member and do not have one yet, please
         contact the secretary.
       </p>
@@ -164,7 +164,7 @@ function PasswordForm({ destination }: { destination?: string }) {
   )
 }
 
-/** Development sign-in, shown only while no Firebase project is connected. */
+/** Development sign-in, shown only while no Appwrite project is connected. */
 function DemoPicker({ destination }: { destination?: string }) {
   const { config, signInDemo } = useAuth()
   const navigate = useNavigate()
@@ -186,14 +186,14 @@ function DemoPicker({ destination }: { destination?: string }) {
 
   return (
     <>
-      <div className="flex gap-3 rounded-card border border-amber-300 bg-amber-50 p-4">
+      <div className="rounded-card flex gap-3 border border-amber-300 bg-amber-50 p-4">
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />
         <div className="text-sm/relaxed text-amber-800">
           <p className="font-semibold">Demonstration sign-in</p>
           <p className="mt-1">
-            No Firebase project is connected, so these are fixed accounts with no passwords, and the
+            No Appwrite project is connected, so these are fixed accounts with no passwords, and the
             data resets when the API restarts. See{' '}
-            <code className="rounded bg-white/70 px-1">docs/08-going-live.md</code> to switch to real
+            <code className="rounded bg-white/70 px-1">docs/10-appwrite.md</code> to switch to real
             sign-in.
           </p>
         </div>
@@ -211,8 +211,8 @@ function DemoPicker({ destination }: { destination?: string }) {
                 disabled={busy !== null}
                 onClick={() => void signIn(account.email)}
                 className={cn(
-                  'flex w-full items-center gap-4 rounded-card border bg-white p-4 text-left shadow-soft transition-all duration-300',
-                  'hover:-translate-y-0.5 hover:shadow-lift disabled:opacity-60',
+                  'rounded-card shadow-soft flex w-full items-center gap-4 border bg-white p-4 text-left transition-all duration-300',
+                  'hover:shadow-lift hover:-translate-y-0.5 disabled:opacity-60',
                   hue.border
                 )}
               >
@@ -230,8 +230,8 @@ function DemoPicker({ destination }: { destination?: string }) {
                 </span>
 
                 <span className="min-w-0 flex-1">
-                  <span className="block font-medium text-ink-900">{account.name}</span>
-                  <span className="block text-xs capitalize text-ink-500">
+                  <span className="text-ink-900 block font-medium">{account.name}</span>
+                  <span className="text-ink-500 block text-xs capitalize">
                     {account.role}
                     {officer
                       ? ' — sees the finances and can approve entries'
@@ -239,7 +239,7 @@ function DemoPicker({ destination }: { destination?: string }) {
                   </span>
                 </span>
 
-                <span className="shrink-0 text-xs font-medium text-brand-700">
+                <span className="text-brand-700 shrink-0 text-xs font-medium">
                   {busy === account.email ? 'Signing in…' : 'Sign in'}
                 </span>
               </button>

@@ -100,12 +100,8 @@ export default defineConfig(({ mode }) => {
       // Dummy values so config/env.ts validation passes under test without
       // requiring a real .env file (or real Firebase credentials) in CI.
       env: {
-        VITE_FIREBASE_API_KEY: 'test-api-key',
-        VITE_FIREBASE_AUTH_DOMAIN: 'test.firebaseapp.com',
-        VITE_FIREBASE_PROJECT_ID: 'test-project',
-        VITE_FIREBASE_STORAGE_BUCKET: 'test-project.firebasestorage.app',
-        VITE_FIREBASE_MESSAGING_SENDER_ID: '000000000000',
-        VITE_FIREBASE_APP_ID: '1:000000000000:web:0000000000000000',
+        VITE_APPWRITE_ENDPOINT: 'https://test.cloud.appwrite.io/v1',
+        VITE_APPWRITE_PROJECT_ID: 'test-project',
         VITE_API_BASE_URL: '/api/v1',
         VITE_CLUB_NAME: 'Milani Sangha Club',
       },

@@ -8,7 +8,7 @@ interface RequestOptions extends Omit<RequestInit, 'body'> {
   /** Serialised as JSON. Use `rawBody` for FormData or Blob payloads. */
   body?: unknown
   rawBody?: BodyInit
-  /** Skip attaching the Firebase ID token (public endpoints). */
+  /** Skip attaching the caller's token (public endpoints). */
   anonymous?: boolean
 }
 
@@ -20,7 +20,7 @@ interface ApiErrorBody {
 /**
  * The bearer token for the current request.
  *
- * Async because in Firebase mode this asks the SDK for a token, which refreshes
+ * Async because in Appwrite mode this mints a short-lived JWT, which refreshes
  * one that is close to expiring. Whichever mode is in use, the client sends only
  * the token — never a role. The server decides what the caller may do.
  */
@@ -32,7 +32,7 @@ async function authHeader(): Promise<Record<string, string>> {
 /**
  * Thin fetch wrapper around the backend API.
  *
- * Every privileged call carries the caller's Firebase ID token; the backend
+ * Every privileged call carries the caller's Appwrite JWT; the backend
  * verifies it and derives the role from custom claims. The client never sends
  * a role of its own — it would be trivially forgeable.
  */

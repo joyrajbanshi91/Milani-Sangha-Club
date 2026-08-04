@@ -6,20 +6,24 @@
  *   npm run user -- list
  *   npm run user -- disable --email x@club.org
  *
- * Roles live in Firebase Auth **custom claims**, which only a server holding the
- * Admin credentials can set — that is the whole point. There is no screen for
- * this, because the first officer has to exist before anyone can sign in to grant
+ * Roles live in Appwrite **labels**, which only a server holding an API key can
+ * set — that is the whole point. Not prefs: a signed-in member can write their own
+ * prefs, so a role kept there could be self-granted. There is no screen for this
+ * either, because the first officer has to exist before anyone can sign in to grant
  * anything, and a self-service "make me the treasurer" button would defeat the
  * two-person rule.
  *
- * A role change reaches the browser on the next ID token refresh, within the hour.
- * Tell the person to sign out and in for it to take effect immediately.
+ * A role change takes effect on the person's very next request. The API reads the
+ * labels each time rather than trusting anything baked into the token, so there is
+ * no waiting for a refresh and no need to sign out and in.
  */
 import { randomBytes } from 'node:crypto'
 
+import { AppwriteException, ID, Query } from 'node-appwrite'
+
+import { getUsers } from '../src/config/appwrite.js'
 import { ROLES, type Role } from '../src/config/constants.js'
-import { hasFirebaseCredentials } from '../src/config/env.js'
-import { getAdminAuth } from '../src/config/firebase.js'
+import { hasAppwriteCredentials } from '../src/config/env.js'
 
 interface Options {
   email?: string
@@ -51,7 +55,9 @@ function assertRole(value: string | undefined): Role {
 }
 
 function assertEmail(value: string | undefined): string {
-  if (!value || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value)) exit('--email is required and must be valid')
+  if (!value || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value)) {
+    exit('--email is required and must be valid')
+  }
   return value
 }
 
@@ -78,43 +84,62 @@ Notes
   • Omit --password on create and a strong one is generated and printed once.
     Better still: omit it, then have the person use "Reset password" on the
     sign-in page so nobody else ever sees it.
-  • A role change takes effect when the person's ID token next refreshes
-    (within an hour), or immediately if they sign out and back in.
+  • Appwrite requires a password of at least 8 characters.
+  • A role change takes effect on their next request — no sign-out needed.
 `)
   process.exit(0)
 }
 
+/**
+ * Appwrite has no "get user by email", so the directory is searched.
+ *
+ * `Query.equal` rather than the `search` parameter: search is a fuzzy match and
+ * would happily return a *different* member whose address merely resembles the one
+ * asked for — which, for a command that grants finance roles, is not a mistake
+ * worth risking.
+ */
+async function findByEmail(email: string) {
+  const { users } = await getUsers().list({
+    queries: [Query.equal('email', email), Query.limit(2)],
+  })
+
+  if (users.length > 1) {
+    exit(`More than one account has the address ${email}. Resolve that in the Appwrite console.`)
+  }
+
+  return users[0] ?? null
+}
+
 async function main(): Promise<void> {
-  if (!hasFirebaseCredentials) {
+  if (!hasAppwriteCredentials) {
     exit(
-      'Firebase Admin credentials are not configured, so there is no real user directory.\n' +
-        '       Set GOOGLE_APPLICATION_CREDENTIALS (or the FIREBASE_* trio) in backend/.env.\n' +
-        '       See docs/08-going-live.md.'
+      'Appwrite is not configured, so there is no user directory to manage.\n' +
+        '       Set APPWRITE_PROJECT_ID and APPWRITE_API_KEY in backend/.env.\n' +
+        '       The key needs the Users scope. See docs/10-appwrite.md.'
     )
   }
 
   const { command, options } = parseArgs(process.argv.slice(2))
-  const auth = getAdminAuth()
+  const users = getUsers()
 
   switch (command) {
     case 'create': {
       const email = assertEmail(options.email)
       const role = assertRole(options.role)
       const name = options.name ?? email
-      // 18 random bytes as base64url: long enough that nobody guesses it, and it
-      // is expected to be replaced via the reset-password flow anyway.
+      // 18 random bytes as base64url: comfortably longer than Appwrite's 8
+      // character minimum, and expected to be replaced via password reset anyway.
       const password = options.password ?? randomBytes(18).toString('base64url')
 
-      const user = await auth.createUser({
-        email,
-        password,
-        displayName: name,
-        emailVerified: false,
-      })
-      await auth.setCustomUserClaims(user.uid, { role })
+      if (await findByEmail(email)) {
+        exit('An account with that email already exists. Use "role" to change its role.')
+      }
+
+      const user = await users.create({ userId: ID.unique(), email, password, name })
+      await users.updateLabels({ userId: user.$id, labels: [role] })
 
       console.log(`\ncreated ${email}`)
-      console.log(`  uid:  ${user.uid}`)
+      console.log(`  id:   ${user.$id}`)
       console.log(`  name: ${name}`)
       console.log(`  role: ${role}`)
       if (!options.password) {
@@ -129,29 +154,36 @@ async function main(): Promise<void> {
       const email = assertEmail(options.email)
       const role = assertRole(options.role)
 
-      const user = await auth.getUserByEmail(email)
-      // Merged, not replaced: any future claims stay intact.
-      await auth.setCustomUserClaims(user.uid, { ...(user.customClaims ?? {}), role })
+      const user = await findByEmail(email)
+      if (!user) exit('No account with that email.')
+
+      // Replaced, not merged: two role labels on one account would make the role
+      // depend on which the API happened to read first.
+      await users.updateLabels({ userId: user.$id, labels: [role] })
 
       console.log(`\n${email} is now: ${role}`)
-      console.log('They must sign out and back in for it to take effect immediately.\n')
+      console.log('This takes effect on their next request.\n')
       break
     }
 
     case 'list': {
-      const { users } = await auth.listUsers(1000)
-      if (users.length === 0) {
+      const { users: all } = await users.list({ queries: [Query.limit(1000)] })
+      if (all.length === 0) {
         console.log('\nNo accounts yet. Create the first one with "create".\n')
         break
       }
 
-      console.log(`\n${users.length} account${users.length === 1 ? '' : 's'}:\n`)
-      for (const user of users) {
-        const role = (user.customClaims?.role as string | undefined) ?? '(no role — treated as member)'
-        const flags = [user.disabled ? 'DISABLED' : null, user.emailVerified ? null : 'unverified']
+      console.log(`\n${all.length} account${all.length === 1 ? '' : 's'}:\n`)
+      for (const user of all) {
+        const roles = user.labels.filter((label) => ROLES.includes(label as Role))
+        const role = roles.join(', ') || '(no role — treated as member)'
+        const flags = [
+          user.status ? null : 'DISABLED',
+          user.emailVerification ? null : 'unverified',
+        ]
           .filter(Boolean)
           .join(' ')
-        console.log(`  ${(user.email ?? user.uid).padEnd(34)} ${role.padEnd(16)} ${flags}`)
+        console.log(`  ${(user.email || user.$id).padEnd(34)} ${role.padEnd(16)} ${flags}`)
       }
       console.log()
       break
@@ -159,10 +191,14 @@ async function main(): Promise<void> {
 
     case 'disable': {
       const email = assertEmail(options.email)
-      const user = await auth.getUserByEmail(email)
-      await auth.updateUser(user.uid, { disabled: true })
-      // Revoke outstanding tokens too, or they stay valid for up to an hour.
-      await auth.revokeRefreshTokens(user.uid)
+      const user = await findByEmail(email)
+      if (!user) exit('No account with that email.')
+
+      await users.updateStatus({ userId: user.$id, status: false })
+      // Blocking the account stops new sign-ins; existing sessions would otherwise
+      // keep working, and a JWT minted from one stays valid until it expires.
+      await users.deleteSessions({ userId: user.$id })
+
       console.log(`\n${email} is disabled and their existing sessions are revoked.\n`)
       break
     }
@@ -173,10 +209,12 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  const code = (error as { code?: string } | null)?.code
-  if (code === 'auth/email-already-exists') {
-    exit('An account with that email already exists. Use "role" to change its role.')
+  if (error instanceof AppwriteException) {
+    if (error.type === 'user_already_exists' || error.code === 409) {
+      exit('An account with that email already exists. Use "role" to change its role.')
+    }
+    if (error.type === 'user_not_found' || error.code === 404) exit('No account with that email.')
+    if (error.type === 'general_argument_invalid') exit(error.message)
   }
-  if (code === 'auth/user-not-found') exit('No account with that email.')
   exit(error instanceof Error ? error.message : String(error))
 })

@@ -6,10 +6,10 @@
  *
  *   • **Demo mode** — an opaque session token the backend issued, kept in
  *     `sessionStorage`.
- *   • **Firebase mode** — a Firebase ID token, fetched from the SDK on every
- *     request. This matters: ID tokens expire after an hour, and `getIdToken()`
- *     silently refreshes a near-expiry one. Caching it ourselves would mean the
- *     treasurer being signed out mid-entry, an hour after signing in.
+ *   • **Appwrite mode** — a short-lived JWT minted from the Appwrite session. This
+ *     matters: those last fifteen minutes, and `getJwt()` re-mints one that is
+ *     close to expiring. Holding a single token for a whole visit would mean the
+ *     treasurer being signed out mid-entry, a quarter of an hour after signing in.
  *
  * `sessionStorage`, not `localStorage`: cleared when the tab closes, so a shared
  * computer does not leave the club's accounts signed in.
