@@ -35,7 +35,8 @@
     "restore": "npm --prefix backend run restore --",
     "appwrite:check": "npm --prefix backend run appwrite:check",
     "appwrite:provision": "npm --prefix backend run provision:appwrite --",
-    "appwrite:deploy": "bash scripts/deploy-appwrite.sh"
+    "appwrite:deploy": "bash scripts/deploy-appwrite.sh",
+    "appwrite:github": "node scripts/connect-github.mjs"
   },
   "dependencies": {
     "serverless-http": "^4.0.0"

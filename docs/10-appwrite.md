@@ -94,12 +94,31 @@ One project holds all four pieces: the website as a **Site**, the Express API as
 **Function**, plus the database and authentication.
 
 ```
-  browser ──► https://<site-id>.appwrite.network        the website (static, SPA fallback)
+  browser ──► https://newmilanisanghaclub.appwrite.network   the website (static, SPA fallback)
                       │
                       └── fetch ──► https://milani-api.fra.appwrite.run/api/v1/**
                                             │                the API, as a Function
                                             └──► Appwrite Databases + Authentication
 ```
+
+Both the website and the API keep a **named** domain, created deliberately, rather
+than the generated one Appwrite assigns. The generated site domain
+(`6a71ec2a0026821e494c.appwrite.network`) still resolves and is still allowed by CORS,
+so an old link does not break.
+
+To add another name for the site:
+
+```bash
+curl -X POST "$APPWRITE_ENDPOINT/proxy/rules/site" \
+  -H "X-Appwrite-Project: $APPWRITE_PROJECT_ID" \
+  -H "X-Appwrite-Key: $APPWRITE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"domain":"newmilanisanghaclub.appwrite.network","siteId":"milani-web"}'
+```
+
+Then add it to `CORS_ORIGINS` on the **function** and redeploy the function, or every
+call from the new domain fails with `403 cors_rejected`. `CORS_ORIGINS` is
+comma-separated, so keep the old origin listed too.
 
 ### Deploy
 
@@ -113,6 +132,30 @@ It configures the CLI from `backend/.env`, so there is no separate `appwrite log
 The API key needs **Sites, Functions and Proxy** scopes as well as Databases and
 Users — a key created only for the database cannot deploy, and the error it gives does
 not say so.
+
+### Deploying on every push
+
+```bash
+npm run appwrite:github            # reports what it would connect
+npm run appwrite:github -- --write # connects the website and the API
+```
+
+**The first time needs a browser.** Appwrite reaches GitHub through its own GitHub
+App, and installing that is an OAuth grant with no API: console → your project →
+**Settings → Git**, choose GitHub, and give it access to this repository. "Only select
+repositories" is enough and better than granting everything you own. After that the
+command above attaches the repository to both resources and a push to `main` rebuilds
+them.
+
+The two root directories differ and matter: the **website** builds from `frontend/`,
+the **API** from the repository root, because its entrypoint imports `backend/dist`.
+Swapped, the build fails on a missing package.json, which reads like a broken
+repository rather than a wrong setting.
+
+`providerSilentMode` is on, so Appwrite does not comment on every commit.
+
+Note that a push rebuilds *both*, even when only one changed. `providerPaths` on each
+resource narrows that if it becomes tiresome.
 
 ### The site and the API are on different domains
 

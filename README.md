@@ -109,6 +109,7 @@ Receiver in Control Centre, which answers with an unhelpful `403`.
 | `npm run test:function`   | Invoke the API as a Netlify Function, with nothing configured       |
 | `npm run verify`          | Everything above, in the order CI runs it                          |
 | `npm run appwrite:deploy` | Deploy the website and the API to Appwrite                         |
+| `npm run appwrite:github` | Connect the repo so a push redeploys both                          |
 | `npm run appwrite:provision` | Create the Appwrite database, tables and indexes                |
 | `npm run appwrite:check`  | Diagnose an Appwrite deployment                                    |
 | `npm run backup`          | Export the ledger and accounts to `backups/`                       |
