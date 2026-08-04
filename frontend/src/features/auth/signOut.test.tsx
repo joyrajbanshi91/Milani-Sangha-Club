@@ -149,10 +149,39 @@ describe('signOut', () => {
     expect(window.localStorage.getItem('cookieFallback')).toBeNull()
   })
 
-  it('leaves no way to obtain a token afterwards', async () => {
+  it('leaves the provider able to work again, not permanently null', async () => {
+    /**
+     * The bug: sign-out installed a provider that always answered null. That reads as
+     * equivalent to clearing the token and is not — the Appwrite provider is installed
+     * once behind a ref guard that `mode` never re-triggers, so nothing ever replaced
+     * the null one. A member signed out, signed back in successfully, and every request
+     * after the new session still went out with no Authorization header: `/auth/me`
+     * answered 401, `user` stayed null, and the sign-in page simply re-rendered.
+     *
+     * So sign-out must leave the *default* provider in place — one that reads storage
+     * and therefore starts working again the moment a token is stored.
+     */
+    const auth = renderAuth()
+
+    await act(async () => {
+      await auth()?.signOut()
+    })
+
+    // Nothing stored, so null — correct.
+    await expect(resolveToken()).resolves.toBeNull()
+
+    // A later sign-in stores a token; the provider must surface it rather than being
+    // stuck answering null for the life of the page.
+    setToken('a-token-from-a-later-sign-in')
+    await expect(resolveToken()).resolves.toBe('a-token-from-a-later-sign-in')
+  })
+
+  it('yields no token immediately after signing out', async () => {
     // The token *provider* matters as much as the stored token: in Appwrite mode it
-    // mints a fresh JWT on demand, so leaving it in place would let the very next
-    // request re-authenticate a member who had just signed out.
+    // mints a fresh JWT on demand, so leaving that one in place would let the very next
+    // request re-authenticate a member who had just signed out. The test above covers
+    // the other half — that the provider is left usable for a *later* sign-in rather
+    // than stuck answering null forever.
     const auth = renderAuth()
 
     await act(async () => {

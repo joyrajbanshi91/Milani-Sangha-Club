@@ -47,10 +47,30 @@ export function setToken(token: string | null): void {
 let provider: TokenProvider = () => Promise.resolve(getToken())
 
 /**
- * Replace how the token is obtained. Called once, when the auth mode is known.
+ * Replace how the token is obtained. Called when the auth mode is known, and again
+ * after each sign-in — see `resetTokenProvider` for why "once" was not enough.
  */
 export function setTokenProvider(next: TokenProvider): void {
   provider = next
+}
+
+/**
+ * Put the default provider back: read the opaque token from `sessionStorage`.
+ *
+ * Used on sign-out instead of installing a provider that always answers null. That
+ * looked equivalent and was not: replacing the provider with a permanent null left the
+ * app unable to authenticate *ever again*, because the code that installs the Appwrite
+ * provider runs once behind a ref guard and `mode` never changes to re-trigger it. The
+ * symptom was a member signing out, signing back in successfully, and the page simply
+ * re-rendering the sign-in form — every request after the new session went out with no
+ * Authorization header at all.
+ *
+ * The default is safe as a resting state because it reads storage that sign-out has
+ * just emptied, so it answers null until something is stored again — without poisoning
+ * the module for the rest of the page's life.
+ */
+export function resetTokenProvider(): void {
+  provider = () => Promise.resolve(getToken())
 }
 
 /** What the API client calls before every request. */
