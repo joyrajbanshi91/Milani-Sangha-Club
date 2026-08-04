@@ -14,9 +14,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(5055),
   APP_VERSION: z.string().default('0.1.0'),
-  LOG_LEVEL: z
-    .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
-    .default('info'),
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 
   CORS_ORIGINS: z
     .string()
@@ -39,7 +37,23 @@ const envSchema = z.object({
   FIREBASE_PRIVATE_KEY: z.string().optional(),
   FIREBASE_STORAGE_BUCKET: z.string().optional(),
 
-  RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
+  // Appwrite. Optional for the same reason as the Firebase block above: the
+  // service must be able to boot and report health before a backing store is
+  // provisioned. APPWRITE_API_KEY is a server credential — see config/appwrite.ts.
+  //
+  // The endpoint is region-specific on Appwrite Cloud
+  // (https://<region>.cloud.appwrite.io/v1); the default is only a sensible
+  // starting point and should be set explicitly for a real project.
+  APPWRITE_ENDPOINT: z.url().default('https://cloud.appwrite.io/v1'),
+  APPWRITE_PROJECT_ID: z.string().optional(),
+  APPWRITE_API_KEY: z.string().optional(),
+  APPWRITE_DATABASE_ID: z.string().default('club'),
+
+  RATE_LIMIT_WINDOW_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(15 * 60 * 1000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
 
   SMTP_HOST: z.string().optional(),
@@ -108,3 +122,11 @@ export const hasFirebaseCredentials =
   Boolean(env.GOOGLE_APPLICATION_CREDENTIALS) ||
   Boolean(env.FIREBASE_PROJECT_ID && env.FIREBASE_CLIENT_EMAIL && env.FIREBASE_PRIVATE_KEY) ||
   Boolean(process.env.FIRESTORE_EMULATOR_HOST)
+
+/**
+ * Whether the Appwrite server SDK can be initialised.
+ *
+ * Both halves are required and neither is useful alone: the project id says
+ * *which* project, the API key is what authorises writing to it.
+ */
+export const hasAppwriteCredentials = Boolean(env.APPWRITE_PROJECT_ID && env.APPWRITE_API_KEY)

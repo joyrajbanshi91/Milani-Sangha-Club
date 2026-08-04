@@ -1,8 +1,10 @@
 import { join } from 'node:path'
 
-import { env, hasFirebaseCredentials, isServerless } from '../config/env.js'
+import { databaseId, getTables } from '../config/appwrite.js'
+import { env, hasAppwriteCredentials, hasFirebaseCredentials, isServerless } from '../config/env.js'
 import { getDb } from '../config/firebase.js'
 import { logger } from '../lib/logger.js'
+import { AppwriteFinanceStore } from './appwriteStore.js'
 import { AuthService } from './authService.js'
 import { FinanceService, type AuditEntry } from './financeService.js'
 import { FirestoreFinanceStore } from './firestoreStore.js'
@@ -46,7 +48,7 @@ export function getContainer(): Container {
 
     // The audit trail is append-only and must survive the request that caused it,
     // so a logging failure is reported but never fails the operation itself.
-    if (store instanceof FirestoreFinanceStore) {
+    if (store instanceof FirestoreFinanceStore || store instanceof AppwriteFinanceStore) {
       try {
         await store.writeAuditLog(record)
       } catch (error) {
@@ -69,6 +71,14 @@ export function getContainer(): Container {
 }
 
 function buildStore(): FinanceStore {
+  // Appwrite is checked first: while both are configured — which is the state
+  // during the migration — Appwrite is the one being moved to, and a deployment
+  // that still carries stale Firebase variables should not silently keep writing
+  // the ledger to Firestore.
+  if (hasAppwriteCredentials) {
+    return new AppwriteFinanceStore(getTables, databaseId)
+  }
+
   if (hasFirebaseCredentials) {
     return new FirestoreFinanceStore(getDb)
   }
@@ -78,9 +88,8 @@ function buildStore(): FinanceStore {
   // business living in a function's memory regardless. Fail with the cause named.
   if (isServerless) {
     throw new Error(
-      'No Firebase credentials in a serverless deployment. Set FIREBASE_PROJECT_ID, ' +
-        'FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY in the hosting dashboard. ' +
-        'See docs/09-netlify.md.'
+      'No database credentials in a serverless deployment. Set APPWRITE_PROJECT_ID ' +
+        'and APPWRITE_API_KEY in the hosting dashboard. See docs/10-appwrite.md.'
     )
   }
 
