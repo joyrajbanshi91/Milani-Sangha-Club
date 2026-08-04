@@ -8,6 +8,7 @@ import {
   Landmark,
   Loader2,
   Scale,
+  Users,
   Wallet,
 } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
@@ -29,6 +30,7 @@ import {
 import { Container } from '@/components/ui/Container'
 import { financeApi, type Rollup } from '@/features/finance/api'
 import { formatMonth, formatPaise, formatRupeesShort } from '@/features/finance/money'
+import { officePaymentsApi } from '@/features/payments/api'
 import { cn } from '@/lib/cn'
 
 /** Chart colours, matching the hue palette used across the site. */
@@ -44,6 +46,19 @@ export function OfficeDashboardPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['finance', 'dashboard', month],
     queryFn: () => financeApi.dashboard({ month }),
+  })
+
+  /**
+   * Members waiting to be verified.
+   *
+   * A separate query rather than part of the dashboard payload, because it is not a
+   * figure: it is people waiting, and it must not disappear from view just because
+   * the month picker moved. It is also the one thing on this page with somebody on
+   * the other end of it.
+   */
+  const waiting = useQuery({
+    queryKey: ['payments', 'queue', 'pending_verification'],
+    queryFn: () => officePaymentsApi.queue('pending_verification'),
   })
 
   if (isLoading) {
@@ -106,6 +121,22 @@ export function OfficeDashboardPage() {
             </p>
           </div>
         </div>
+      ) : null}
+
+      {waiting.data && waiting.data.payments.length > 0 ? (
+        <Link
+          to="/office/payments"
+          className="flex items-center gap-3 rounded-card border border-brand-300 bg-brand-50 p-4 transition-colors hover:bg-brand-100"
+        >
+          <Users className="h-5 w-5 shrink-0 text-brand-700" aria-hidden="true" />
+          <p className="text-sm text-brand-900">
+            <span className="font-semibold">
+              {waiting.data.payments.length} member payment
+              {waiting.data.payments.length === 1 ? '' : 's'} awaiting verification
+            </span>{' '}
+            — a member is waiting for each of these. Check them against the club's records →
+          </p>
+        </Link>
       ) : null}
 
       {data.pending.length > 0 ? (

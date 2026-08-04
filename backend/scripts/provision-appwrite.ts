@@ -238,7 +238,19 @@ async function main(): Promise<number> {
     }
   }
 
-  log('\nDone. Next: npm run seed:finance -- --dir ../data/demo --write')
+  /**
+   * Deliberately does not suggest `seed:finance --dir ../data/demo`.
+   *
+   * It used to, and against a club's real project that is the wrong instruction: the
+   * demo ledger carries invented opening balances and invented transactions, and once
+   * they are posted every balance the treasurer sees is wrong in a way no screen
+   * explains. The club's own figures come from `data/club/*.csv`, which is why the
+   * next step is to check what is already there.
+   */
+  log('\nDone. Next: npm run appwrite:check')
+  log('Then load the club’s own funds and categories from data/club/*.csv —')
+  log('see docs/11-running-the-club-office.md §3. Do NOT seed data/demo into a')
+  log('real project: its opening balances are invented.')
   return 0
 }
 

@@ -331,7 +331,82 @@ intended.
 
 ---
 
-## 5. Testing it end to end
+## 5. Members' payments — how a member's money gets into the books
+
+A member pays the club, and tells the club they have. An office bearer checks that
+against the club's records and enters it. This is the only way anything a member does
+reaches the accounts, and it is deliberately a **declaration**, not a payment: the
+website never takes money.
+
+### What the member does
+
+**My membership → Tell the club about a payment.**
+
+They pay first — UPI, cash, or bank transfer — and then record it. In that order, because
+the acknowledgement number does not exist until the form is submitted, so there is
+nothing to quote in a UPI note. What the treasurer actually matches against is:
+
+| Paid by | The member must enter |
+| --- | --- |
+| UPI | the transaction ID (the UTR) their app shows |
+| Bank | the cheque number, or the bank's reference |
+| Cash | which office bearer took it |
+
+They get an acknowledgement number — `REF-2026-000001` — to quote if they ask about it.
+It is **not** a receipt, and the screen says so.
+
+A member sees only their own declarations, and can **withdraw** one while nobody has
+acted on it. The same payment cannot be declared twice while the first is still waiting;
+that guard exists because two identical claims in the queue is how a club credits itself
+with money it received once.
+
+### What the office bearer does
+
+**Office → Members' payments.** Newest last: the queue is oldest-first, because these are
+people waiting.
+
+1. **Check the payment is real.** The UPI statement, the cash box, the cheque. The screen
+   shows you exactly what to match against.
+2. **Verify this payment**, then say **which fund** it landed in and **which category** it
+   belongs to. The form insists, because a member cannot tell you either — they have no
+   business knowing the club's chart of accounts, and guessing would file every
+   subscription in whichever fund happens to be first in the list.
+3. Or **Cannot find it**, with a reason. The member sees the reason.
+
+### What recording it actually does
+
+It creates an **ordinary pending ledger entry** — exactly as if you had typed it into
+Office → Entries yourself:
+
+- dated the day the **member** paid, not the day you got round to it
+- attributed to **you**, which means **you cannot approve it**
+- **a second officer must still approve it** before it appears in any balance
+
+So verifying a payment does not finish the job. Until another officer approves the entry
+it created, that money is in no total anywhere. The confirmation names the entry and says
+what it is waiting for; the dashboard's amber bar counts it.
+
+### An officer cannot verify their own payment
+
+A treasurer pays their subscription like everybody else. When they declare it, the
+**Verify** button is not offered to them and the API refuses it — another officer has to
+confirm it.
+
+This is not bureaucracy for its own sake. The question being answered at this step is
+"did this money actually arrive?", and nobody can answer that about themselves. The
+two-person rule further down does not cover it: that one asks whether an entry should be
+made, which is a different question.
+
+### If it goes wrong halfway
+
+If the ledger entry is created but the declaration cannot be marked verified — almost
+always because another officer recorded the same one a moment earlier — you get a message
+naming the entry and telling you to withdraw it. Do that, in Office → Entries. The
+declaration stays in the queue so it can be dealt with once, properly.
+
+---
+
+## 6. Testing it end to end
 
 Sign in at <https://newmilanisanghaclub.appwrite.network/login>.
 
@@ -343,9 +418,23 @@ Sign in at <https://newmilanisanghaclub.appwrite.network/login>.
 | Sign out | Returns to the sign-in page, and going back to `/office` asks you to sign in |
 | Sign in as the secretary, approve the entry | Posts; the dashboard figures move |
 | Reports → download the PDF | A real PDF opens |
-| My membership → Change your password | Succeeds with the current password, refused without it |
 | Sign-in page → Reset password | Email arrives; its link opens the new-password page |
 | Choose **General members**, sign in as a member | Lands on `/portal`; `/office` explains it is not available to them |
+| Try the **Office bearers** door with that member's account | Refused, and told to use the General members entrance |
+
+Then the payment flow, which crosses both areas:
+
+| Step | Expect |
+| --- | --- |
+| As a member: My membership → declare a ₹500 UPI payment | An acknowledgement number, `REF-…`, and it appears under "Payments I have declared" as *Awaiting verification* |
+| Send the same one again | Refused as a duplicate, naming the first |
+| Withdraw it, then declare it again | Both work — withdrawing releases the duplicate guard |
+| As the treasurer: Office → Members' payments | The declaration is listed, with the UPI transaction ID to match against |
+| Verify it, choosing a fund and category | Entered as `TXN-…`, **pending**; the dashboard total does **not** move |
+| Try to approve that entry as the treasurer | Refused — they recorded it |
+| As the secretary: Office → Entries → approve it | Posts; the dashboard total moves by ₹500 |
+| Back as the member | Shows *Verified*, naming who confirmed it |
+| As the treasurer: declare a payment of your own | Office → Members' payments offers no **Verify** button for it, and says another officer must |
 
 The amber **Sample data** bar appearing anywhere means the API has lost its database
 credentials and is serving the demo ledger. Check with:
@@ -356,7 +445,7 @@ npm run appwrite:check
 
 ---
 
-## 6. When something does not work
+## 7. When something does not work
 
 | Symptom | Cause |
 | --- | --- |
@@ -369,7 +458,7 @@ npm run appwrite:check
 
 ---
 
-## 7. Where the club's data actually lives
+## 8. Where the club's data actually lives
 
 Nothing sensitive is in GitHub, and a check now enforces that.
 
@@ -379,6 +468,7 @@ Nothing sensitive is in GitHub, and a check now enforces that.
 | Passwords | **Appwrite, hashed.** Not readable by anyone, including you | No |
 | Member ids | **Appwrite → Auth** (`npm run user -- list`) | No |
 | Funds, categories, the ledger | **Appwrite → Databases** | No |
+| Members' declared payments | **Appwrite → Databases** (`payments`) | No |
 | Audit trail | **Appwrite → Databases** (`audit_logs`) | No |
 | Backups | **Google Drive**, via `scripts/backup-to-drive.sh` | No — `backups/` is ignored |
 | `data/club/*.csv` | Your machine only | No — ignored, see below |
@@ -434,7 +524,7 @@ scheduler, which a public repository rules out.
 
 ---
 
-## 8. Back up before you rely on it
+## 9. Back up before you rely on it
 
 ```bash
 npm run backup                                   # writes backups/<timestamp>.json

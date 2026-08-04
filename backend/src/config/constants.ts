@@ -67,13 +67,45 @@ export type MembershipStatus = (typeof MEMBERSHIP_STATUSES)[number]
 
 // --- Payments and receipts (SRS §8, §9) ------------------------------------
 
+/**
+ * Lifecycle of a member's payment declaration (a "fund request").
+ *
+ *   pending_verification  the member says they have paid; nobody has checked
+ *   approved              an officer confirmed the money arrived and entered it
+ *                         in the books — that ledger entry is itself pending a
+ *                         second officer's approval before it counts
+ *   rejected              an officer could not find the payment
+ *   withdrawn             the member took their own declaration back
+ *
+ * A declaration is never a receipt and never a balance: it is a member's claim.
+ * 'approved' means an officer checked the claim against the club's records, which
+ * is the entire reason the step exists.
+ *
+ * There is deliberately no 'initiated'. Nothing here can produce it without an
+ * online payment gateway, and a status no code path reaches is a tab in the
+ * officer's queue that never fills.
+ */
 export const PAYMENT_STATUSES = [
-  'initiated',
   'pending_verification',
   'approved',
   'rejected',
+  'withdrawn',
 ] as const
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number]
+
+/** What the member says the money was for. */
+export const PAYMENT_PURPOSES = ['membership', 'donation', 'event', 'other'] as const
+export type PaymentPurpose = (typeof PAYMENT_PURPOSES)[number]
+
+/**
+ * How the member says they paid.
+ *
+ * Each implies a different thing for the officer to check against, which is why
+ * the form asks for a different detail per method: a UPI or cheque reference to
+ * match against the statement, or the name of the officer who took the cash.
+ */
+export const PAYMENT_METHODS = ['upi', 'cash', 'bank'] as const
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number]
 
 /** Identifier formats. The sequence is allocated server-side, never in the client. */
 export const ID_FORMATS = {
