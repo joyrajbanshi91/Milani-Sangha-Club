@@ -33,7 +33,33 @@
       "events": [],
       "schedule": "",
       "path": ".",
-      "specification": "s-1vcpu-512mb"
+      "specification": "s-1vcpu-512mb",
+      "ignore": [
+        "node_modules",
+        "**/node_modules",
+        ".git",
+        ".github",
+        "frontend",
+        "backups",
+        "backend/dist",
+        "backend/tests",
+        "brand-masters",
+        "club_resources",
+        "data",
+        "docs",
+        "firebase",
+        "netlify",
+        "scripts",
+        "*.md",
+        ".env",
+        "**/.env",
+        "**/.env.*",
+        "**/*.log",
+        ".DS_Store",
+        "**/.DS_Store",
+        "*serviceAccount*.json",
+        "*service-account*.json"
+      ]
     }
   ]
 }
