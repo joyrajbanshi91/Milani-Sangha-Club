@@ -37,6 +37,17 @@ function getClient(): Client {
   return client
 }
 
+/**
+ * The keyed client itself, for services this module does not wrap.
+ *
+ * Exported for the diagnostics script, which inspects the deployed function. The
+ * application code should reach for a named service above instead, so that what it
+ * touches stays visible from here.
+ */
+export function getAppwriteClient(): Client {
+  return getClient()
+}
+
 /** Databases (tables/rows) service, for the ledger. */
 export function getTables(): TablesDB {
   tables ??= new TablesDB(getClient())
