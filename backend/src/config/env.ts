@@ -28,18 +28,11 @@ const envSchema = z.object({
   APP_BASE_URL: z.url().default('http://localhost:5173'),
   TRUST_PROXY: z.coerce.number().int().min(0).default(0),
 
-  // Firebase Admin credentials are optional so that the service can boot (and
-  // report health) before credentials are provisioned. Any route that touches
-  // Firestore calls getFirestore(), which fails loudly if they are absent.
-  GOOGLE_APPLICATION_CREDENTIALS: z.string().optional(),
-  FIREBASE_PROJECT_ID: z.string().optional(),
-  FIREBASE_CLIENT_EMAIL: z.string().optional(),
-  FIREBASE_PRIVATE_KEY: z.string().optional(),
-  FIREBASE_STORAGE_BUCKET: z.string().optional(),
-
-  // Appwrite. Optional for the same reason as the Firebase block above: the
-  // service must be able to boot and report health before a backing store is
-  // provisioned. APPWRITE_API_KEY is a server credential — see config/appwrite.ts.
+  // Appwrite — the backing store and the identity provider. Optional so the service
+  // can boot and report health before one is provisioned; without these it serves the
+  // embedded demo ledger and says so.
+  //
+  // APPWRITE_API_KEY is a server credential — see config/appwrite.ts.
   //
   // The endpoint is region-specific on Appwrite Cloud
   // (https://<region>.cloud.appwrite.io/v1); the default is only a sensible
@@ -89,22 +82,6 @@ export const isTest = env.NODE_ENV === 'test'
 export const isDevelopment = env.NODE_ENV === 'development'
 
 /**
- * Are we running inside Google's own infrastructure?
- *
- * Cloud Run sets K_SERVICE, Cloud Functions sets FUNCTION_TARGET, and both set
- * GAE_ENV on App Engine. In those runtimes the service account is supplied
- * implicitly as Application Default Credentials — there is no key file and no
- * FIREBASE_PRIVATE_KEY, which is the *safer* arrangement, not a missing one.
- *
- * Without this check the API running on Google's own infrastructure would decide it
- * had no credentials and quietly serve the demo ledger, when a perfectly good
- * service account was sitting right there.
- */
-export const isGoogleCloudRuntime = Boolean(
-  process.env.K_SERVICE ?? process.env.FUNCTION_TARGET ?? process.env.GAE_ENV
-)
-
-/**
  * Running as a short-lived function rather than a long-lived server?
  *
  * **Netlify** and AWS Lambda set AWS_LAMBDA_FUNCTION_NAME, which is the case that
@@ -125,13 +102,6 @@ export const isServerless = Boolean(
   process.env.VERCEL ??
   process.env.APPWRITE_FUNCTION_ID
 )
-
-/** Whether Firebase Admin can be initialised with the current configuration. */
-export const hasFirebaseCredentials =
-  isGoogleCloudRuntime ||
-  Boolean(env.GOOGLE_APPLICATION_CREDENTIALS) ||
-  Boolean(env.FIREBASE_PROJECT_ID && env.FIREBASE_CLIENT_EMAIL && env.FIREBASE_PRIVATE_KEY) ||
-  Boolean(process.env.FIRESTORE_EMULATOR_HOST)
 
 /**
  * Which Appwrite project, worked out rather than demanded.

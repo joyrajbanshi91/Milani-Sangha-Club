@@ -45,12 +45,14 @@
 
 [functions]
   node_bundler = "esbuild"
-  # firebase-admin is large and pulls in optional native dependencies that esbuild
-  # should not try to inline. Shipped as a node_module instead of bundled.
+  # Nothing is externalised, and that matters. firebase-admin used to be, because it
+  # is large and pulls in optional native dependencies. Shipped as a raw node_module
+  # it was then loaded by CommonJS `require` at runtime, and its own dependency chain
+  # — jwks-rsa requiring the now ESM-only `jose` — threw ERR_REQUIRE_ESM before a
+  # single line of this application ran. Every route answered 502, including health.
   #
-  # node-appwrite is deliberately absent: it is plain JavaScript and bundles
-  # cleanly, so externalising it would only add a package to install at cold start.
-  external_node_modules = ["firebase-admin"]
+  # firebase-admin has been removed from the project entirely: the ledger is in
+  # Appwrite, and node-appwrite is plain JavaScript that esbuild bundles cleanly.
 
 # /api/** reaches the function. Must come BEFORE the SPA fallback: the first
 # matching rule wins, so a catch-all above this would swallow every API call and

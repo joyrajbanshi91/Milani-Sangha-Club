@@ -50,11 +50,6 @@ describe('DemoDataNotice', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
-  it('stays hidden against a real Firestore ledger', () => {
-    renderWithStore('firestore')
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
-  })
-
   it('stays hidden while the config request is still in flight', () => {
     // A network hiccup must not make a real ledger look like a demo one, so only an
     // explicit 'memory' shows the banner — never the absence of an answer.

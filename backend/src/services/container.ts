@@ -1,12 +1,10 @@
 import { databaseId, getTables } from '../config/appwrite.js'
-import { env, hasAppwriteCredentials, hasFirebaseCredentials, isServerless } from '../config/env.js'
-import { getDb } from '../config/firebase.js'
+import { env, hasAppwriteCredentials, isServerless } from '../config/env.js'
 import { logger } from '../lib/logger.js'
 import { AppwriteFinanceStore } from './appwriteStore.js'
 import { AuthService } from './authService.js'
 import { DEMO_CSV } from './demoSeed.js'
 import { FinanceService, type AuditEntry } from './financeService.js'
-import { FirestoreFinanceStore } from './firestoreStore.js'
 import { InMemoryFinanceStore } from './memoryStore.js'
 import { buildProfileStore, type ProfileStore } from './profileStore.js'
 import type { FinanceStore } from './store.js'
@@ -15,9 +13,9 @@ import type { FinanceStore } from './store.js'
  * Wires the services together once, at boot.
  *
  * The choice of store is made here and nowhere else: Appwrite credentials put the
- * ledger in Appwrite, Firebase credentials put it in Firestore, and with neither it
- * is the embedded demo ledger. Every layer above is identical in all three cases,
- * and the API always starts — see `buildStore()` for why that last part matters.
+ * ledger in Appwrite, and without them it is the embedded demo ledger. Every layer
+ * above is identical either way, and the API always starts — see `buildStore()` for
+ * why that last part matters.
  */
 
 export interface Container {
@@ -48,7 +46,7 @@ export function getContainer(): Container {
 
     // The audit trail is append-only and must survive the request that caused it,
     // so a logging failure is reported but never fails the operation itself.
-    if (store instanceof FirestoreFinanceStore || store instanceof AppwriteFinanceStore) {
+    if (store instanceof AppwriteFinanceStore) {
       try {
         await store.writeAuditLog(record)
       } catch (error) {
@@ -71,15 +69,8 @@ export function getContainer(): Container {
 }
 
 function buildStore(): FinanceStore {
-  // Appwrite is checked first: when both are configured, Appwrite is the one the
-  // club moved to, and a deployment still carrying stale Firebase variables should
-  // not silently keep writing the ledger to Firestore.
   if (hasAppwriteCredentials) {
     return new AppwriteFinanceStore(getTables, databaseId)
-  }
-
-  if (hasFirebaseCredentials) {
-    return new FirestoreFinanceStore(getDb)
   }
 
   /**

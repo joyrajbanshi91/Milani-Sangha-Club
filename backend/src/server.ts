@@ -1,5 +1,5 @@
 import { createApp } from './app.js'
-import { env, hasFirebaseCredentials } from './config/env.js'
+import { env, hasAppwriteCredentials } from './config/env.js'
 import { logger } from './lib/logger.js'
 
 const app = createApp()
@@ -15,9 +15,9 @@ const server = app.listen(env.PORT, () => {
     `API listening on http://localhost:${env.PORT}/api/v1/health`
   )
 
-  if (!hasFirebaseCredentials) {
+  if (!hasAppwriteCredentials) {
     logger.warn(
-      'Firebase Admin credentials are not configured — database-backed routes will fail. ' +
+      'Appwrite credentials are not configured — the demo ledger is in use. ' +
         'See backend/.env.example.'
     )
   }

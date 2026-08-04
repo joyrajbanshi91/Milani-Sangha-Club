@@ -18,7 +18,7 @@ export interface AuthConfig {
    * separately, and it is `store: 'memory'` that means figures are not being kept.
    * Optional so an older API that predates the field does not fail to parse.
    */
-  store?: 'memory' | 'firestore' | 'appwrite'
+  store?: 'memory' | 'appwrite'
   /**
    * Where the browser should reach Appwrite, when the API is using it.
    *
