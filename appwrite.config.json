@@ -1,0 +1,22 @@
+{
+  "projectId": "REPLACE_WITH_YOUR_APPWRITE_PROJECT_ID",
+  "endpoint": "https://cloud.appwrite.io/v1",
+  "sites": [
+    {
+      "$id": "milani-web",
+      "name": "Milani Sangha Club",
+      "enabled": true,
+      "logging": true,
+      "framework": "vite",
+      "timeout": 30,
+      "path": "frontend",
+      "installCommand": "npm install",
+      "buildCommand": "npm run build",
+      "outputDirectory": "./dist",
+      "adapter": "static",
+      "fallbackFile": "index.html",
+      "specification": "s-1vcpu-512mb",
+      "buildRuntime": "node-22"
+    }
+  ]
+}

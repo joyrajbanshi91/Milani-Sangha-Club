@@ -16,6 +16,28 @@ three npm projects — root, `frontend/` and `backend/`. With the defaults it ru
 `npm install` at the root, which installs neither, and then tries to build the
 frontend anyway. That fails at the first thing to need a dependency.
 
+### The settings are in the repository
+
+`appwrite.config.json` holds all of them — `path`, install and build commands,
+output directory and the SPA fallback — so they are reviewed and version-controlled
+rather than retyped into a form. Put your project id in it, then:
+
+```bash
+npx --yes appwrite-cli login
+npx --yes appwrite-cli push sites
+```
+
+This is the reliable route. A git-connected site takes its build settings from the
+**console**, not from this file, so if the two disagree the console wins and the
+file is documentation only. Pushing from the CLI applies exactly what is written
+here — which is why it is worth preferring when a console-configured build is
+failing for reasons that are hard to see.
+
+Values checked against `node-appwrite`'s own enums rather than documentation prose:
+`framework: vite`, `adapter: static`, `buildRuntime: node-22`.
+
+### Or set them by hand in the console
+
 **Your site → Settings → Build settings:**
 
 | Setting | Value |
