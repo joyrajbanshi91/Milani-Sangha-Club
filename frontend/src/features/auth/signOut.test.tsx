@@ -126,6 +126,29 @@ describe('signOut', () => {
     unobserve()
   })
 
+  it("removes the SDK's cookieFallback, or the next sign-in is refused", async () => {
+    /**
+     * The Appwrite web SDK stores its session in localStorage under `cookieFallback`
+     * whenever the browser refuses its third-party cookie, and never removes it —
+     * `removeItem` appears nowhere in the shipped SDK. Left behind, the browser still
+     * presents a session credential and Appwrite refuses the next sign-in with
+     * `user_session_already_exists`: "You are already signed in", on the page that has
+     * just signed you out.
+     *
+     * Asserted against the literal key because that is the contract with the SDK. If a
+     * future version renames it this test fails, which is the point — otherwise the
+     * cleanup would stop working in silence.
+     */
+    const auth = renderAuth()
+    window.localStorage.setItem('cookieFallback', '{"a_session_x":"stale"}')
+
+    await act(async () => {
+      await auth()?.signOut()
+    })
+
+    expect(window.localStorage.getItem('cookieFallback')).toBeNull()
+  })
+
   it('leaves no way to obtain a token afterwards', async () => {
     // The token *provider* matters as much as the stored token: in Appwrite mode it
     // mints a fresh JWT on demand, so leaving it in place would let the very next

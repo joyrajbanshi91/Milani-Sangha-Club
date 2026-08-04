@@ -118,3 +118,41 @@ export async function getJwt(): Promise<string | null> {
 export function clearJwt(): void {
   cached = null
 }
+
+/**
+ * The key the Appwrite web SDK uses for its localStorage cookie fallback.
+ *
+ * Not exported by the SDK, so it is named here. If a future SDK renames it,
+ * `clearStoredSession` stops working silently — which is why the test for it asserts on
+ * this key by name rather than on behaviour alone.
+ */
+const SDK_COOKIE_FALLBACK_KEY = 'cookieFallback'
+
+/**
+ * Forget every trace of the session this browser is holding.
+ *
+ * The SDK's session cookie is set on `.fra.cloud.appwrite.io` while the site is served
+ * from another domain, so it is a third-party cookie and most browsers now refuse it.
+ * The SDK handles that by storing the cookie in `localStorage` under `cookieFallback`
+ * and replaying it as an `X-Fallback-Cookies` header.
+ *
+ * **It never removes that entry.** `removeItem` does not appear anywhere in the shipped
+ * SDK. So after signing out — with the session genuinely deleted server-side, 204 and
+ * all — this browser still presents a session credential on the next request, and
+ * Appwrite refuses the next sign-in with `user_session_already_exists`. The symptom is
+ * "You are already signed in" on a page that has just signed you out, with no way back
+ * in short of clearing site data by hand.
+ *
+ * Hence clearing it ourselves. Both halves matter: the cached JWT is ours, the fallback
+ * cookie is the SDK's, and leaving either behind keeps the browser half-signed-in.
+ */
+export function clearStoredSession(): void {
+  cached = null
+
+  try {
+    window.localStorage.removeItem(SDK_COOKIE_FALLBACK_KEY)
+  } catch {
+    // Private browsing can refuse storage access. Nothing was stored in that case
+    // either, so there is nothing to clear.
+  }
+}

@@ -91,15 +91,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /** Appwrite email and password sign-in. */
   const signIn = useCallback(
     async (email: string, password: string) => {
-      const { getAccount, clearJwt } = await import('@/lib/appwrite')
+      const { getAccount, clearJwt, clearStoredSession } = await import('@/lib/appwrite')
 
       // A stale JWT from a previous member on a shared computer must not be sent
       // as though it were this one's.
       clearJwt()
 
+      const attempt = () =>
+        getAccount().createEmailPasswordSession({ email: email.trim(), password })
+
       try {
-        await getAccount().createEmailPasswordSession({ email: email.trim(), password })
+        await attempt()
       } catch (error) {
+        /**
+         * Recover from a session credential this browser should not still have.
+         *
+         * `user_session_already_exists` means Appwrite saw a session on the request. It
+         * is the state anyone lands in after signing out with an older build: the
+         * session was deleted server-side, but the SDK's `cookieFallback` entry stayed
+         * in localStorage because the SDK never removes it. The result was "You are
+         * already signed in" on the sign-in page, with no way back in except clearing
+         * site data by hand.
+         *
+         * Sign-out now clears that entry, so this should not arise again — but browsers
+         * already carrying a stale one need to heal themselves, and telling a member to
+         * open developer tools is not a fix. So: drop the stored credential and try
+         * once more.
+         *
+         * Deliberately one retry. If the second attempt reports the same thing there is
+         * a real session somewhere and the honest answer is the message, not a loop.
+         */
+        const type = (error as { type?: string } | null)?.type
+
+        if (type === 'user_session_already_exists') {
+          clearStoredSession()
+          try {
+            await attempt()
+            await queryClient.invalidateQueries({ queryKey: ['auth', 'me'] })
+            return
+          } catch (retryError) {
+            throw new Error(describeAppwriteError(retryError), { cause: retryError })
+          }
+        }
+
         // `cause` keeps the original Appwrite error for the console.
         throw new Error(describeAppwriteError(error), { cause: error })
       }
@@ -230,9 +264,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     //    failure cannot skip the next.
     if (mode === 'appwrite') {
       try {
-        const { getAccount, clearJwt } = await import('@/lib/appwrite')
-        clearJwt()
+        const { getAccount, clearStoredSession } = await import('@/lib/appwrite')
         await getAccount().deleteSession({ sessionId: 'current' })
+        // After, not before: the SDK needs its stored credential to authenticate the
+        // deletion. Clearing first would delete nothing and leave the session alive.
+        clearStoredSession()
       } catch (error) {
         // An already-expired session is not a failure to sign out. This also used to
         // swallow something much less benign: Appwrite refuses browser requests from an
@@ -246,6 +282,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch {
         // Signing out locally matters more than telling the server about it.
       }
+    }
+
+    /**
+     * Clear the SDK's stored session credential — unconditionally, and last.
+     *
+     * Three properties, each of which a first attempt got wrong:
+     *
+     *   * **Outside the mode branch.** `mode` comes from `/auth/config`, so it is
+     *     undefined whenever that request has not answered — and a member signing out
+     *     while the API is unreachable most needs their credentials gone. Making the
+     *     cleanup conditional on knowing the mode meant it was skipped exactly then.
+     *   * **After the server call**, never before: the SDK authenticates the deletion
+     *     with this very credential, so clearing it first deletes nothing and leaves the
+     *     session alive on Appwrite.
+     *   * **Written directly, not through the SDK module.** If importing that module is
+     *     what failed, importing it again to clean up fails identically.
+     */
+    try {
+      window.localStorage.removeItem('cookieFallback')
+    } catch {
+      // Private browsing can refuse storage access; nothing was stored either.
     }
 
     /**
