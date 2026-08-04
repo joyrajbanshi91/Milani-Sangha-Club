@@ -3,38 +3,48 @@
  * Configure a Netlify project from backend/.env, in one command.
  *
  *   npm run netlify:setup            # show what would be set, change nothing
- *   npm run netlify:setup -- --write # apply it
+ *   npm run netlify:setup -- --write # apply it, then read it back and prove it
  *
- * ## Why this exists
+ * ## Why this talks to the REST API instead of the CLI
  *
- * Setting these by hand in the dashboard went wrong repeatedly, and the design was to
- * blame rather than the person doing it. Six variables, spread across two different
- * variable *scopes*, where the editor defaults to all four scopes and the consequence
- * of a wrong scope is silence: a server API key scoped to Builds is compiled into the
- * browser bundle, and a value scoped only to Functions is invisible to the build. In
- * neither case does anything fail — you just get the demo account picker on a site you
- * have configured correctly-looking six times.
+ * It used `netlify env:set --scope functions`, which **silently did nothing**. On the
+ * free plan that call is refused with
+ * `403 Upgrade your Netlify account to set specific scopes` — variable *scoping* is a
+ * paid feature — and the CLI swallowed the error, printed nothing at all, and exited
+ * 0. This script trusted the exit code and reported nine variables as "set" when the
+ * site had none. The deployed API stayed in demo mode, and nothing anywhere said why.
  *
- * Two changes fixed the underlying problem. The API now tells the browser the Appwrite
- * endpoint and project id at runtime through `/auth/config`, so the two `VITE_`
- * variables and the whole Builds scope are gone. And this script sets what remains,
- * reading the values from the file that already holds them, so there is nothing to
- * retype and no scope to tick.
+ * Two lessons are built in now:
  *
- * The API key is passed with `--secret`, so Netlify will not show it again, and it is
- * never printed here.
+ *   * **Talk to the API directly.** `POST /accounts/{id}/env?site_id=…` returns a real
+ *     status code. A 403 is a 403.
+ *   * **Never believe a write without reading it back.** Every run finishes by
+ *     fetching the variables and comparing them to what was asked for, and fails if
+ *     they disagree.
  *
- * Requires the Netlify CLI to be logged in and this directory linked to a project:
+ * ## No scopes, and why that is safe
  *
- *   npx netlify-cli login
- *   npx netlify-cli link
+ * Variables are created unscoped, which the free plan grants all four scopes —
+ * builds, functions, post-processing and runtime. That means `APPWRITE_API_KEY` is
+ * present in the build environment as well as the function's.
+ *
+ * It still cannot reach the browser. Vite only inlines variables prefixed `VITE_`
+ * into client code, and nothing here is. That is verified rather than assumed:
+ * `npm run check:bundle` builds with a canary value in the environment and fails if
+ * it appears in any built file.
+ *
+ * The values are not marked secret, so they remain readable in your own Netlify
+ * dashboard — which is what lets this script verify them. Rotate the Appwrite key if
+ * anyone else gains access to the team.
  */
-import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const write = process.argv.includes('--write')
 const root = fileURLToPath(new URL('..', import.meta.url))
+const API = 'https://api.netlify.com/api/v1'
 
 /** Minimal dotenv: `KEY=value`, `#` comments, optional quotes. */
 function readEnvFile(path) {
@@ -69,80 +79,64 @@ function readEnvFile(path) {
   return values
 }
 
-const backend = readEnvFile(`${root}backend/.env`)
-
 /**
- * What the deployed function needs.
+ * The CLI's own token, so this needs no separate login.
  *
- * Every one is `functions` scope. There is deliberately no `builds` entry any more:
- * the browser gets the Appwrite endpoint and project id from `/auth/config` at
- * runtime, so nothing about the backing service is compiled into the bundle.
- *
- * `secret: true` means Netlify stores it write-only. Correct for the API key and
- * wrong for everything else — a secret value cannot be read back to check it.
+ * `NETLIFY_AUTH_TOKEN` wins, for CI. Otherwise the location differs by platform, so
+ * all the known ones are tried rather than guessed at.
  */
-const PLAN = [
-  { key: 'APPWRITE_ENDPOINT', from: 'APPWRITE_ENDPOINT', required: true },
-  { key: 'APPWRITE_PROJECT_ID', from: 'APPWRITE_PROJECT_ID', required: true },
-  { key: 'APPWRITE_API_KEY', from: 'APPWRITE_API_KEY', required: true, secret: true },
-  { key: 'APPWRITE_DATABASE_ID', from: 'APPWRITE_DATABASE_ID', required: false },
-  { key: 'NODE_ENV', literal: 'production', required: false },
-  { key: 'TRUST_PROXY', literal: '1', required: false },
-  { key: 'CLUB_NAME', from: 'CLUB_NAME', required: false },
-]
+function authToken() {
+  if (process.env.NETLIFY_AUTH_TOKEN) return process.env.NETLIFY_AUTH_TOKEN
 
-function netlify(args, { capture = false } = {}) {
-  return execFileSync('npx', ['--yes', 'netlify-cli', ...args], {
-    cwd: root,
-    encoding: 'utf8',
-    stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'inherit',
-  })
+  const candidates = [
+    join(homedir(), 'Library', 'Preferences', 'netlify', 'config.json'),
+    join(homedir(), '.config', 'netlify', 'config.json'),
+    join(homedir(), '.netlify', 'config.json'),
+    join(homedir(), 'AppData', 'Roaming', 'netlify', 'Config', 'config.json'),
+  ]
+
+  for (const path of candidates) {
+    try {
+      const parsed = JSON.parse(readFileSync(path, 'utf8'))
+      for (const user of Object.values(parsed.users ?? {})) {
+        const token = user?.auth?.token
+        if (token) return token
+      }
+    } catch {
+      // Missing or unreadable is the ordinary case for all but one of these.
+    }
+  }
+
+  return null
 }
 
-/**
- * Which project is this directory linked to, and is that link still good?
- *
- * Three failure states, three different fixes, and they are easy to confuse. The
- * nastiest is the third: `.netlify/state.json` holds a site id that no longer exists,
- * usually because the project was deleted and recreated. The CLI then reports a
- * `Project Id` with `Admin URL: undefined`, and `netlify deploy` fails with a bare
- * `JSONHTTPError: Not Found` that mentions neither the site nor the stale id.
- *
- * An earlier version of this function collapsed all three into "not linked, or not
- * logged in", which sent someone to re-run `login` and `link` when they were already
- * logged in and the real fix was to unlink first.
- */
-function inspectLink() {
-  let status
+function siteId() {
   try {
-    status = JSON.parse(netlify(['status', '--json'], { capture: true }))
-  } catch (error) {
-    const text = `${error.stdout ?? ''}${error.stderr ?? ''}`
-    if (/not logged in|log in|Not authorized/i.test(text)) return { state: 'logged-out' }
-    return { state: 'unknown', detail: text.trim().split('\n').slice(-3).join(' ') }
+    return JSON.parse(readFileSync(join(root, '.netlify', 'state.json'), 'utf8')).siteId ?? null
+  } catch {
+    return null
+  }
+}
+
+async function api(path, { method = 'GET', body, token } = {}) {
+  const response = await fetch(`${API}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  })
+
+  const text = await response.text()
+  let parsed
+  try {
+    parsed = text ? JSON.parse(text) : null
+  } catch {
+    parsed = text
   }
 
-  // `netlify status --json` uses hyphenated keys — `site-name`, `site-url`, `site-id`
-  // — not the camelCase ones the rest of the CLI's output suggests. Reading `name`
-  // and `url` returned undefined for a perfectly good link, so this reported every
-  // correctly-linked directory as stale. The fallbacks cover a future rename.
-  const site = status.siteData ?? {}
-  const name = site['site-name'] ?? site.name
-  const url = site['site-url'] ?? site.url
-
-  // A site id on disk with nothing behind it. Read the id straight from the file
-  // rather than from the CLI, so the message can name it.
-  if (!name && !url) {
-    let staleId
-    try {
-      staleId = JSON.parse(readFileSync(`${root}.netlify/state.json`, 'utf8')).siteId
-    } catch {
-      staleId = undefined
-    }
-    return staleId ? { state: 'stale', staleId } : { state: 'unlinked' }
-  }
-
-  return { state: 'linked', name: name ?? url, url }
+  return { ok: response.ok, status: response.status, body: parsed }
 }
 
 function mask(value) {
@@ -152,61 +146,105 @@ function mask(value) {
 
 // ---------------------------------------------------------------------------
 
-// Read the link first, so the two URL-derived variables can be shown in the dry run
-// rather than appearing only once --write is used. This call changes nothing.
-const link = inspectLink()
+const backend = readEnvFile(join(root, 'backend', '.env'))
+const token = authToken()
+const site = siteId()
+
+process.stdout.write('\nNetlify configuration, from backend/.env\n\n')
+
+if (!token) {
+  process.stderr.write(
+    'No Netlify token found. Log in once:\n\n  npx netlify-cli login\n\n' +
+      'Or export NETLIFY_AUTH_TOKEN.\n\n'
+  )
+  process.exit(1)
+}
+
+if (!site) {
+  process.stderr.write(
+    'This directory is not linked to a Netlify project:\n\n' +
+      '  npx netlify-cli sites:list                 # find the id\n' +
+      '  npx netlify-cli link --id <the-site-id>\n\n' +
+      'If a previous project was deleted, `link` refuses while the stale id is on\n' +
+      'disk — run `npx netlify-cli unlink` first.\n\n'
+  )
+  process.exit(1)
+}
+
+const siteInfo = await api(`/sites/${site}`, { token })
+if (!siteInfo.ok) {
+  process.stderr.write(
+    `The linked site id does not resolve (HTTP ${siteInfo.status}):\n\n  ${site}\n\n` +
+      'That is a stale link, left behind when a project is deleted and recreated.\n' +
+      'It is not a login problem, and `netlify deploy` reports it only as\n' +
+      '`JSONHTTPError: Not Found`. Fix it with:\n\n' +
+      '  npx netlify-cli unlink\n' +
+      '  npx netlify-cli sites:list\n' +
+      '  npx netlify-cli link --id <the-site-id>\n\n'
+  )
+  process.exit(1)
+}
+
+const accountId = siteInfo.body.account_id
+const siteUrl = siteInfo.body.ssl_url ?? siteInfo.body.url
 
 /**
- * The site's own address, which two variables need and nobody should have to type.
+ * What the deployed function needs.
  *
- * `CORS_ORIGINS` and `APP_BASE_URL` were on the "worth setting either way" list in the
- * docs, which meant they were usually not set — and `APP_BASE_URL` is what receipts and
- * QR verification links are built from, so wrong is worse than absent there. Taking
- * them from the linked project removes the transcription error entirely, and they
- * change on their own when the project changes.
+ * `CORS_ORIGINS` and `APP_BASE_URL` come from the project itself rather than being
+ * typed. `APP_BASE_URL` is what receipts and QR verification links are built from, so
+ * a wrong value there is worse than a missing one.
  */
-if (link.state === 'linked' && link.url) {
-  PLAN.push(
-    { key: 'CORS_ORIGINS', literal: link.url, required: false, fromSite: true },
-    { key: 'APP_BASE_URL', literal: link.url, required: false, fromSite: true }
-  )
-}
+const PLAN = [
+  { key: 'APPWRITE_ENDPOINT', from: 'APPWRITE_ENDPOINT', required: true },
+  { key: 'APPWRITE_PROJECT_ID', from: 'APPWRITE_PROJECT_ID', required: true },
+  { key: 'APPWRITE_API_KEY', from: 'APPWRITE_API_KEY', required: true, secret: true },
+  { key: 'APPWRITE_DATABASE_ID', from: 'APPWRITE_DATABASE_ID' },
+  { key: 'NODE_ENV', literal: 'production' },
+  { key: 'TRUST_PROXY', literal: '1' },
+  { key: 'CLUB_NAME', from: 'CLUB_NAME' },
+  ...(siteUrl
+    ? [
+        { key: 'CORS_ORIGINS', literal: siteUrl, fromSite: true },
+        { key: 'APP_BASE_URL', literal: siteUrl, fromSite: true },
+      ]
+    : []),
+]
 
 const resolved = []
 const missing = []
 
 for (const entry of PLAN) {
   const value = entry.literal ?? backend[entry.from]?.trim()
-
   if (!value) {
     if (entry.required) missing.push(entry.key)
     continue
   }
-
   resolved.push({ ...entry, value })
 }
 
-process.stdout.write('\nNetlify configuration, from backend/.env\n\n')
-
 if (missing.length > 0) {
   process.stderr.write(
-    `Cannot continue — these are not set in backend/.env:\n` +
+    'Cannot continue — these are not set in backend/.env:\n' +
       missing.map((key) => `  • ${key}`).join('\n') +
       '\n\nSet up Appwrite first (docs/10-appwrite.md), then run this again.\n\n'
   )
   process.exit(1)
 }
 
+process.stdout.write(`  project   ${siteInfo.body.name}  (${siteUrl})\n\n`)
+
 for (const entry of resolved) {
   const shown = entry.secret
-    ? `${mask(entry.value)}  (not printed, sent with --secret)`
+    ? `${mask(entry.value)}  (not printed)`
     : `${entry.value}${entry.fromSite ? '   ← from the linked project' : ''}`
-  process.stdout.write(`  ${entry.key.padEnd(22)} functions   ${shown}\n`)
+  process.stdout.write(`  ${entry.key.padEnd(22)} ${shown}\n`)
 }
 
 process.stdout.write(
-  '\nAll functions scope. Nothing needs the builds scope: the browser gets the\n' +
-    'Appwrite endpoint and project id from /auth/config at runtime.\n\n'
+  '\nCreated unscoped: the free plan refuses specific scopes with a 403, so Netlify\n' +
+    'grants all four. The API key still cannot reach the browser — Vite only inlines\n' +
+    'VITE_-prefixed values, which `npm run check:bundle` proves.\n\n'
 )
 
 if (!write) {
@@ -214,78 +252,93 @@ if (!write) {
   process.exit(0)
 }
 
-if (link.state !== 'linked') {
-  const advice = {
-    'logged-out':
-      'The Netlify CLI is not logged in:\n\n' +
-      '  npx netlify-cli login\n' +
-      '  npx netlify-cli link\n',
+// --- apply -----------------------------------------------------------------
 
-    unlinked:
-      'This directory is not linked to a Netlify project:\n\n' +
-      '  npx netlify-cli link\n\n' +
-      'Linking is per directory, so a new project needs a fresh `link` even though\n' +
-      'nothing else about the repository changed.\n',
-
-    stale:
-      `This directory is linked to a Netlify project that no longer exists:\n\n` +
-      `  stale site id  ${link.staleId ?? '(unreadable)'}\n\n` +
-      'That happens when the project is deleted and recreated. It is not a login\n' +
-      'problem — `netlify deploy` fails with a bare `JSONHTTPError: Not Found` and\n' +
-      '`netlify status` shows a Project Id with `Admin URL: undefined`.\n\n' +
-      'Point it at the right one:\n\n' +
-      '  npx netlify-cli sites:list                 # find the id you want\n' +
-      '  npx netlify-cli link --id <the-site-id>    # relinks, no prompts\n',
-
-    unknown: `Could not read the Netlify link state.\n\n  ${link.detail ?? 'no detail'}\n`,
-  }[link.state]
-
-  process.stderr.write(`${advice}\nThen run this again.\n\n`)
+const existing = await api(`/accounts/${accountId}/env?site_id=${site}`, { token })
+if (!existing.ok) {
+  process.stderr.write(`Could not read the current variables (HTTP ${existing.status}).\n\n`)
   process.exit(1)
 }
 
-process.stdout.write(`Applying to: ${link.name}${link.url ? `  (${link.url})` : ''}\n\n`)
+const present = new Set((existing.body ?? []).map((variable) => variable.key))
 
 let failed = 0
 
 for (const entry of resolved) {
-  const args = ['env:set', entry.key, entry.value, '--scope', 'functions', '--force']
+  // No `scopes` field: sending one is what the free plan refuses outright.
+  const payload = { key: entry.key, values: [{ context: 'all', value: entry.value }] }
 
-  /**
-   * A secret value cannot cover the `dev` context, so it needs the others named.
-   *
-   * Netlify refuses `--secret` without an explicit non-development `--context`:
-   * "To set a secret environment variable value, please specify a non-development
-   * context". Left implicit, the API key was the one variable of the nine that failed
-   * to set — and it is the one without which nothing works.
-   *
-   * Losing the `dev` context costs nothing: `netlify dev` reads backend/.env locally,
-   * which is where the key already lives.
-   */
-  if (entry.secret) {
-    args.push('--secret', '--context', 'production', 'deploy-preview', 'branch-deploy')
-  }
+  const result = present.has(entry.key)
+    ? await api(`/accounts/${accountId}/env/${entry.key}?site_id=${site}`, {
+        method: 'PUT',
+        body: payload,
+        token,
+      })
+    : await api(`/accounts/${accountId}/env?site_id=${site}`, {
+        method: 'POST',
+        body: [payload],
+        token,
+      })
 
-  try {
-    netlify(args, { capture: true })
-    process.stdout.write(`  set  ${entry.key}\n`)
-  } catch (error) {
+  if (result.ok) {
+    process.stdout.write(`  ${present.has(entry.key) ? 'updated' : 'created'}  ${entry.key}\n`)
+  } else {
     failed += 1
-    const detail = error.stderr?.toString().trim().split('\n').slice(-2).join(' ') ?? error.message
-    process.stdout.write(`  FAIL ${entry.key} — ${detail}\n`)
+    const detail = result.body?.message ?? JSON.stringify(result.body).slice(0, 120)
+    process.stdout.write(`  FAILED   ${entry.key} — HTTP ${result.status} ${detail}\n`)
   }
 }
 
-process.stdout.write(
-  failed === 0
-    ? '\nDone. Environment variables only take effect on a new deploy:\n\n' +
-        '  npx netlify-cli deploy --build --prod\n\n' +
-        'or in the dashboard: Deploys → Trigger deploy → Deploy site.\n\n' +
-        'Then confirm the live site is on the real database:\n\n' +
-        '  API_PROBE_URL=https://<your-site>.netlify.app npm run appwrite:check\n\n' +
-        'You want `store "appwrite"`, no amber Sample data bar, and an email and\n' +
-        'password form at /login rather than the demo account picker.\n\n'
-    : `\n${failed} variable(s) could not be set. Nothing else was rolled back.\n\n`
+// --- verify, because a clean exit code proved nothing last time -------------
+
+process.stdout.write('\nReading it back:\n')
+
+const after = await api(`/accounts/${accountId}/env?site_id=${site}`, { token })
+const actual = new Map(
+  (after.body ?? []).map((variable) => [
+    variable.key,
+    variable.values?.find((v) => v.context === 'all')?.value ??
+      variable.values?.[0]?.value ??
+      null,
+  ])
 )
 
-process.exit(failed > 0 ? 1 : 0)
+let wrong = 0
+
+for (const entry of resolved) {
+  if (!actual.has(entry.key)) {
+    wrong += 1
+    process.stdout.write(`  MISSING  ${entry.key} — the write did not stick\n`)
+    continue
+  }
+
+  const stored = actual.get(entry.key)
+  // A null value means Netlify is withholding it (a secret). Presence is all we can
+  // check then, and all we need to.
+  if (stored !== null && stored !== entry.value) {
+    wrong += 1
+    process.stdout.write(`  WRONG    ${entry.key} — stored value differs from backend/.env\n`)
+    continue
+  }
+
+  process.stdout.write(`  ok       ${entry.key}\n`)
+}
+
+if (failed > 0 || wrong > 0) {
+  process.stderr.write(
+    `\n${failed} write(s) failed and ${wrong} variable(s) did not verify. The site is\n` +
+      'NOT configured. Nothing was rolled back.\n\n'
+  )
+  process.exit(1)
+}
+
+process.stdout.write(
+  `\nAll ${resolved.length} variables verified on ${siteInfo.body.name}.\n\n` +
+    'They only take effect on a new deploy:\n\n' +
+    '  npx netlify-cli deploy --prod\n\n' +
+    'Then check the live API. If the site has SSO enabled (Project configuration →\n' +
+    'Access & security → Visitor access) every path answers 401 to anything but your\n' +
+    'own signed-in browser, so use the browser for this:\n\n' +
+    `  ${siteUrl}/api/v1/health/ready     → expect "store":"appwrite"\n` +
+    `  ${siteUrl}/login                   → expect an email and password form\n\n`
+)
