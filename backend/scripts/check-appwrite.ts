@@ -10,9 +10,9 @@
  *
  * Reads nothing it should not print. The API key is never echoed.
  */
-import { AppwriteException, Query } from 'node-appwrite'
+import { AppwriteException, Functions, Query } from 'node-appwrite'
 
-import { getTables, getUsers } from '../src/config/appwrite.js'
+import { getAppwriteClient, getTables, getUsers } from '../src/config/appwrite.js'
 import { TABLES } from '../src/config/appwriteSchema.js'
 import { appwriteProjectId, env, hasAppwriteCredentials } from '../src/config/env.js'
 
@@ -28,6 +28,124 @@ function explain(error: unknown, scope: string): string {
     return `${error.code} ${error.type}: ${error.message}`
   }
   return error instanceof Error ? error.message : String(error)
+}
+
+/**
+ * Variables the API cannot run without once it is deployed.
+ *
+ * `APPWRITE_PROJECT_ID` is on the list even though Appwrite may inject
+ * `APPWRITE_FUNCTION_PROJECT_ID` and the code falls back to it. Relying on that
+ * injection cost a round of debugging: the function returned an empty 503 because
+ * `hasAppwriteCredentials` was false without it. Whether the injection is present
+ * varies by runtime and is not worth depending on for the one variable that decides
+ * whether the ledger is reachable at all — so it is required here, and the fallback
+ * is a safety net rather than the plan.
+ */
+const FUNCTION_VARS = [
+  'APPWRITE_PROJECT_ID',
+  'APPWRITE_API_KEY',
+  'APPWRITE_DATABASE_ID',
+  'NODE_ENV',
+  'TRUST_PROXY',
+]
+
+/**
+ * Is the deployed API actually serving?
+ *
+ * A function can be enabled, with a deployment that built successfully, and still
+ * answer 503 to everything — because the deployment was never *activated*, or
+ * because it has no environment variables and so cannot reach the database. Neither
+ * shows up as an error anywhere; the only symptom is an empty 503, which says
+ * nothing. This asks the three questions that distinguish them.
+ */
+async function checkFunction(): Promise<boolean> {
+  const functions = new Functions(getAppwriteClient())
+  let healthy = true
+
+  log()
+
+  let fn
+  try {
+    fn = await functions.get({ functionId: 'api' })
+  } catch (error) {
+    if (error instanceof AppwriteException && error.code === 404) {
+      log('function   not created yet — run: npx --yes appwrite-cli push functions')
+      return false
+    }
+    // A key without the Functions scope cannot answer this. Not fatal: the rest of
+    // the configuration is still worth reporting.
+    log(`function   could not be checked — ${explain(error, 'Functions')}`)
+    return true
+  }
+
+  log(`function   ${fn.$id} — ${fn.enabled ? 'enabled' : 'DISABLED'}, runtime ${fn.runtime}`)
+
+  if (!fn.deploymentId) {
+    healthy = false
+    const { deployments } = await functions.listDeployments({ functionId: 'api' })
+    const ready = deployments.filter((d) => d.status === 'ready')
+
+    log('           NO ACTIVE DEPLOYMENT — this alone makes every request 503')
+    if (ready.length > 0) {
+      log(`           one is built and ready: ${ready[0]?.$id ?? ''}`)
+      log('           activate it: npx --yes appwrite-cli push functions --activate')
+      log('           or console → Functions → Deployments → Activate')
+    } else {
+      log('           and none is built. Push one: npx --yes appwrite-cli push functions')
+    }
+  } else {
+    log(`           active deployment ${fn.deploymentId}`)
+  }
+
+  const { variables } = await functions.listVariables({ functionId: 'api' })
+  const present = new Set(variables.map((variable) => variable.key))
+  const missing = FUNCTION_VARS.filter((key) => !present.has(key))
+
+  if (missing.length > 0) {
+    healthy = false
+    log(`           variables missing: ${missing.join(', ')}`)
+    log('           set them on the FUNCTION, not the site — the API key especially')
+  } else {
+    log(`           variables set: ${[...present].sort().join(', ')}`)
+  }
+
+  // Deliberately no live HTTP probe here: the function's public domain comes from a
+  // proxy rule, which needs another scope on the API key to read, and guessing the
+  // hostname would report a false failure. Set API_PROBE_URL to check it end to end.
+  const probe = process.env.API_PROBE_URL
+  if (probe) {
+    try {
+      const response = await fetch(`${probe.replace(/\/$/, '')}/health`)
+      const body = await response.text()
+      const isJson = body.trimStart().startsWith('{')
+      log(`           GET ${probe}/health → ${response.status} ${isJson ? 'JSON' : 'not JSON'}`)
+      if (!response.ok || !isJson) healthy = false
+    } catch (error) {
+      healthy = false
+      log(`           probe FAILED — ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  // A failing function answers an empty 503, which says nothing at all. The reason
+  // is in the execution record, and reading it here saves the round trip through the
+  // console that this cost the first time.
+  if (!healthy) {
+    const { executions } = await functions.listExecutions({
+      functionId: 'api',
+      queries: [Query.limit(1), Query.orderDesc('$createdAt')],
+    })
+
+    const failed = executions.find((execution) => execution.errors)
+    if (failed?.errors) {
+      log('')
+      log('           the last execution failed with:')
+      for (const line of failed.errors.trim().split('\n').slice(0, 6)) {
+        log(`             ${line}`)
+      }
+    }
+  }
+
+  return healthy
 }
 
 async function main(): Promise<number> {
@@ -126,6 +244,9 @@ async function main(): Promise<number> {
     ok = false
     log(`users      FAILED — ${explain(error, 'Users')}`)
   }
+
+  const functionReady = await checkFunction()
+  if (!functionReady) ok = false
 
   log()
   if (ok) {
