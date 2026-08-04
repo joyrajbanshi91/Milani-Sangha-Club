@@ -177,10 +177,10 @@ before anyone can sign in to grant anything, and a self-service "make me the
 treasurer" button would defeat the two-person rule.
 
 ```bash
-npm run user -- create --email treasurer@yourclub.org --name "A Name" --role treasurer
-npm run user -- create --email secretary@yourclub.org --name "B Name" --role secretary
-npm run user -- create --email president@yourclub.org --name "C Name" --role president
-npm run user -- create --email member@yourclub.org    --name "D Name" --role member
+npm run user -- create --email treasurer@example.org --name "A Name" --role treasurer
+npm run user -- create --email secretary@example.org --name "B Name" --role secretary
+npm run user -- create --email president@example.org --name "C Name" --role president
+npm run user -- create --email member@example.org    --name "D Name" --role member
 ```
 
 **Create at least two officers.** With one you cannot approve anything — that is
@@ -193,8 +193,8 @@ Useful afterwards:
 
 ```bash
 npm run user -- list                                          # who exists, with roles
-npm run user -- role --email x@yourclub.org --role president   # change a role
-npm run user -- disable --email x@yourclub.org                 # lock out, revoke sessions
+npm run user -- role --email x@example.org --role president   # change a role
+npm run user -- disable --email x@example.org                 # lock out, revoke sessions
 ```
 
 A role change reaches the browser when the ID token next refreshes, within an hour —

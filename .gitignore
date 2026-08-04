@@ -68,6 +68,25 @@ frontend/.icon-backups/
 # public, and a dump contains member data.
 backups/
 
+# ---------------------------------------------------------------------------
+# The club's own data. NEVER COMMITTED — this repository is public.
+#
+# data/club/members.csv holds real names and email addresses; funds.csv holds the
+# club's real opening balances; transactions.csv would hold its ledger. None of it
+# belongs in version control, and personal data in a public repository cannot be
+# recalled once pushed — a deleted file stays in the history.
+#
+# The `.example` files beside them ARE tracked, so a fresh clone still knows the
+# column layout. Copy an example to the real name and fill it in:
+#
+#   cp data/club/members.csv.example data/club/members.csv
+#
+# The live copy of all of this is the Appwrite database. Backups belong in Google
+# Drive via `bash scripts/backup-to-drive.sh`, never here.
+# ---------------------------------------------------------------------------
+data/club/*.csv
+!data/club/*.csv.example
+
 # Google Drive for Desktop staging directories. This folder is synced by Drive,
 # which writes .tmp.driveupload while uploading — thousands of files that a
 # `git add -A` will otherwise stage, and whose contents are whatever Drive

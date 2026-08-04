@@ -1,10 +1,10 @@
 /**
  * Create club accounts and grant roles.
  *
- *   npm run user -- create  --email x@club.org --name "Full Name" --role treasurer
- *   npm run user -- role    --email x@club.org --role president
+ *   npm run user -- create  --email member@example.org --name "Full Name" --role treasurer
+ *   npm run user -- role    --email member@example.org --role president
  *   npm run user -- list
- *   npm run user -- disable --email x@club.org
+ *   npm run user -- disable --email member@example.org
  *
  * Roles live in Appwrite **labels**, which only a server holding an API key can
  * set — that is the whole point. Not prefs: a signed-in member can write their own

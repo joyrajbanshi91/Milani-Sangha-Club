@@ -176,19 +176,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   /**
-   * Change your own password. Appwrite requires the current one, deliberately.
-   */
-  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
-    const { getAccount } = await import('@/lib/appwrite')
-
-    try {
-      await getAccount().updatePassword({ password: newPassword, oldPassword: currentPassword })
-    } catch (error) {
-      throw new Error(describeAppwriteError(error), { cause: error })
-    }
-  }, [])
-
-  /**
    * Finish a reset from the emailed link.
    *
    * No session is needed or created: the secret proves the person can read the
@@ -355,7 +342,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       config: config.data,
       signIn,
       requestPasswordReset,
-      changePassword,
       completePasswordReset,
       signInDemo,
       signOut,
@@ -368,7 +354,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mode,
       signIn,
       requestPasswordReset,
-      changePassword,
       completePasswordReset,
       signInDemo,
       signOut,

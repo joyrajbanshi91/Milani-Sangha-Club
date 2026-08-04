@@ -168,7 +168,13 @@ arrangement. Sharing one account defeats the rule entirely.
 
 ### A member changes their own
 
-**Sign in → My membership → Change your password.** Needs the current password.
+**Sign-in page → Reset password.** There is deliberately **no** "change password" in the
+portal — the club asked for it removed, so every password change goes through the emailed
+link, which proves control of the address on record.
+
+The consequence worth knowing: a member whose email address is wrong cannot change their
+password at all. Fix the address first (Appwrite console → Auth → the user), then have
+them use Reset password.
 
 ### A member has forgotten theirs
 
@@ -261,6 +267,68 @@ hands over a set of books on paper.
 An officer may **withdraw** their own entry while nobody else has approved it. Once
 somebody has, it must be posted or rejected, so the record shows what happened.
 
+### Who can approve — and how you decide it
+
+Approving is not a separate permission. **Any account with a finance role can approve,
+except whoever recorded the entry.** So you control who can approve by controlling roles:
+
+| Role | Can record | Can approve someone else's |
+| --- | --- | --- |
+| `treasurer` (the cashier) | yes | yes |
+| `secretary` | yes | yes |
+| `president` | yes | yes |
+| `administrator` | yes | yes |
+| `member`, `volunteer`, `visitor` | no | no |
+
+So to let someone approve:
+
+```bash
+npm run user -- role --email person@example.org --role secretary
+```
+
+and to stop them:
+
+```bash
+npm run user -- role --email person@example.org --role member
+```
+
+Effective on their **next request** — no sign-out needed.
+
+### Restricting it further
+
+Two knobs, both in `backend/src/config/constants.ts`, and both a code change plus a
+deploy rather than a setting in the app:
+
+- **`FINANCE_ROLES`** — which roles may see and approve the accounts. Remove
+  `administrator` if the system's maintainer should not be able to approve club money;
+  that is a defensible choice and costs nothing.
+- **`REQUIRED_APPROVALS`** — currently `1`, meaning **one approval in addition to** the
+  officer who recorded the entry, so two different people have signed. Set it to `2` and
+  three people are needed.
+
+```ts
+export const FINANCE_ROLES: readonly Role[] = ['treasurer', 'secretary', 'president', 'administrator']
+export const REQUIRED_APPROVALS = 1
+```
+
+These are deliberately not editable in the interface. A rule that decides how many people
+must agree before the club's money moves should not be changeable by one person who is
+having a busy afternoon — changing it leaves a commit with a date and an author.
+
+**What you cannot do:** name a specific person as the only approver. The rule is
+role-based on purpose, so that a single officer being away does not stop the club
+recording money.
+
+### Doing it by hand, without the command line
+
+Roles are Appwrite account **labels**. Appwrite console → **Auth** → the user →
+**Labels** → set exactly one of `treasurer`, `secretary`, `president`, `administrator`,
+`member`.
+
+One label only. If two role labels are somehow present, the API takes the **least**
+privileged, so the outcome does not depend on their order — safe, but not what you
+intended.
+
 ---
 
 ## 5. Testing it end to end
@@ -301,7 +369,72 @@ npm run appwrite:check
 
 ---
 
-## 7. Back up before you rely on it
+## 7. Where the club's data actually lives
+
+Nothing sensitive is in GitHub, and a check now enforces that.
+
+| What | Where it lives | In GitHub? |
+| --- | --- | --- |
+| Member names, emails, roles | **Appwrite → Auth** | No |
+| Passwords | **Appwrite, hashed.** Not readable by anyone, including you | No |
+| Member ids | **Appwrite → Auth** (`npm run user -- list`) | No |
+| Funds, categories, the ledger | **Appwrite → Databases** | No |
+| Audit trail | **Appwrite → Databases** (`audit_logs`) | No |
+| Backups | **Google Drive**, via `scripts/backup-to-drive.sh` | No — `backups/` is ignored |
+| `data/club/*.csv` | Your machine only | No — ignored, see below |
+| Appwrite keys | `backend/.env` on your machine, and the Function's variables | No — ignored |
+
+### Passwords are not stored anywhere you can read
+
+Appwrite keeps a one-way hash. The generated password from `user create` or
+`members:import` is printed **once, to your terminal**, and written nowhere. If it is
+lost, the answer is Reset password — there is nothing to look up.
+
+That is a property worth keeping. Anywhere you *could* read a member's password is
+somewhere it could leak from.
+
+### The CSV files are inputs, not the record
+
+`data/club/members.csv` and `funds.csv` are how data gets *in*. Once imported, the
+database is the record and the CSV is a stale copy. They are git-ignored, and the
+`.csv.example` files beside them are what the repository carries instead — enough to show
+the columns, with nobody's details in them.
+
+To start from a template on a new machine:
+
+```bash
+cp data/club/members.csv.example data/club/members.csv
+cp data/club/funds.csv.example   data/club/funds.csv
+```
+
+### Why this matters more than it sounds
+
+The repository is **public**. A file deleted in a later commit stays in the history, and
+personal data cannot be recalled once pushed. `data/club/members.csv` was tracked for one
+commit — it held `example.com` placeholders at the time, so nothing real was published,
+but the next `git add -A` after filling it in would have put four people's addresses on
+the internet permanently.
+
+So there is now a check, run by `npm run verify` and by CI:
+
+```bash
+npm run check:private
+```
+
+It fails if `data/club/*.csv`, `backups/`, a `.env` or a service-account key is tracked,
+**or if any tracked file contains a real-looking email address**. Reserved documentation
+domains (`example.com`, `.test`, `.invalid`, `demo.club`) are allowed; anything else is
+treated as somebody's real address.
+
+### Consider making the repository private
+
+It costs nothing on GitHub and removes this whole class of risk. Settings → General →
+Danger Zone → Change visibility. It also makes GitHub Actions usable as a backup
+scheduler, which a public repository rules out.
+
+---
+
+## 8. Back up before you rely on it
 
 ```bash
 npm run backup                                   # writes backups/<timestamp>.json

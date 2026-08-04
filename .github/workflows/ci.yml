@@ -26,6 +26,15 @@ jobs:
       - name: Check domain constants are in sync
         run: python3 scripts/check_domain_constants.py
 
+      # This repository is public. data/club/members.csv was tracked for one commit
+      # before anyone noticed; it happened to hold placeholders. This fails the build if
+      # the club's data, a backup, a .env or a real email address is ever tracked again.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: No private data in the repository
+        run: npm run check:private
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
