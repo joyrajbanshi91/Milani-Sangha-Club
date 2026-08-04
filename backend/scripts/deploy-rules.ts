@@ -79,7 +79,7 @@ function describeFailure(status: number, json: Record<string, unknown>): string 
       '         a) Grant it "Firebase Rules Admin" in Google Cloud IAM, then re-run; or\n' +
       '         b) Deploy them yourself with an interactive login:\n' +
       '              npm run firebase -- login\n' +
-      '              npm run firebase -- deploy --only firestore:rules --project club-app-8ce22'
+      '              npm run firebase -- deploy --only firestore:rules --project "$FIREBASE_PROJECT_ID"'
     )
   }
   return message
