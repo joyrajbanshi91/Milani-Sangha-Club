@@ -31,6 +31,7 @@
     "seed:finance": "npm --prefix backend run seed:finance --",
     "dev:lan": "bash scripts/dev.sh --host",
     "netlify:dev": "npx --yes netlify-cli dev",
+    "netlify:setup": "node scripts/setup-netlify.mjs",
     "netlify:build": "npm run install:all && npm --prefix backend run build && npm --prefix frontend run build",
     "backup": "npm --prefix backend run backup --",
     "restore": "npm --prefix backend run restore --",

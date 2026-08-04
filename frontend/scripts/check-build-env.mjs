@@ -27,21 +27,20 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /**
- * Optional variables worth a word in the build log.
+ * Nothing to advise about any more, and that is the point.
  *
- * Absence is not an error — it selects demo sign-in, which is a working state.
- * Saying so in the log is what stops someone concluding the build was misconfigured
- * when they find they cannot sign in with a real account.
+ * This list held `VITE_APPWRITE_PROJECT_ID`, on the grounds that without it real
+ * member sign-in was off. That is no longer true: the API reports the Appwrite
+ * endpoint and project id through `/auth/config` at runtime, so sign-in follows
+ * whatever the *function* is configured with and the bundle needs to know nothing
+ * about the backing service.
+ *
+ * Which means there is no longer any build-scope variable that affects how the
+ * deployed site behaves — the reason the Netlify setup was so easy to get wrong. Kept
+ * as an empty list rather than deleted, because the reporting below is the right shape
+ * for the next optional integration that genuinely is compiled in.
  */
-const ADVISORY = [
-  {
-    key: 'VITE_APPWRITE_PROJECT_ID',
-    absent:
-      'Real member sign-in is off; the site will offer the demo accounts instead.\n' +
-      '    Set this (and APPWRITE_PROJECT_ID / APPWRITE_API_KEY on the API) to use a\n' +
-      '    real Appwrite project. See docs/09-netlify.md.',
-  },
-]
+const ADVISORY = []
 
 // Resolved from this file rather than process.cwd(), so the check behaves the same
 // whether it is run from frontend/ or through `npm --prefix frontend`.

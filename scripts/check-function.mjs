@@ -137,6 +137,11 @@ check('GET /api/v1/auth/config tells the client it is a demo', async () => {
       'deployment with no database looks exactly like the real thing.'
   )
   assert.ok(Array.isArray(body.accounts) && body.accounts.length === 4)
+
+  // No `appwrite` block in demo mode. If one appeared here the browser would build a
+  // client against a project that is not configured, and sign-in would fail with an
+  // opaque network error instead of showing the demo picker.
+  assert.equal(body.appwrite, undefined)
 })
 
 check('the demo ledger is actually seeded', async () => {

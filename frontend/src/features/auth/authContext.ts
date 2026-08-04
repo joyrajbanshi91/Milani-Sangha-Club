@@ -19,6 +19,14 @@ export interface AuthConfig {
    * Optional so an older API that predates the field does not fail to parse.
    */
   store?: 'memory' | 'firestore' | 'appwrite'
+  /**
+   * Where the browser should reach Appwrite, when the API is using it.
+   *
+   * Sent by the server rather than compiled into the bundle, so the two cannot
+   * disagree and no build-scope environment variable is needed. Neither value is a
+   * secret. Absent in demo mode.
+   */
+  appwrite?: { endpoint: string; projectId: string }
   accounts?: Array<{ email: string; name: string; role: Role }>
   warning?: string
 }

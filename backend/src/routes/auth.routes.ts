@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express'
 import { z } from 'zod'
 
+import { appwriteProjectId, env } from '../config/env.js'
 import { isFinanceOfficer } from '../domain/approval.js'
 import { badRequest, unauthorised } from '../lib/httpError.js'
 import { requireAuth } from '../middleware/auth.js'
@@ -28,6 +29,28 @@ authRouter.get('/config', (_req: Request, res: Response) => {
   res.json({
     mode: auth.mode,
     store: store.kind,
+
+    /**
+     * Where the browser should reach Appwrite.
+     *
+     * Sent from here rather than compiled into the bundle, and that is the whole
+     * point. As build-time `VITE_` values these two were the single most common way
+     * to get a deployment wrong: they had to be set in a different variable *scope*
+     * from the API's own credentials, they were invisible to the running function so
+     * nothing could detect the mismatch, and editing one changed nothing until a
+     * cache-clearing rebuild ran. Someone would set all six variables, see the demo
+     * account picker still, and have no way to tell which half was wrong.
+     *
+     * Neither value is a secret. The project id names the project and the endpoint
+     * says which region hosts it; what a caller may do is decided by their session
+     * and by table permissions. So the API — which already had to know both — simply
+     * answers with them, and the browser cannot disagree with the server about which
+     * project it is talking to.
+     */
+    ...(auth.mode === 'appwrite'
+      ? { appwrite: { endpoint: env.APPWRITE_ENDPOINT, projectId: appwriteProjectId } }
+      : {}),
+
     ...(auth.mode === 'demo'
       ? {
           accounts: DEMO_ACCOUNTS.map(({ email, name, role }) => ({ email, name, role })),
