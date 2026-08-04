@@ -119,6 +119,97 @@ project-wide reach and must never be set on the site, only on the function.
 
 ---
 
+## The API function
+
+The whole Express API runs as **one** Appwrite Function. Appwrite hands a function
+`{ req, res, log, error }` rather than Node's request and response, so Express cannot
+be mounted directly — `serverless-http` bridges that, and `createApp()` is reused
+completely unchanged. Helmet, CORS, the rate limiter, request logging and body
+parsing all keep working, and the backend's 148 tests exercise the same code.
+
+One function rather than one per route, because the free plan allows two per project
+and because `req.path` carries the full path, which is all the routing needs.
+
+### Deploy it
+
+```bash
+npx --yes appwrite-cli login
+npx --yes appwrite-cli push functions
+```
+
+`appwrite.config.json` holds the settings. If you configure it in the console
+instead, these are the ones that matter:
+
+| Setting        | Value                                                                           |
+| -------------- | ------------------------------------------------------------------------------- |
+| Root directory | `.` — the repo root, so the function can reach `backend/`                       |
+| Entrypoint     | `functions/api/main.mjs`                                                        |
+| Build commands | `npm install && npm --prefix backend install && npm --prefix backend run build` |
+| Runtime        | `node-22`                                                                       |
+| Timeout        | `30` — the cap for a synchronous execution anyway                               |
+| Execute access | **Any**                                                                         |
+
+### Why execute access is "Any"
+
+A function reached through its own domain treats every caller as a guest, so Appwrite
+requires `any` (or `guests`) or the domain does not work at all. That is not the
+boundary being relied on: every privileged route verifies an Appwrite JWT through
+`AuthService` and reads the caller's role from their account **labels**, which only a
+server API key can set. The open door leads directly to a locked one.
+
+### Environment variables for the function
+
+Set these on the **function**, not the site. `APPWRITE_API_KEY` especially — it is a
+server credential and must never be given to a browser.
+
+| Variable               | Value                                                                                     |
+| ---------------------- | ----------------------------------------------------------------------------------------- |
+| `APPWRITE_ENDPOINT`    | `https://fra.cloud.appwrite.io/v1`                                                        |
+| `APPWRITE_PROJECT_ID`  | `6a71561d000b4f4a06cb`                                                                    |
+| `APPWRITE_API_KEY`     | the server key, Databases + Users scopes                                                  |
+| `APPWRITE_DATABASE_ID` | `6a7187ed001ca816b1aa`                                                                    |
+| `NODE_ENV`             | `production`                                                                              |
+| `TRUST_PROXY`          | `1` — behind Appwrite's proxy, or the rate limiter throttles the whole club as one caller |
+| `CLUB_NAME`            | `New Milani Sangha Club`                                                                  |
+| `CORS_ORIGINS`         | the site's URL                                                                            |
+| `APP_BASE_URL`         | the site's URL                                                                            |
+
+### Then connect the site to it
+
+The function has **its own domain**, separate from the site's, and Appwrite Sites has
+no documented path rewrite to hide that. So unlike the single-origin arrangement
+Netlify allowed, this is genuinely cross-origin:
+
+1. Copy the function's domain from its **Domains** tab.
+2. On the **site**, set `VITE_API_BASE_URL` to `https://<function-domain>/api/v1` and
+   redeploy — it is compiled into the bundle, so a redeploy is required.
+3. On the **function**, set `CORS_ORIGINS` to the site's URL. Miss this and the
+   browser discards every response the API sends, which looks like the API being
+   down rather than a header being absent.
+
+### Check it
+
+```
+/api/v1/health         → {"status":"ok"…}   JSON, not HTML
+/api/v1/health/ready   → {"status":"ready","checks":{...}}
+```
+
+HTML means the request never reached Express. Then sign in on the site.
+
+### Testing the adapter without deploying
+
+```bash
+npm run test:function
+```
+
+Runs the real Express app through the real adapter with a faked Appwrite context, and
+checks the things an adapter gets quietly wrong: that requests arrive, that the app's
+own 404 comes back rather than Appwrite's HTML, that the query string and a JSON body
+survive, and that helmet's headers are still on the response. Included in
+`npm run verify`, after the build, because it drives `backend/dist`.
+
+---
+
 ## Provisioning the database
 
 Once the project exists and `backend/.env` has the three `APPWRITE_*` values:
