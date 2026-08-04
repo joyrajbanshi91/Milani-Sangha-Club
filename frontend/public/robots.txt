@@ -1,7 +1,32 @@
+# ===========================================================================
+# TEMPORARY: the whole site is closed to search engines.
+#
+# The content is still placeholder — `contentStatus` in src/content/site.ts is
+# 'placeholder', the committee page lists sample names and the fees are unset. The
+# site needs to be publicly reachable for the app to work at all (the browser
+# calls /api/v1/**, and Netlify SSO answered 401 to those), but nothing here
+# should appear in Google under the club's name until the committee has reviewed
+# it.
+#
+# TO GO LIVE PROPERLY, do all three:
+#   1. Replace the placeholder copy and set `contentStatus` to 'reviewed'
+#      (docs/06-editing-the-website.md).
+#   2. Delete the Disallow line below, restoring the block at the bottom.
+#   3. Remove the X-Robots-Tag header from netlify.toml.
+#
+# Leaving this in place means the club's website is invisible to search, which is
+# not what anyone wants long-term.
+# ===========================================================================
 User-agent: *
-Allow: /
+Disallow: /
 
-# Member and administrative areas must never be indexed.
-Disallow: /portal
-Disallow: /admin
-Disallow: /login
+# ---------------------------------------------------------------------------
+# What this becomes once the content is reviewed. Restore it then.
+# ---------------------------------------------------------------------------
+# User-agent: *
+# Allow: /
+#
+# # Member and administrative areas must never be indexed.
+# Disallow: /portal
+# Disallow: /office
+# Disallow: /login

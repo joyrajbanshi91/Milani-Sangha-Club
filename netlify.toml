@@ -109,3 +109,19 @@
     X-Frame-Options = "SAMEORIGIN"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+
+    # ---------------------------------------------------------------------
+    # TEMPORARY — remove this when the content has been reviewed.
+    #
+    # The site had to be made publicly reachable: Netlify SSO answered 401 to
+    # every path including /api/v1/**, so the browser could not reach its own
+    # API and the login page reported "Could not reach the club's server".
+    #
+    # But the copy is still placeholder, so it must not be indexed under the
+    # club's name yet. This header is the enforceable half of that; the other
+    # half is frontend/public/robots.txt, which a crawler may ignore.
+    #
+    # Removing this and restoring robots.txt is step 2 and 3 of going live —
+    # see the header of that file.
+    # ---------------------------------------------------------------------
+    X-Robots-Tag = "noindex, nofollow, noarchive"
