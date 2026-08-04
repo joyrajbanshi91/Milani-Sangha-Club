@@ -58,14 +58,26 @@ export class AuthService {
     this.mode = hasAppwriteCredentials ? 'appwrite' : 'demo'
 
     if (this.mode === 'demo') {
-      if (isProduction) {
-        throw new Error(
-          'Demo sign-in cannot run in production. Set APPWRITE_PROJECT_ID and APPWRITE_API_KEY.'
-        )
-      }
+      /**
+       * Demo mode is announced, not forbidden.
+       *
+       * This threw when `NODE_ENV` was production, which sounds prudent and was in
+       * fact the single reason a fresh deployment returned 500 from every route: a
+       * hosted build sets `NODE_ENV=production` as a matter of course, so the guard
+       * fired on exactly the deploy someone was trying to look at for the first
+       * time, and took the health endpoint down with it.
+       *
+       * What the guard was protecting against — someone trusting demo sign-in with
+       * a real club's data — is not prevented by a crash either. It is prevented by
+       * the mode being impossible to miss: `mode: 'demo'` is returned by
+       * `/auth/config`, the login page lists the fixed accounts by name, and every
+       * signed-in page carries a standing banner. There are no passwords to guess
+       * and no real data behind it, because a demo store has none.
+       */
       logger.warn(
-        { accounts: DEMO_ACCOUNTS.map((account) => account.email) },
-        'AUTH IS IN DEMO MODE — fixed accounts, no passwords. Never expose this beyond your machine.'
+        { accounts: DEMO_ACCOUNTS.map((account) => account.email), production: isProduction },
+        'AUTH IS IN DEMO MODE — fixed accounts, no passwords, no real data. ' +
+          'Set APPWRITE_PROJECT_ID and APPWRITE_API_KEY for real member sign-in.'
       )
     }
   }

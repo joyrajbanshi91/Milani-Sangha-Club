@@ -12,30 +12,16 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
 
   /**
-   * Where Appwrite lives, worked out rather than demanded.
+   * No `define` block for the backing service.
    *
-   * Appwrite Sites injects `APPWRITE_SITE_PROJECT_ID` and
-   * `APPWRITE_SITE_API_ENDPOINT` into every deployment, so a site hosted inside the
-   * project already knows both — including the region, which is the part most
-   * easily got wrong by hand. Falling back to them means a deployment needs no
-   * environment variables of its own at all.
-   *
-   * An explicit VITE_ value still wins, for local development and for the case of
-   * a site deployed from one project against another.
-   *
-   * Exposed as plain constants rather than by defining `import.meta.env.VITE_*`,
-   * to stay out of the way of Vite's own env replacement instead of racing it.
+   * An earlier version read `APPWRITE_SITE_PROJECT_ID` and
+   * `APPWRITE_SITE_API_ENDPOINT` here, which Appwrite Sites injects into its own
+   * deployments. Netlify never sets them, so on Netlify that path only ever
+   * produced empty strings — and because src/config/env.ts then demanded a project
+   * id, the build failed with a message about a variable nobody had been asked to
+   * set. Every value now comes from `VITE_*` alone, all of it optional.
    */
-  const appwriteProjectId =
-    env.VITE_APPWRITE_PROJECT_ID?.trim() || env.APPWRITE_SITE_PROJECT_ID?.trim() || ''
-  const appwriteEndpoint =
-    env.VITE_APPWRITE_ENDPOINT?.trim() || env.APPWRITE_SITE_API_ENDPOINT?.trim() || ''
-
   return {
-    define: {
-      __APPWRITE_PROJECT_ID__: JSON.stringify(appwriteProjectId),
-      __APPWRITE_ENDPOINT__: JSON.stringify(appwriteEndpoint),
-    },
     plugins: [
       react(),
       tailwindcss(),
@@ -121,11 +107,11 @@ export default defineConfig(({ mode }) => {
       globals: true,
       setupFiles: ['./src/test/setup.ts'],
       css: false,
-      // Dummy values so config/env.ts validation passes under test without
-      // requiring a real .env file (or real Firebase credentials) in CI.
+      // Deliberately only the two values a test asserts against. The Appwrite
+      // pair is absent so that tests run in the same zero-configuration state a
+      // fresh Netlify deploy does — if that state ever stops working, a test
+      // should be what notices.
       env: {
-        VITE_APPWRITE_ENDPOINT: 'https://test.cloud.appwrite.io/v1',
-        VITE_APPWRITE_PROJECT_ID: 'test-project',
         VITE_API_BASE_URL: '/api/v1',
         VITE_CLUB_NAME: 'Milani Sangha Club',
       },

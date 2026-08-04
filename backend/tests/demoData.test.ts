@@ -3,6 +3,7 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+import { DEMO_CSV } from '../src/services/demoSeed.js'
 import {
   parseCategoriesCsv,
   parseFundsCsv,
@@ -20,6 +21,33 @@ import type { Category, Fund, Transaction } from '../src/domain/types.js'
 
 const DEMO_DIR = join(import.meta.dirname, '..', '..', 'data', 'demo')
 const read = (name: string) => readFileSync(join(DEMO_DIR, name), 'utf8')
+
+/**
+ * The demo ledger exists twice on purpose — as editable CSV in data/demo/, and
+ * embedded in src/services/demoSeed.ts so a bundled function needs no filesystem.
+ * Duplication invites drift, so this is the test that makes drift impossible to
+ * commit: change one copy and it fails, naming the file to update.
+ *
+ * Trailing whitespace is normalised because an editor adding or removing a final
+ * newline is not the drift anyone cares about. Content differences are exact.
+ */
+describe('embedded demo ledger matches data/demo', () => {
+  const cases = [
+    { file: 'funds.csv', embedded: DEMO_CSV.funds },
+    { file: 'categories.csv', embedded: DEMO_CSV.categories },
+    { file: 'transactions.csv', embedded: DEMO_CSV.transactions },
+  ] as const
+
+  for (const { file, embedded } of cases) {
+    it(`${file} is identical in both copies`, () => {
+      expect(
+        embedded.trimEnd(),
+        `data/demo/${file} and the copy in src/services/demoSeed.ts disagree. ` +
+          'Paste the file contents into demoSeed.ts (see the comment at the top of it).'
+      ).toBe(read(file).trimEnd())
+    })
+  }
+})
 
 describe('data/demo templates', () => {
   it('funds.csv parses with no errors', () => {

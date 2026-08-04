@@ -3,20 +3,28 @@ import { z } from 'zod'
 /**
  * Validated view of the build-time environment.
  *
- * Fail loudly and early: a missing Appwrite project id should stop the app at boot
- * with a readable message, not surface later as an opaque network error in a
- * member's browser.
+ * **Nothing here is required.** The site builds and runs with no environment
+ * variables at all, which is what makes a first deploy to Netlify a push rather
+ * than a configuration exercise: the public website is entirely self-contained,
+ * and the signed-in area follows whatever the API reports about itself.
  *
- * Only two values are needed to reach Appwrite, and neither is a secret. The
- * project id names the project; the endpoint says which region hosts it. What a
- * caller is allowed to do is decided by their session and by table permissions,
- * never by holding these.
+ * That was not always so. An earlier version required an Appwrite project id and
+ * threw at boot without one, so a hosted build either failed in the build log or —
+ * worse — succeeded and then refused to start in every visitor's browser. A
+ * missing *optional* integration must degrade, not detonate.
+ *
+ * The two Appwrite values are needed only when the club points the app at a real
+ * Appwrite project. Neither is a secret: the project id names the project and the
+ * endpoint says which region hosts it. What a caller may do is decided by their
+ * session and by table permissions, never by holding these.
  */
 const envSchema = z.object({
-  // Region-specific on Appwrite Cloud, e.g. https://syd.cloud.appwrite.io/v1.
-  // The default is a starting point; set it explicitly for a real project.
-  VITE_APPWRITE_ENDPOINT: z.string().min(1).default('https://cloud.appwrite.io/v1'),
-  VITE_APPWRITE_PROJECT_ID: z.string().min(1, 'VITE_APPWRITE_PROJECT_ID is required'),
+  // Region-specific on Appwrite Cloud, e.g. https://fra.cloud.appwrite.io/v1.
+  // Copy it from the console rather than guessing; the default is only a fallback
+  // for a project in the default region.
+  VITE_APPWRITE_ENDPOINT: z.string().default('https://cloud.appwrite.io/v1'),
+  // Empty is a valid, supported state: it means demo sign-in.
+  VITE_APPWRITE_PROJECT_ID: z.string().default(''),
 
   VITE_API_BASE_URL: z.string().min(1).default('/api/v1'),
   VITE_CLUB_NAME: z.string().min(1).default('Milani Sangha Club'),
@@ -26,47 +34,25 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>
 
-/**
- * Values Appwrite Sites supplies about itself, baked in by vite.config.ts.
- *
- * `typeof` rather than a direct read: under vitest there is no `define` step, so
- * the identifier does not exist. `typeof` on an undeclared name is safe where
- * reading it would throw.
- */
-declare const __APPWRITE_PROJECT_ID__: string
-declare const __APPWRITE_ENDPOINT__: string
-
-function fromHost(): Record<string, string> {
-  const values: Record<string, string> = {}
-
-  if (typeof __APPWRITE_PROJECT_ID__ === 'string' && __APPWRITE_PROJECT_ID__ !== '') {
-    values.VITE_APPWRITE_PROJECT_ID = __APPWRITE_PROJECT_ID__
-  }
-  if (typeof __APPWRITE_ENDPOINT__ === 'string' && __APPWRITE_ENDPOINT__ !== '') {
-    values.VITE_APPWRITE_ENDPOINT = __APPWRITE_ENDPOINT__
-  }
-
-  return values
-}
-
 function parseEnv(): Env {
-  // The host's own values fill only the gaps: anything set explicitly wins, and an
-  // empty string counts as unset so a variable created without a value in a
-  // dashboard cannot shadow what Appwrite already told us.
+  // An empty string counts as unset, so a variable created in the Netlify dashboard
+  // without a value cannot shadow the default below it.
   const supplied = Object.fromEntries(
     Object.entries(import.meta.env).filter(([, value]) => value !== '')
   )
 
-  const result = envSchema.safeParse({ ...fromHost(), ...supplied })
+  const result = envSchema.safeParse(supplied)
 
   if (!result.success) {
-    const missing = result.error.issues
+    // Reachable only for a value that is present but malformed — a support address
+    // that is not an email, say. Absence can no longer fail.
+    const problems = result.error.issues
       .map((issue) => `  • ${issue.path.join('.')}: ${issue.message}`)
       .join('\n')
     throw new Error(
-      `Invalid frontend environment configuration:\n${missing}\n\n` +
-        'Copy frontend/.env.example to frontend/.env.local and fill in the values ' +
-        '(see docs/03-environment-variables.md).'
+      `Invalid frontend environment configuration:\n${problems}\n\n` +
+        'These values are optional, so this means one that was set is malformed. ' +
+        'See frontend/.env.example and docs/03-environment-variables.md.'
     )
   }
 
@@ -74,6 +60,15 @@ function parseEnv(): Env {
 }
 
 export const env = parseEnv()
+
+/**
+ * Can this build talk to a real Appwrite project?
+ *
+ * Consulted before the Appwrite SDK is used for anything. Without it the app runs
+ * against the API's demo sign-in, which is a working state rather than an error —
+ * so this is a question, not an assertion.
+ */
+export const hasAppwriteConfig = env.VITE_APPWRITE_PROJECT_ID !== ''
 
 export const isDevelopment = import.meta.env.DEV
 export const isProduction = import.meta.env.PROD

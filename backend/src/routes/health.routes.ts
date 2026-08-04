@@ -34,10 +34,22 @@ healthRouter.get('/', (_req: Request, res: Response) => {
 healthRouter.get('/ready', async (req: Request, res: Response) => {
   const { store } = getContainer()
 
+  // Still a 503, deliberately. The API starts and serves the site in this state —
+  // that is the point of the demo store — but "ready" means ready to hold the
+  // club's accounts, and memory is not. The message says which variables change it,
+  // because this endpoint is what someone checks when sign-in works but nothing
+  // saves.
   if (store.kind === 'memory') {
     res.status(503).json({
       status: 'not_ready',
-      checks: { database: 'not_configured', store: store.kind },
+      checks: {
+        database: 'not_configured',
+        store: store.kind,
+        message:
+          'No database credentials, so the finance area is showing sample data that is ' +
+          'lost on restart. Set APPWRITE_PROJECT_ID and APPWRITE_API_KEY (or the ' +
+          'FIREBASE_* trio) to use a real ledger. See docs/09-netlify.md.',
+      },
     })
     return
   }

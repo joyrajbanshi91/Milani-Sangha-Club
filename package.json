@@ -8,7 +8,7 @@
     "npm": ">=10.0.0"
   },
   "scripts": {
-    "install:all": "npm --prefix frontend install && npm --prefix backend install",
+    "install:all": "npm --prefix frontend install --include=dev && npm --prefix backend install --include=dev",
     "dev": "bash scripts/dev.sh",
     "dev:web": "npm --prefix frontend run dev",
     "dev:api": "npm --prefix backend run dev",
@@ -23,21 +23,22 @@
     "format:check": "npm --prefix frontend run format:check && npm --prefix backend run format:check",
     "test": "npm --prefix frontend run test && npm --prefix backend run test",
     "check:constants": "python3 scripts/check_domain_constants.py",
+    "test:function": "node scripts/check-function.mjs",
     "verify": "npm run check:constants && npm run lint && npm run typecheck && npm test && npm run build && npm run test:function",
-    "emulators": "firebase emulators:start",
     "icons": "python3 scripts/generate_icons.py",
     "icons:from-logo": "bash scripts/icons-from-logo.sh",
-    "rules:deploy": "npx --yes firebase-tools deploy --only firestore:rules,firestore:indexes --project club-app-8ce22 --non-interactive",
     "user": "npm --prefix backend run user --",
     "seed:finance": "npm --prefix backend run seed:finance --",
-    "firebase": "npx --yes firebase-tools",
-    "rules:push": "npm --prefix backend run rules:push",
     "dev:lan": "bash scripts/dev.sh --host",
     "netlify:dev": "npx --yes netlify-cli dev",
+    "netlify:build": "npm run install:all && npm --prefix backend run build && npm --prefix frontend run build",
     "backup": "npm --prefix backend run backup --",
     "restore": "npm --prefix backend run restore --",
     "appwrite:check": "npm --prefix backend run appwrite:check",
-    "test:function": "LOG_LEVEL=silent NODE_ENV=test node functions/api/main.test.mjs"
+    "appwrite:provision": "npm --prefix backend run provision:appwrite",
+    "firebase": "npx --yes firebase-tools",
+    "emulators": "npx --yes firebase-tools emulators:start",
+    "rules:push": "npm --prefix backend run rules:push"
   },
   "dependencies": {
     "firebase-admin": "^14.2.0",

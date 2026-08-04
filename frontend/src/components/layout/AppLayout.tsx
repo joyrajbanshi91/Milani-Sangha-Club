@@ -1,6 +1,7 @@
 import { ArrowLeft, LogOut, Wallet } from 'lucide-react'
 import { NavLink, Outlet, useNavigate } from 'react-router'
 
+import { DemoDataNotice } from '@/components/layout/DemoDataNotice'
 import { Container } from '@/components/ui/Container'
 import { club } from '@/content/site'
 import { useAuth } from '@/features/auth/authContext'
@@ -94,6 +95,11 @@ export function AppLayout() {
           </Container>
         ) : null}
       </header>
+
+      {/* Below the header so it sits above the figures it is talking about, and
+          inside the scroll flow rather than fixed — it is information, not an alert
+          to be dismissed. Renders nothing once a real database is configured. */}
+      <DemoDataNotice />
 
       <main className="flex-1 py-8">
         <Outlet />
