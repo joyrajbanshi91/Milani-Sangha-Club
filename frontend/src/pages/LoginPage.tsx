@@ -159,9 +159,10 @@ function DoorChooser() {
       </ul>
 
       <p className="text-ink-500 mt-5 text-xs/relaxed">
-        Both use the same email address and password. What you can see is decided by the role the
-        club office has given your account, not by which of these you pick — so if you are unsure,
-        either one will sign you in.
+        Both use the same email address and password. The office bearer entrance admits only
+        accounts the club office has given an officer role — a general member is redirected here
+        rather than let in. If you are unsure, choose <strong>General members</strong>: it works for
+        everyone, office bearers included.
       </p>
     </>
   )
@@ -169,7 +170,7 @@ function DoorChooser() {
 
 /** Real sign-in, against Appwrite Authentication. */
 function PasswordForm({ destination, door }: { destination?: string; door: Door }) {
-  const { signIn, requestPasswordReset } = useAuth()
+  const { signIn, requestPasswordReset, signOut } = useAuth()
   const navigate = useNavigate()
 
   const [busy, setBusy] = useState(false)
@@ -186,12 +187,37 @@ function PasswordForm({ destination, door }: { destination?: string; door: Door 
     setNotice(null)
 
     try {
-      await signIn(String(form.get('email')), String(form.get('password')))
+      const signedIn = await signIn(String(form.get('email')), String(form.get('password')))
 
-      // The door only picks a destination. An ordinary member who came in by the
-      // office door lands on /office and RequireOfficer explains, in words, that the
-      // finances are not theirs — which is a better answer than refusing the sign-in
-      // and leaving them to guess why their password "did not work".
+      /**
+       * The office-bearer entrance admits office bearers only.
+       *
+       * The check happens after the credentials are accepted, because it must: nothing
+       * about an email address says what role it holds, and asking the server before
+       * authenticating would let anyone discover who the officers are.
+       *
+       * A general member who arrives here is signed straight back out rather than left
+       * holding a session they did not mean to start. The message names the other
+       * entrance, so it is a redirection rather than a refusal — a member being told
+       * "wrong door" must not be left thinking their password is wrong.
+       *
+       * Presentation, still: the API refuses a member's request whatever the browser
+       * did, and `RequireOfficer` refuses the route. This door is the third layer, and
+       * the only one that says anything useful at the moment of the mistake.
+       */
+      if (door === 'office' && !signedIn?.isFinanceOfficer) {
+        await signOut()
+        setError(
+          signedIn
+            ? 'That account is a general member, so it cannot use the office bearer ' +
+                'sign-in. Please use the General members entrance — your membership, dues ' +
+                'and payment history are all there.'
+            : 'Signed in, but your role could not be confirmed. Please try the General ' +
+                'members entrance.'
+        )
+        return
+      }
+
       navigate(destination ?? (door === 'office' ? '/office' : '/portal'), { replace: true })
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Sign-in failed.')
