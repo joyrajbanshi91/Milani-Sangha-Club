@@ -1,5 +1,1 @@
 name,kind,opening_balance,opening_date,active,notes
-Cash box,cash,5000,2026-04-01,yes,Petty cash held by the treasurer
-Bank account,bank,45000,2026-04-01,yes,Current account at the branch
-Club UPI,upi,0,2026-04-01,yes,Collections received by UPI
-Festival fund,other,12000,2026-04-01,yes,Ring-fenced for the annual programme

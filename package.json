@@ -35,7 +35,7 @@
     "backup": "npm --prefix backend run backup --",
     "restore": "npm --prefix backend run restore --",
     "appwrite:check": "npm --prefix backend run appwrite:check",
-    "appwrite:provision": "npm --prefix backend run provision:appwrite",
+    "appwrite:provision": "npm --prefix backend run provision:appwrite --",
     "firebase": "npx --yes firebase-tools",
     "emulators": "npx --yes firebase-tools emulators:start",
     "rules:push": "npm --prefix backend run rules:push"
