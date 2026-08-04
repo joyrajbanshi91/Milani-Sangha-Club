@@ -68,6 +68,29 @@ async function probeDeployedApi(): Promise<boolean> {
 
       log(`api        GET ${path} → ${response.status} ${isJson ? 'JSON' : 'NOT JSON'}`)
 
+      /**
+       * Netlify's own access control, not a fault in the deployment.
+       *
+       * A site with `sso_login` enabled — Project configuration → Access & security →
+       * Visitor access — answers 401 on *every* path with an HTML page that redirects
+       * to app.netlify.com/edge-access. In a browser where you are already signed in
+       * to Netlify this is invisible, so the site appears to work while every request
+       * from outside is refused.
+       *
+       * Checked before the HTML case below, because that one blames the redirect order
+       * in netlify.toml — which would send someone to rearrange a file that is
+       * perfectly correct.
+       */
+      if (response.status === 401 && /edge-access|Login Redirect/.test(body)) {
+        log('             Netlify SSO is on, so the whole site is closed to callers')
+        log('             outside your browser. This is not an API fault and says')
+        log('             nothing either way about Appwrite.')
+        log('             Turn it off under Project configuration → Access & security')
+        log('             → Visitor access, or check the site in a browser where you')
+        log('             are signed in to Netlify.')
+        continue
+      }
+
       // HTML here means the SPA fallback answered instead of the function, which is
       // the redirect order in netlify.toml being wrong rather than anything to do
       // with Appwrite. It is worth naming, because every other check then misleads.
