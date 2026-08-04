@@ -17,7 +17,7 @@ import type { Category, Fund, Transaction } from '../domain/types.js'
  */
 export interface FinanceStore {
   /** Human-readable name of the backing store, for the health endpoint. */
-  readonly kind: 'memory' | 'firestore'
+  readonly kind: 'memory' | 'firestore' | 'appwrite'
 
   listFunds(): Promise<Fund[]>
   createFund(fund: Omit<Fund, 'id'>): Promise<Fund>
