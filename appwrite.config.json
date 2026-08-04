@@ -1,6 +1,6 @@
 {
-  "projectId": "REPLACE_WITH_YOUR_APPWRITE_PROJECT_ID",
-  "endpoint": "https://cloud.appwrite.io/v1",
+  "projectId": "6a71561d000b4f4a06cb",
+  "endpoint": "https://fra.cloud.appwrite.io/v1",
   "sites": [
     {
       "$id": "milani-web",
@@ -17,6 +17,23 @@
       "fallbackFile": "index.html",
       "specification": "s-1vcpu-512mb",
       "buildRuntime": "node-22"
+    }
+  ],
+  "functions": [
+    {
+      "$id": "api",
+      "name": "Club API",
+      "runtime": "node-22",
+      "execute": ["any"],
+      "enabled": true,
+      "logging": true,
+      "entrypoint": "functions/api/main.mjs",
+      "commands": "npm install && npm --prefix backend install && npm --prefix backend run build",
+      "timeout": 30,
+      "events": [],
+      "schedule": "",
+      "path": ".",
+      "specification": "s-1vcpu-512mb"
     }
   ]
 }

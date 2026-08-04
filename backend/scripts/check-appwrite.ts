@@ -52,6 +52,8 @@ async function main(): Promise<number> {
   }
 
   let ok = true
+  let provisioned = false
+  let accounts = 0
 
   // Databases scope, and whether provisioning has run.
   try {
@@ -104,6 +106,7 @@ async function main(): Promise<number> {
         log('           (safe to re-run — it only adds what is absent)')
       } else {
         log('columns    every table has all of its columns, all available')
+        provisioned = true
       }
     } else {
       log(`database   "${env.APPWRITE_DATABASE_ID}" does not exist yet`)
@@ -117,7 +120,8 @@ async function main(): Promise<number> {
   // Users scope. Needed to create officers and to read their role labels.
   try {
     const { total, users } = await getUsers().list({ queries: [Query.limit(1)] })
-    log(`users      reachable — ${total ?? users.length} account(s)`)
+    accounts = total ?? users.length
+    log(`users      reachable — ${accounts} account(s)`)
   } catch (error) {
     ok = false
     log(`users      FAILED — ${explain(error, 'Users')}`)
@@ -126,9 +130,21 @@ async function main(): Promise<number> {
   log()
   if (ok) {
     log('Configuration works.')
-    log('Next: provision the tables, then create the first officer:')
-    log('  npm --prefix backend run provision:appwrite -- --write')
-    log('  npm run user -- create --email you@club.org --name "Your Name" --role president')
+
+    // Only suggest what is actually outstanding. Telling someone to provision
+    // tables that already exist reads as though the check did not look.
+    if (!provisioned) {
+      log('Next: create the missing tables.')
+      log('  npm --prefix backend run provision:appwrite -- --write')
+    } else if (accounts === 0) {
+      log('Everything is provisioned, and there are no accounts yet.')
+      log('Next: create the first officer — use an address you can receive mail at.')
+      log('  npm run user -- create --email you@club.org --name "Your Name" --role president')
+    } else {
+      log(`Everything is provisioned, with ${accounts} account(s).`)
+      log('Take a backup and prove it restores:')
+      log('  bash scripts/backup-to-drive.sh')
+    }
   } else {
     log('Something above is wrong. Fix it before provisioning or backing up —')
     log('both would fail in less obvious ways.')

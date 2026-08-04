@@ -23,7 +23,7 @@
     "format:check": "npm --prefix frontend run format:check && npm --prefix backend run format:check",
     "test": "npm --prefix frontend run test && npm --prefix backend run test",
     "check:constants": "python3 scripts/check_domain_constants.py",
-    "verify": "npm run check:constants && npm run lint && npm run typecheck && npm test && npm run build",
+    "verify": "npm run check:constants && npm run lint && npm run typecheck && npm test && npm run build && npm run test:function",
     "emulators": "firebase emulators:start",
     "icons": "python3 scripts/generate_icons.py",
     "icons:from-logo": "bash scripts/icons-from-logo.sh",
@@ -36,7 +36,8 @@
     "netlify:dev": "npx --yes netlify-cli dev",
     "backup": "npm --prefix backend run backup --",
     "restore": "npm --prefix backend run restore --",
-    "appwrite:check": "npm --prefix backend run appwrite:check"
+    "appwrite:check": "npm --prefix backend run appwrite:check",
+    "test:function": "LOG_LEVEL=silent NODE_ENV=test node functions/api/main.test.mjs"
   },
   "dependencies": {
     "firebase-admin": "^14.2.0",
