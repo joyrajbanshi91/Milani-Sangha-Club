@@ -52,6 +52,14 @@ function alreadyExists(error: unknown): boolean {
   return error instanceof AppwriteException && error.code === 409
 }
 
+/** "You have reached the limit for this plan" rather than "you did it wrong". */
+function isPlanLimit(error: unknown): boolean {
+  return (
+    error instanceof AppwriteException &&
+    (error.type === 'additional_resource_not_allowed' || error.code === 403)
+  )
+}
+
 /**
  * Appwrite creates columns asynchronously: the call returns while the column is
  * still `processing`, and an index built on one that is not yet `available`
@@ -111,12 +119,51 @@ async function main(): Promise<number> {
 
   const tables = new TablesDB(client)
 
-  try {
-    await tables.create({ databaseId, name: 'Milani Sangha Club' })
-    log(`created database ${databaseId}`)
-  } catch (error) {
-    if (!alreadyExists(error)) throw error
-    log(`database ${databaseId} already exists`)
+  // Ask what exists before trying to create anything.
+  //
+  // Relying on the error was wrong: when the database already exists, Appwrite
+  // checks the plan quota *before* checking existence, so it answers 403 "upgrade
+  // to increase the limit" rather than 409 "already exists". Reading that as a
+  // quota problem sent the reader to change a setting that was already correct.
+  // The order of those checks is Appwrite's to change; this is not.
+  const { databases: existingDatabases } = await tables.list({})
+  const databaseExists = existingDatabases.some((database) => database.$id === databaseId)
+
+  if (databaseExists) {
+    log(`using existing database ${databaseId}`)
+  } else {
+    try {
+      await tables.create({ databaseId, name: 'Milani Sangha Club' })
+      log(`created database ${databaseId}`)
+    } catch (error) {
+      if (alreadyExists(error)) {
+        log(`database ${databaseId} already exists`)
+      } else if (isPlanLimit(error)) {
+        // The free plan allows one database per project, and a new project is
+        // created with one already. Appwrite's own message ("upgrade to increase
+        // the limit") points at a payment rather than at the fix, which is to use
+        // the database that exists. Its *name* is irrelevant here; the tables
+        // inside it are what this script cares about.
+        const existing = existingDatabases.map((database) => database.$id)
+
+        process.stderr.write(
+          `\nCannot create the database "${databaseId}": this plan allows no more.\n\n` +
+            (existing.length > 0
+              ? `The project already has ${existing.length === 1 ? 'one' : String(existing.length)}:\n` +
+                existingDatabases.map((d) => `  ${d.$id}   (named "${d.name}")\n`).join('') +
+                '\nUse it instead of creating another — set the **ID**, not the name,\n' +
+                'in backend/.env:\n\n' +
+                `  APPWRITE_DATABASE_ID=${existing[0] as string}\n\n` +
+                'then run this again. Nothing in it is touched except the tables this\n' +
+                'application needs, and only ones that are missing are created.\n\n'
+              : 'The project has none, which means the limit is being reported for\n' +
+                'another reason. Check the plan and quotas in the Appwrite console.\n\n')
+        )
+        process.exit(1)
+      } else {
+        throw error
+      }
+    }
   }
 
   for (const table of TABLES) {
