@@ -139,7 +139,18 @@ around most completely — sign-in, roles, the ledger and profiles all have Appw
 implementations, and its free plan needs no card. Firestore works equally well if the
 club already has a Firebase project.
 
-Set these under **Site configuration → Environment variables**, then redeploy.
+Set these under **Project configuration → Environment variables**, then redeploy.
+(Netlify renamed "sites" to "projects", so older guides say *Site configuration*.)
+
+Or set them from the command line, which avoids getting a scope wrong by clicking —
+`--scope` is the flag that matters, and `--secret` on the API key means it cannot be
+read back afterwards:
+
+```bash
+npx netlify-cli login && npx netlify-cli link
+npx netlify-cli env:set APPWRITE_ENDPOINT "https://<region>.cloud.appwrite.io/v1" --scope functions
+npx netlify-cli env:set VITE_APPWRITE_PROJECT_ID "<project id>" --scope builds
+```
 Secrets belong there and never in `netlify.toml`, which is committed to the
 repository.
 

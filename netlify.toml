@@ -13,7 +13,7 @@
 # missing variable into a site that will not start.
 #
 # To connect a real database, add its variables in the Netlify dashboard
-# (Site configuration → Environment variables) and redeploy. Secrets belong there,
+# (Project configuration → Environment variables) and redeploy. Secrets belong there,
 # never in this file — it is committed. The full list is in docs/09-netlify.md.
 # ---------------------------------------------------------------------------
 
