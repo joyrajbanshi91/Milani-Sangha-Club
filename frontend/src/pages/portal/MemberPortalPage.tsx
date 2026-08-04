@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { Container } from '@/components/ui/Container'
 import { Field, Input, Select } from '@/components/ui/Field'
 import { club, membership } from '@/content/site'
-import { ChangePassword } from '@/features/auth/ChangePassword'
 import { useAuth } from '@/features/auth/authContext'
 import { ProfilePhoto } from '@/features/profile/ProfilePhoto'
 import { cn } from '@/lib/cn'
@@ -40,8 +39,6 @@ export function MemberPortalPage() {
       </div>
 
       <ProfilePhoto />
-
-      <ChangePassword />
 
       {/* Status */}
       <section className="rounded-card border border-ink-200 bg-white p-5 shadow-soft">

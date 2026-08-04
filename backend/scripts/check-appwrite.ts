@@ -309,7 +309,7 @@ async function main(): Promise<number> {
     } else if (accounts === 0) {
       log('Everything is provisioned, and there are no accounts yet.')
       log('Next: create the first officer — use an address you can receive mail at.')
-      log('  npm run user -- create --email you@club.org --name "Your Name" --role president')
+      log('  npm run user -- create --email you@example.org --name "Your Name" --role president')
     } else {
       log(`Everything is provisioned, with ${accounts} account(s).`)
       log('Take a backup and prove it restores:')

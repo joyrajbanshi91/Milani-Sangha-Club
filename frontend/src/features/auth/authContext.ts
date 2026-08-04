@@ -42,19 +42,13 @@ export interface AuthState {
   /** Appwrite mode. Sends a reset email; never reveals whether the account exists. */
   requestPasswordReset: (email: string) => Promise<void>
   /**
-   * Change your own password while signed in.
-   *
-   * The current password is required by Appwrite and that is the point: without it,
-   * anyone who found an unlocked laptop could lock the real member out of their own
-   * account. This is the everyday path — a member who has forgotten their password
-   * cannot use it and needs `requestPasswordReset` instead.
-   */
-  changePassword: (currentPassword: string, newPassword: string) => Promise<void>
-  /**
    * Finish a reset from the emailed link, which carries `userId` and `secret`.
    *
-   * Separate from `changePassword` because there is no session yet — the secret from
-   * the email stands in for one, and it is valid for an hour.
+   * The only way a password changes. There is deliberately no "change password while
+   * signed in": the club asked for that removed, so everyone goes through the emailed
+   * link, which proves control of the address on record. The trade-off is that a member
+   * whose address is wrong cannot change their password at all until the office corrects
+   * it — see docs/11-running-the-club-office.md § 2.
    */
   completePasswordReset: (userId: string, secret: string, newPassword: string) => Promise<void>
   /** Demo mode only. */
