@@ -46,6 +46,87 @@ and it goes to that address.
 "Accountant" is `treasurer` in the system. There is no `accountant` role, and
 `npm run user -- role --role accountant` will be refused.
 
+### Adding many members at once, from a spreadsheet
+
+```bash
+npm run members:import                    # checks the file, writes nothing
+npm run members:import -- --write         # applies it
+npm run members:import -- --reset-only --write   # applies it, shows no passwords
+```
+
+Reads `data/club/members.csv`. Use `--file path/to/other.csv` for a different one.
+
+| Column | Required | Notes |
+| --- | --- | --- |
+| `name` | yes | As it should appear in the portal |
+| `email` | yes | Must be real — password reset is the only recovery path |
+| `role` | yes | See the words it accepts, below |
+
+The header must contain those three names. **Order does not matter and extra columns
+are ignored**, so a spreadsheet the club already keeps — with phone numbers, addresses,
+membership numbers — can be used as it is.
+
+```csv
+name,email,role
+Ashoke Banerjee,ashoke@example.com,president
+Ratna Das,ratna@example.com,secretary
+Debabrata Roy,debabrata@example.com,cashier
+Sujata Mondal,sujata@example.com,member
+```
+
+#### The words it accepts for `role`
+
+`cashier` and `accountant` both mean **treasurer**, because that is the word this system
+uses and nobody filling in a spreadsheet has a reason to know that. The import accepts
+the synonym and **prints what it became**, so a mapping is never silent:
+
+```
+  create    debabrata@example.com    treasurer  (from "cashier")
+```
+
+| You may write | It becomes |
+| --- | --- |
+| `president`, `chairman` | `president` |
+| `secretary`, `joint secretary` | `secretary` |
+| `treasurer`, `cashier`, `accountant` | `treasurer` |
+| `member`, `ordinary member`, `general member` | `member` |
+| `administrator`, `admin` | `administrator` |
+| `volunteer`, `visitor` | as written |
+
+Anything else is refused by name, with the line number.
+
+#### What it will and will not do
+
+- **Nothing is written unless every row is valid.** A bad role on line 40 stops the
+  whole file, so a partial import can never leave the club unsure what happened.
+- **Existing accounts are never re-created.** Matched on email address.
+- **An existing account whose role differs is re-labelled**, and that is called out
+  before it happens — roles decide who can see the club's accounts, so read that list:
+
+  ```
+  role      ratna@example.com    member -> secretary
+
+  1 existing account(s) would have their role changed. Roles decide who
+  can see the club’s accounts, so check that list before applying it.
+  ```
+
+- **Duplicate addresses, empty names and malformed addresses** are reported with line
+  numbers.
+- Re-running after a successful import reports everything as `unchanged`. It is safe to
+  run as often as you like.
+
+#### Passwords from an import
+
+By default the generated passwords are printed once, at the end, and stored nowhere.
+
+**Do not redirect that into a file.** A file of working passwords for every member of
+the club is a liability, and it will outlive the reason it was created.
+
+The better habit is `--reset-only`: accounts are created with passwords nobody ever
+sees, and each member sets their own through **Reset password** on the sign-in page.
+That needs their email address to be right, which is the same thing their account needs
+anyway.
+
 ### Change somebody's role
 
 ```bash
