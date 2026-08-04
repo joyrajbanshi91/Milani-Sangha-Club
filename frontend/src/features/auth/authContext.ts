@@ -37,8 +37,15 @@ export interface AuthState {
   loading: boolean
   config: AuthConfig | undefined
 
-  /** Appwrite mode. Throws a readable Error on bad credentials. */
-  signIn: (email: string, password: string) => Promise<void>
+  /**
+   * Appwrite mode. Throws a readable Error on bad credentials.
+   *
+   * Returns the signed-in member, because the caller has to know their role: the
+   * office-bearer entrance refuses a general member, and it can only tell after the
+   * credentials have been accepted. Null if `/auth/me` could not be read, which is
+   * treated as "not an officer" — failing closed on the door that guards the accounts.
+   */
+  signIn: (email: string, password: string) => Promise<SignedInUser | null>
   /** Appwrite mode. Sends a reset email; never reveals whether the account exists. */
   requestPasswordReset: (email: string) => Promise<void>
   /**

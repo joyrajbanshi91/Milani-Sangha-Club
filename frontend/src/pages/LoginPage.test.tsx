@@ -42,20 +42,22 @@ describe('LoginPage doors', () => {
   it('offers both doors when no choice has been made', () => {
     renderAt('/login', appwrite)
 
-    expect(screen.getByText('Office bearers')).toBeInTheDocument()
-    expect(screen.getByText('General members')).toBeInTheDocument()
+    // By role, not by text: "General members" also appears in the explanatory
+    // paragraph below, so a bare getByText is ambiguous and fails.
+    expect(screen.getByRole('link', { name: /Office bearers/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /General members/ })).toBeInTheDocument()
     expect(screen.getByText(/President · Secretary · Treasurer/)).toBeInTheDocument()
   })
 
-  it('says plainly that the choice does not decide access', () => {
-    // Without this sentence the obvious reading of two doors is that one of them
-    // grants the finance area, and the first member to try it concludes the site is
-    // broken when it does not.
+  it('says which door admits whom, and which one always works', () => {
+    // The copy has to match the constraint. It previously promised that the choice did
+    // not decide access, which stopped being true the moment the office entrance began
+    // refusing general members — and a login page that misdescribes its own doors sends
+    // people to the one that will turn them away.
     renderAt('/login', appwrite)
 
-    expect(
-      screen.getByText(/decided by the role the club office has given your account/i)
-    ).toBeInTheDocument()
+    expect(screen.getByText(/admits only/i)).toBeInTheDocument()
+    expect(screen.getByText(/General members/, { selector: 'strong' })).toBeInTheDocument()
   })
 
   it('shows the same email and password form behind each door', () => {

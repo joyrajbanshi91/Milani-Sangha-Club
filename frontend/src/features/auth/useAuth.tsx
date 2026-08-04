@@ -110,6 +110,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTokenProvider(getJwt)
       }
 
+      const finish = async (): Promise<SignedInUser | null> => {
+        await queryClient.invalidateQueries({ queryKey: ['auth', 'me'] })
+        // Read it rather than trusting the cache to have settled: the caller decides
+        // whether to allow entry from the role in here, so a stale or missing answer
+        // must not read as "officer".
+        try {
+          const response = await api.get<{ user: SignedInUser }>('/auth/me')
+          return response.user
+        } catch {
+          return null
+        }
+      }
+
       try {
         await attempt()
       } catch (error) {
@@ -137,8 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           clearStoredSession()
           try {
             await attempt()
-            await queryClient.invalidateQueries({ queryKey: ['auth', 'me'] })
-            return
+            return await finish()
           } catch (retryError) {
             throw new Error(describeAppwriteError(retryError), { cause: retryError })
           }
@@ -148,7 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(describeAppwriteError(error), { cause: error })
       }
 
-      await queryClient.invalidateQueries({ queryKey: ['auth', 'me'] })
+      return await finish()
     },
     [queryClient]
   )
