@@ -5,6 +5,7 @@ import {
   parseCsv,
   parseFundsCsv,
   parseTransactionsCsv,
+  toIsoDate,
 } from '../src/domain/csv.js'
 import { TREASURER } from './helpers/fixtures.js'
 
@@ -93,6 +94,68 @@ describe('funds.csv', () => {
     )
 
     expect(result.errors.some((e) => e.message.includes('Duplicate'))).toBe(true)
+  })
+
+  /**
+   * The club's opening balances were rejected by this column.
+   *
+   * They had typed the file from the template and their spreadsheet reformatted the
+   * date to the local convention on its own — `2026-04-01` came back as `01/04/26`.
+   * Demanding ISO was correct storage and a bad ask.
+   */
+  it('accepts a date a spreadsheet has reformatted, reading it day first', () => {
+    const result = parseFundsCsv(
+      'name,kind,opening_balance,opening_date\nBank account,bank,49460,01/04/26\n'
+    )
+
+    expect(result.errors).toEqual([])
+    expect(result.rows[0]?.openingDate).toBe('2026-04-01')
+    expect(result.rows[0]?.openingBalancePaise).toBe(4_946_000)
+  })
+
+  it('still rejects a date that is not a real day', () => {
+    const result = parseFundsCsv(
+      'name,kind,opening_balance,opening_date\nCash box,cash,0,31/02/2026\n'
+    )
+
+    expect(result.rows).toEqual([])
+    expect(result.errors[0]?.column).toBe('opening_date')
+  })
+})
+
+describe('dates as a spreadsheet writes them', () => {
+  it('passes ISO through unchanged', () => {
+    expect(toIsoDate('2026-04-01')).toBe('2026-04-01')
+  })
+
+  it('reads slashes and dots and hyphens, day first', () => {
+    for (const input of ['01/04/2026', '01-04-2026', '01.04.2026', '1/4/2026']) {
+      expect(toIsoDate(input), input).toBe('2026-04-01')
+    }
+  })
+
+  it('reads a two-digit year as this century', () => {
+    expect(toIsoDate('01/04/26')).toBe('2026-04-01')
+    expect(toIsoDate('15/08/47')).toBe('2047-08-15')
+    // 80–99 goes back a century, so an old record does not land in the future.
+    expect(toIsoDate('15/08/97')).toBe('1997-08-15')
+  })
+
+  it('is unambiguous when the day is above twelve', () => {
+    expect(toIsoDate('25/12/2026')).toBe('2026-12-25')
+  })
+
+  it('rejects a day that does not exist rather than rolling it forward', () => {
+    // Date.parse('2026-02-31') succeeds and silently becomes 3 March.
+    expect(toIsoDate('31/02/2026')).toBeNull()
+    expect(toIsoDate('32/01/2026')).toBeNull()
+    expect(toIsoDate('01/13/2026')).toBeNull()
+  })
+
+  it('rejects anything that is not a date at all', () => {
+    for (const input of ['', '   ', 'April', '2026', '1/2/3/4', '2026-4-1-']) {
+      expect(toIsoDate(input), input).toBeNull()
+    }
   })
 })
 

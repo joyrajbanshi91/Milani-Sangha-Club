@@ -22,6 +22,18 @@ export interface FinanceStore {
   listFunds(): Promise<Fund[]>
   createFund(fund: Omit<Fund, 'id'>): Promise<Fund>
 
+  /**
+   * Correct a fund's own details — most importantly its opening balance.
+   *
+   * Deliberately not reachable from the API. An opening balance is the one number
+   * that silently changes every balance in the club's accounts without leaving an
+   * entry in the ledger, so it is set by `seed:finance --update-funds`, from a
+   * spreadsheet, by somebody with the server key. There is no form for it, because
+   * a form invites treating it as an adjustment rather than a statement of fact
+   * about what was in the box on day one.
+   */
+  updateFund(id: string, fund: Omit<Fund, 'id'>): Promise<Fund>
+
   listCategories(): Promise<Category[]>
   createCategory(category: Omit<Category, 'id'>): Promise<Category>
 

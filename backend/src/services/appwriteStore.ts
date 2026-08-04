@@ -141,6 +141,19 @@ export class AppwriteFinanceStore implements FinanceStore {
     return toFund(row)
   }
 
+  async updateFund(id: string, fund: Omit<Fund, 'id'>): Promise<Fund> {
+    // upsertRow, not updateRow: a fund restored from a backup keeps its id, and an
+    // update that fails because the row is absent is no use to the script correcting
+    // opening balances.
+    const row = await this.tables.upsertRow({
+      databaseId: this.db,
+      tableId: COLLECTIONS.funds,
+      rowId: id,
+      data: fund,
+    })
+    return toFund(row)
+  }
+
   async listCategories(): Promise<Category[]> {
     const { rows } = await this.tables.listRows({
       databaseId: this.db,
