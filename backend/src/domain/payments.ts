@@ -1,7 +1,13 @@
 import { ID_FORMATS } from '../config/constants.js'
 import { isFinanceOfficer, type Outcome } from './approval.js'
 import { isIsoDate } from './dates.js'
-import { MAX_AMOUNT_PAISE } from './money.js'
+import {
+  duesForMonths,
+  financialYearOf,
+  monthName,
+  validateMembershipPeriod,
+} from './membership.js'
+import { formatPaise, MAX_AMOUNT_PAISE } from './money.js'
 import type { Actor, Payment, PaymentDraft, TransactionDraft } from './types.js'
 
 /**
@@ -36,6 +42,12 @@ export function formatPaymentReference(year: number, sequence: number): string {
   return `${prefix}-${year}-${String(sequence).padStart(padding, '0')}`
 }
 
+/** 'RCT-2026-000042' — the receipt, allocated only once the money is confirmed. */
+export function formatReceiptNumber(year: number, sequence: number): string {
+  const { prefix, padding } = ID_FORMATS.receipt
+  return `${prefix}-${year}-${String(sequence).padStart(padding, '0')}`
+}
+
 /** A declaration nobody has acted on yet. The only state a member can change. */
 export function isOpen(payment: Pick<Payment, 'status'>): boolean {
   return payment.status === 'pending_verification'
@@ -65,6 +77,39 @@ export function validatePaymentDraft(
     // Not pedantry: a future date would ask the treasurer to confirm a payment
     // that has not happened, and there is no honest answer to that question.
     return fail('paidOn', 'The date you paid cannot be in the future.')
+  }
+
+  /**
+   * Membership is priced by the month, so the months are part of the payment.
+   *
+   * Both halves are enforced — which months, and that the amount matches them —
+   * because the register is derived from these declarations. A member who could
+   * enter ₹50 against twelve months would appear paid up for a year, and the club
+   * would find out at the end of it.
+   */
+  if (draft.purpose === 'membership') {
+    const period = validateMembershipPeriod({
+      periodStart: draft.periodStart ?? '',
+      periodEnd: draft.periodEnd ?? '',
+      existing: context.existing,
+    })
+
+    if (!period.ok) return fail(period.code, period.reason)
+
+    const expected = duesForMonths(period.months.length)
+    if (draft.amountPaise !== expected) {
+      const count = period.months.length
+      return fail(
+        'amount',
+        `${count} month${count === 1 ? '' : 's'} of membership ` +
+          `(${monthName(period.months[0] as string)}${count > 1 ? ` to ${monthName(period.months[count - 1] as string)}` : ''}) ` +
+          `is ${formatPaise(expected)}, not ${formatPaise(draft.amountPaise)}.`
+      )
+    }
+  } else if (draft.periodStart ?? draft.periodEnd) {
+    // Only membership buys months. A donation with a period attached would show up
+    // in the register as though the year were settled.
+    return fail('period', 'Only a membership payment covers particular months.')
   }
 
   if (draft.method === 'cash') {
@@ -170,6 +215,10 @@ export function buildEntryFor(
   const method =
     payment.method === 'upi' ? 'UPI' : payment.method === 'bank' ? 'bank transfer' : 'cash'
 
+  // Which months, when it is membership. An auditor reading the ledger a year later
+  // should not have to open another table to see what the subscription bought.
+  const period = periodLabel(payment)
+
   return {
     kind: 'income',
     date: payment.paidOn,
@@ -177,11 +226,27 @@ export function buildEntryFor(
     fundId: choice.fundId,
     categoryId: choice.categoryId,
     source: payment.memberName,
-    description: `${PURPOSE_LABEL[payment.purpose]} from ${payment.memberName} by ${method} (${payment.reference})`,
+    description:
+      `${PURPOSE_LABEL[payment.purpose]} from ${payment.memberName}` +
+      `${period ? ` for ${period}` : ''} by ${method} (${payment.reference})`,
     ...(payment.externalReference ? { externalReference: payment.externalReference } : {}),
     createdBy: actor.uid,
     createdByName: actor.name,
   }
+}
+
+/** 'April 2026' or 'April 2026 to March 2027'. Empty when no months are covered. */
+export function periodLabel(payment: Pick<Payment, 'periodStart' | 'periodEnd'>): string {
+  const { periodStart, periodEnd } = payment
+  if (!periodStart || !periodEnd) return ''
+  return periodStart === periodEnd
+    ? monthName(periodStart)
+    : `${monthName(periodStart)} to ${monthName(periodEnd)}`
+}
+
+/** '2026-27', or empty when the payment covers no membership months. */
+export function financialYearLabel(payment: Pick<Payment, 'periodStart'>): string {
+  return payment.periodStart ? financialYearOf(payment.periodStart) : ''
 }
 
 const PURPOSE_LABEL = {
@@ -201,7 +266,8 @@ export function markVerified(
   payment: Payment,
   actor: Actor,
   now: string,
-  entry: { id: string; reference: string }
+  entry: { id: string; reference: string },
+  receiptNumber: string
 ): Payment {
   return {
     ...payment,
@@ -211,6 +277,7 @@ export function markVerified(
     reviewedByName: actor.name,
     transactionId: entry.id,
     transactionReference: entry.reference,
+    receiptNumber,
   }
 }
 

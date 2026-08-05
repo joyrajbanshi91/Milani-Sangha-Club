@@ -72,8 +72,7 @@ export type MembershipStatus = (typeof MEMBERSHIP_STATUSES)[number]
  *
  *   pending_verification  the member says they have paid; nobody has checked
  *   approved              an officer confirmed the money arrived and entered it
- *                         in the books — that ledger entry is itself pending a
- *                         second officer's approval before it counts
+ *                         in the books, and a receipt was issued
  *   rejected              an officer could not find the payment
  *   withdrawn             the member took their own declaration back
  *
@@ -214,9 +213,55 @@ export const FINANCE_ROLES: readonly Role[] = [
 ]
 
 /**
- * Approvals required *in addition to* the officer who recorded the entry, so
- * the default of 1 means two different people have signed off. Raising this to 2
- * would require three. An officer can never approve their own entry.
+ * Approvals required *in addition to* the officer who recorded the entry.
+ *
+ * **0 — one officer records an entry and it is posted immediately.** The club asked
+ * for this; it was 1, meaning two different people had to sign off before any money
+ * moved.
+ *
+ * Worth being clear about what that costs, because the machinery is all still here
+ * and the number is the only thing standing between the two arrangements. At 1, no
+ * single person could move the club's money: an officer could record but never
+ * approve their own entry. At 0 they can, so the control against a single officer
+ * entering whatever they like is no longer the software — it is the audit trail, the
+ * reversal record, and the committee reading the statement.
+ *
+ * What still holds at 0:
+ *   • every entry names who recorded it, with a timestamp, in the audit log
+ *   • nothing is ever deleted — a mistake is cancelled by a reversal and both
+ *     halves stay on the record
+ *   • an officer still cannot verify their own membership payment, which is a
+ *     different question (did the money arrive?) and matters more, not less, now
+ *     that one signature is enough
+ *
+ * Set it back to 1 and the two-person rule returns with no other change: the
+ * approval queue, the self-approval refusal and the tests are all intact.
  */
-export const REQUIRED_APPROVALS = 1
+export const REQUIRED_APPROVALS = 0
+
+// --- Membership dues (SRS §7) ----------------------------------------------
+
+/**
+ * What membership costs, in paise.
+ *
+ * Twelve months at the monthly rate comes to exactly the yearly rate, so paying by
+ * the year is a convenience rather than a discount. `duesForMonths` in
+ * domain/membership.ts is the single place that turns a number of months into an
+ * amount, so if the club ever does introduce a discount it changes there and every
+ * screen follows.
+ */
+export const MEMBERSHIP_DUES = {
+  monthlyPaise: 5_000,
+  yearlyPaise: 60_000,
+  monthsInYear: 12,
+} as const
+
+/**
+ * The club's year runs April to March, as an Indian financial year does.
+ *
+ * Written as the starting month rather than assumed, because every "which year does
+ * this month belong to" question in the membership register depends on it, and a
+ * club that later moves to a calendar year should change one number.
+ */
+export const FINANCIAL_YEAR_START_MONTH = 4
 // #endregion shared-domain

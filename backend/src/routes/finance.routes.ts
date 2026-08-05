@@ -4,15 +4,18 @@ import { z } from 'zod'
 import {
   CATEGORY_KINDS,
   FUND_KINDS,
+  MEMBERSHIP_DUES,
   PAYMENT_STATUSES,
   TRANSACTION_KINDS,
   TRANSACTION_STATUSES,
 } from '../config/constants.js'
 import { isIsoDate, isIsoMonth, todayInIndia } from '../domain/dates.js'
+import { financialYearOf } from '../domain/membership.js'
 import { rupeesToPaise } from '../domain/money.js'
 import { monthRange } from '../domain/report.js'
 import type { Actor } from '../domain/types.js'
 import { AppError, badRequest, forbidden, notFound, unauthorised } from '../lib/httpError.js'
+import { sendReceipt } from '../lib/receiptResponse.js'
 import { requireAuth, requireFinanceOfficer } from '../middleware/auth.js'
 import { getContainer } from '../services/container.js'
 import { StoreConflictError } from '../services/store.js'
@@ -324,6 +327,56 @@ financeRouter.post('/payments/:id/decline', async (req: Request, res: Response) 
   if (!result.ok) throw toHttpError(result)
 
   res.json({ payment: result.value, message: 'Declined. The member can see your reason.' })
+})
+
+/** Reprint a member's receipt — the commonest request an office ever gets. */
+financeRouter.get('/payments/:id/receipt.pdf', async (req: Request, res: Response) => {
+  const payment = await payments.get(param(req, 'id'))
+  if (!payment) throw notFound('That payment could not be found.')
+
+  await sendReceipt(res, payment)
+})
+
+// ---------------------------------------------------------------------------
+// The membership register
+// ---------------------------------------------------------------------------
+
+/**
+ * Every member and what they have paid this year.
+ *
+ * Officer-only, and the one screen in the system that shows one member's affairs to
+ * another person — which is exactly what a committee needs in order to chase
+ * subscriptions, and exactly why it sits behind `requireFinanceOfficer` with
+ * everything else about money.
+ */
+financeRouter.get('/members', async (req: Request, res: Response) => {
+  const year = typeof req.query.year === 'string' ? req.query.year : undefined
+  if (year !== undefined && !/^\d{4}-\d{2}$/.test(year)) {
+    throw badRequest('year must look like 2026-27')
+  }
+
+  const accounts = await auth.listAccounts()
+  const members = await payments.roster(accounts, year)
+
+  res.json({
+    members,
+    financialYear: members[0]?.membership.financialYear ?? financialYearOf(todayInIndia()),
+    dues: {
+      monthlyPaise: MEMBERSHIP_DUES.monthlyPaise,
+      yearlyPaise: MEMBERSHIP_DUES.yearlyPaise,
+    },
+    totals: {
+      members: members.length,
+      paidInFull: members.filter((member) => member.membership.paidInFull).length,
+      nothingPaid: members.filter((member) => member.membership.nothingPaid).length,
+      overduePaise: members.reduce((sum, member) => sum + member.membership.overduePaise, 0),
+      outstandingPaise: members.reduce(
+        (sum, member) => sum + member.membership.outstandingPaise,
+        0
+      ),
+      awaitingVerification: members.reduce((sum, member) => sum + member.awaitingVerification, 0),
+    },
+  })
 })
 
 /** Map a domain refusal onto the right HTTP status. */

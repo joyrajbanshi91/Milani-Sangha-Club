@@ -43,10 +43,10 @@ function isStatus(value: string | null): value is PaymentStatus | 'all' {
  * to be first in the list. The officer knows which cash box or account the money
  * actually landed in; the form insists they say.
  *
- * **Recording produces a pending entry, and the screen says so.** An officer who
- * believes recording a payment is the end of the job will not chase the second
- * signature, and the money will sit outside every balance while everyone assumes it
- * is counted. The confirmation names the entry and what it is still waiting for.
+ * **Recording does three things at once, and the confirmation names them.** It posts a
+ * ledger entry dated the day the member paid, issues their receipt, and marks the
+ * months paid in the register. An officer who thinks it only did the first will not
+ * understand why the member can suddenly download something.
  */
 export function PaymentsPage() {
   const [params, setParams] = useSearchParams()
@@ -65,7 +65,8 @@ export function PaymentsPage() {
         <p className="mt-1 text-sm/relaxed text-ink-500">
           What members say they have paid. Check each one against the club's records — the UPI
           statement, the cash box, the cheque — before you enter it in the books. Recording one
-          creates an ordinary pending entry that still needs a second officer's approval.
+          creates an ordinary ledger entry, dated the day the member paid, and issues their
+          receipt.
         </p>
       </div>
 
@@ -236,7 +237,7 @@ function ReviewForm({ payment, onDone }: { payment: Payment; onDone: () => void 
   const refresh = () =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: ['payments'] }),
-      // The ledger changed too: a new pending entry now needs a second signature.
+      // The ledger changed too: recording posts an entry and moves the balances.
       queryClient.invalidateQueries({ queryKey: ['finance'] }),
     ])
 
@@ -305,7 +306,8 @@ function ReviewForm({ payment, onDone }: { payment: Payment; onDone: () => void 
     >
       <p className="text-xs/relaxed text-ink-600">
         Confirm the money reached the club, then say where it landed. The entry is dated{' '}
-        {formatDate(payment.paidOn)} — the day the member paid.
+        {formatDate(payment.paidOn)} — the day the member paid — and the member's receipt is
+        issued as soon as you record it.
       </p>
 
       {activeFunds.length === 0 || incomeCategories.length === 0 ? (

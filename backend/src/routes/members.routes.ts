@@ -1,11 +1,13 @@
 import { Router, type Request, type Response } from 'express'
 import { z } from 'zod'
 
-import { PAYMENT_METHODS, PAYMENT_PURPOSES } from '../config/constants.js'
+import { MEMBERSHIP_DUES, PAYMENT_METHODS, PAYMENT_PURPOSES } from '../config/constants.js'
 import { isIsoDate } from '../domain/dates.js'
+import { isMonth } from '../domain/membership.js'
 import { rupeesToPaise } from '../domain/money.js'
 import type { Actor } from '../domain/types.js'
 import { AppError, badRequest, notFound, unauthorised } from '../lib/httpError.js'
+import { sendReceipt } from '../lib/receiptResponse.js'
 import { requireAuth } from '../middleware/auth.js'
 import { getContainer } from '../services/container.js'
 import { PhotoRejected, assertValidPhoto } from '../services/profileStore.js'
@@ -28,6 +30,13 @@ function actorOf(req: Request): Actor {
   const actor = req.actor
   if (!actor) throw unauthorised()
   return actor
+}
+
+/** Express 5 types params as `string | string[]`; these routes never repeat one. */
+function param(req: Request, name: string): string {
+  const value = req.params[name]
+  if (typeof value !== 'string' || value === '') throw badRequest(`Missing ${name}.`)
+  return value
 }
 
 membersRouter.get('/me', async (req: Request, res: Response) => {
@@ -75,10 +84,15 @@ membersRouter.delete('/me/photo', async (req: Request, res: Response) => {
 // finance.routes.ts behind requireFinanceOfficer.
 // ---------------------------------------------------------------------------
 
+const isMonthString = z.string().refine(isMonth, 'Use the format YYYY-MM, e.g. 2026-04')
+
 const paymentSchema = z
   .object({
     purpose: z.enum(PAYMENT_PURPOSES),
     method: z.enum(PAYMENT_METHODS),
+    /** Membership only, and both together. Validated properly in the domain. */
+    periodStart: isMonthString.optional(),
+    periodEnd: isMonthString.optional(),
     /** Rupees as typed by a person. Converted to exact paise below. */
     amount: z.union([z.string(), z.number()]).transform((value, ctx) => {
       try {
@@ -117,6 +131,8 @@ membersRouter.post('/me/payments', async (req: Request, res: Response) => {
       method: input.method,
       amountPaise: input.amount,
       paidOn: input.paidOn,
+      ...(input.periodStart ? { periodStart: input.periodStart } : {}),
+      ...(input.periodEnd ? { periodEnd: input.periodEnd } : {}),
       ...(input.externalReference ? { externalReference: input.externalReference } : {}),
       ...(input.handedTo ? { handedTo: input.handedTo } : {}),
       ...(input.note ? { note: input.note } : {}),
@@ -135,13 +151,56 @@ membersRouter.post('/me/payments', async (req: Request, res: Response) => {
 })
 
 membersRouter.post('/me/payments/:id/withdraw', async (req: Request, res: Response) => {
-  const id = req.params.id
-  if (typeof id !== 'string' || id === '') throw badRequest('Missing id.')
+  const id = param(req, 'id')
 
   const result = await payments.withdraw(id, actorOf(req))
   if (!result.ok) throw toHttpError(result)
 
   res.json({ payment: result.value, message: 'Withdrawn. The office bearers will not see it.' })
+})
+
+/**
+ * The member's own subscription register.
+ *
+ * `?year=2026-27` for a past year; the current one by default. Which months are paid
+ * is derived from their approved declarations, so this can never disagree with the
+ * receipts they hold.
+ */
+membersRouter.get('/me/membership', async (req: Request, res: Response) => {
+  const actor = actorOf(req)
+  const year = typeof req.query.year === 'string' ? req.query.year : undefined
+
+  if (year !== undefined && !/^\d{4}-\d{2}$/.test(year)) {
+    throw badRequest('year must look like 2026-27')
+  }
+
+  res.json({
+    membership: await payments.membership(actor.uid, year),
+    dues: {
+      monthlyPaise: MEMBERSHIP_DUES.monthlyPaise,
+      yearlyPaise: MEMBERSHIP_DUES.yearlyPaise,
+    },
+  })
+})
+
+/**
+ * The member's own receipt.
+ *
+ * Scoped to the caller's uid like everything else here, and refused unless the
+ * payment has actually been verified — a receipt for money nobody has confirmed
+ * arrived is the one document a club must not issue.
+ */
+membersRouter.get('/me/payments/:id/receipt.pdf', async (req: Request, res: Response) => {
+  const actor = actorOf(req)
+  const id = param(req, 'id')
+
+  const mine = await payments.listMine(actor.uid)
+  const payment = mine.find((candidate) => candidate.id === id)
+
+  // The same answer as somebody else's id: guessing must not reveal what exists.
+  if (!payment) throw notFound('That payment could not be found.')
+
+  await sendReceipt(res, payment)
 })
 
 /** Map a domain refusal onto the right HTTP status. */
@@ -150,9 +209,12 @@ function toHttpError(result: { code: string; reason: string }): AppError {
     case 'not_found':
       return notFound(result.reason)
     case 'duplicate':
+    case 'months_already_covered':
     case 'not_open':
     case 'not_owner':
       // 409: the request is well formed but conflicts with the state of the record.
+      // `months_already_covered` belongs here rather than with the 400s — the form
+      // was filled in correctly, the months are simply taken.
       return new AppError(409, result.code, result.reason)
     default:
       return new AppError(400, result.code, result.reason)

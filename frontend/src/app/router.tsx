@@ -142,6 +142,12 @@ export const router = createBrowserRouter([
         }),
       },
       {
+        path: 'members',
+        lazy: async () => ({
+          Component: (await import('@/pages/office/MembersPage')).MembersPage,
+        }),
+      },
+      {
         path: 'reports',
         lazy: async () => ({
           Component: (await import('@/pages/office/ReportsPage')).ReportsPage,

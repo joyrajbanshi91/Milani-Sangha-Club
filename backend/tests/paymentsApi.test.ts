@@ -3,6 +3,7 @@ import request from 'supertest'
 import { beforeAll, describe, expect, it } from 'vitest'
 
 import { createApp } from '../src/app.js'
+import { duesForMonths, monthsBetween } from '../src/domain/membership.js'
 
 /**
  * The member-payment flow over HTTP, on the in-memory demo store.
@@ -11,9 +12,13 @@ import { createApp } from '../src/app.js'
  *
  *   • Can a member put money into the club's books? No. They can declare a payment
  *     and nothing else — every route that touches the ledger refuses them.
- *   • Can one officer take a member's declaration all the way into a balance? No.
- *     Recording it creates a *pending* entry, so a second officer still has to
- *     approve it, exactly as for an entry typed in by hand.
+ *   • Can a member mark their own subscription paid? No. A declaration counts for
+ *     nothing in the register until an officer has checked it against the club's
+ *     records, and an officer cannot check their own.
+ *
+ * The club runs with `REQUIRED_APPROVALS` at 0, so verifying a payment posts the
+ * ledger entry there and then. The two-person variant is exercised in
+ * approval.test.ts with an explicit requirement.
  *
  * The demo store is shared across this file, so each test uses distinct amounts —
  * the duplicate guard is real and would otherwise refuse the second submission.
@@ -26,7 +31,13 @@ async function signIn(email: string): Promise<string> {
   return response.body.token as string
 }
 
-/** A member declares a payment and gets its id back. */
+/**
+ * A member declares a payment and gets its id back.
+ *
+ * A **donation** by default. Membership is priced by the month and has to name which
+ * ones, so using it here would make every test about the dues table as well; the
+ * membership block below does that deliberately.
+ */
 async function declare(
   token: string,
   overrides: Record<string, unknown> = {}
@@ -35,7 +46,7 @@ async function declare(
     .post('/api/v1/members/me/payments')
     .set('Authorization', `Bearer ${token}`)
     .send({
-      purpose: 'membership',
+      purpose: 'donation',
       method: 'upi',
       amount: '500',
       paidOn: '2026-06-10',
@@ -45,6 +56,24 @@ async function declare(
     .expect(201)
 
   return response.body.payment
+}
+
+/** A membership declaration for whole months, at the club's rate. */
+async function declareMembership(
+  token: string,
+  periodStart: string,
+  periodEnd: string,
+  overrides: Record<string, unknown> = {}
+): Promise<{ id: string; reference: string; amountPaise: number }> {
+  const months = monthsBetween(periodStart, periodEnd).length
+
+  return declare(token, {
+    purpose: 'membership',
+    periodStart,
+    periodEnd,
+    amount: String(duesForMonths(months) / 100),
+    ...overrides,
+  })
 }
 
 /** The fund and category an officer would choose when recording one. */
@@ -110,7 +139,7 @@ describe('a member declaring a payment', () => {
       .post('/api/v1/members/me/payments')
       .set('Authorization', `Bearer ${token}`)
       .send({
-        purpose: 'membership',
+        purpose: 'donation',
         method: 'upi',
         amount: '777',
         paidOn: '2026-06-10',
@@ -224,10 +253,9 @@ describe('an officer verifying a declaration', () => {
     expect([...submitted].sort()).toEqual(submitted)
   })
 
-  it('enters it in the books as PENDING, so a second officer is still needed', async () => {
+  it('enters it in the books, and issues the receipt at that moment', async () => {
     const member = await signIn('member@demo.club')
     const treasurer = await signIn('treasurer@demo.club')
-    const secretary = await signIn('secretary@demo.club')
 
     const payment = await declare(member, { amount: '651', paidOn: '2026-06-11' })
     const choice = await chartOfAccounts(treasurer)
@@ -243,38 +271,64 @@ describe('an officer verifying a declaration', () => {
       .expect(201)
 
     expect(recorded.body.payment.status).toBe('approved')
-    expect(recorded.body.transaction.status).toBe('pending')
+    expect(recorded.body.transaction.status).toBe('posted')
     expect(recorded.body.transaction.amountPaise).toBe(65_100)
     // Dated when the member paid, not when the officer looked at it.
     expect(recorded.body.transaction.date).toBe('2026-06-11')
     // The declaration and the entry point at each other.
     expect(recorded.body.payment.transactionReference).toBe(recorded.body.transaction.reference)
     expect(recorded.body.transaction.description).toContain(payment.reference)
-
-    // Nothing has moved yet.
-    const during = await request(app)
-      .get('/api/v1/finance/dashboard?from=2026-06-01&to=2026-06-30')
-      .set('Authorization', `Bearer ${treasurer}`)
-    expect(during.body.totals.incomePaise).toBe(before.body.totals.incomePaise)
-
-    // The recording officer cannot approve their own entry — the ordinary rule.
-    const selfApproval = await request(app)
-      .post(`/api/v1/finance/transactions/${recorded.body.transaction.id}/approve`)
-      .set('Authorization', `Bearer ${treasurer}`)
-      .send({})
-      .expect(409)
-    expect(selfApproval.body.error.code).toBe('self_approval')
-
-    await request(app)
-      .post(`/api/v1/finance/transactions/${recorded.body.transaction.id}/approve`)
-      .set('Authorization', `Bearer ${secretary}`)
-      .send({})
-      .expect(200)
+    // The receipt exists only now — never at declaration time.
+    expect(recorded.body.payment.receiptNumber).toMatch(/^RCT-2026-\d{6}$/)
 
     const after = await request(app)
       .get('/api/v1/finance/dashboard?from=2026-06-01&to=2026-06-30')
       .set('Authorization', `Bearer ${treasurer}`)
     expect(after.body.totals.incomePaise).toBe(before.body.totals.incomePaise + 65_100)
+  })
+
+  it('gives the member a receipt PDF, and nobody else theirs', async () => {
+    const member = await signIn('member@demo.club')
+    const president = await signIn('president@demo.club')
+    const treasurer = await signIn('treasurer@demo.club')
+
+    const payment = await declare(member, { amount: '655' })
+
+    // No receipt before it is verified: that is money nobody has confirmed arrived.
+    const early = await request(app)
+      .get(`/api/v1/members/me/payments/${payment.id}/receipt.pdf`)
+      .set('Authorization', `Bearer ${member}`)
+      .expect(409)
+    expect(early.body.error.code).toBe('not_verified')
+
+    await request(app)
+      .post(`/api/v1/finance/payments/${payment.id}/record`)
+      .set('Authorization', `Bearer ${treasurer}`)
+      .send(await chartOfAccounts(treasurer))
+      .expect(201)
+
+    const receipt = await request(app)
+      .get(`/api/v1/members/me/payments/${payment.id}/receipt.pdf`)
+      .set('Authorization', `Bearer ${member}`)
+      .expect(200)
+
+    expect(receipt.headers['content-type']).toContain('application/pdf')
+    expect(receipt.headers['content-disposition']).toMatch(/receipt-RCT-2026-\d{6}/)
+    expect(receipt.headers['cache-control']).toContain('no-store')
+    expect(receipt.body.subarray(0, 5).toString()).toBe('%PDF-')
+
+    // Another member cannot fetch it by id — the same answer as one that does not
+    // exist, so ids cannot be probed.
+    await request(app)
+      .get(`/api/v1/members/me/payments/${payment.id}/receipt.pdf`)
+      .set('Authorization', `Bearer ${president}`)
+      .expect(404)
+
+    // An officer can reprint it, which is the commonest request an office gets.
+    await request(app)
+      .get(`/api/v1/finance/payments/${payment.id}/receipt.pdf`)
+      .set('Authorization', `Bearer ${treasurer}`)
+      .expect(200)
   })
 
   /**
@@ -381,6 +435,24 @@ describe('an officer verifying a declaration', () => {
     expect(found.reviewedByName).toBe('Demo Treasurer')
   })
 
+  it('refuses a receipt for a declined payment', async () => {
+    const member = await signIn('member@demo.club')
+    const treasurer = await signIn('treasurer@demo.club')
+
+    const payment = await declare(member, { amount: '656' })
+
+    await request(app)
+      .post(`/api/v1/finance/payments/${payment.id}/decline`)
+      .set('Authorization', `Bearer ${treasurer}`)
+      .send({ reason: 'No payment with that ID reached the club account.' })
+      .expect(200)
+
+    await request(app)
+      .get(`/api/v1/members/me/payments/${payment.id}/receipt.pdf`)
+      .set('Authorization', `Bearer ${member}`)
+      .expect(409)
+  })
+
   it('will not let a member withdraw one that has been entered in the books', async () => {
     const member = await signIn('member@demo.club')
     const treasurer = await signIn('treasurer@demo.club')
@@ -400,5 +472,203 @@ describe('an officer verifying a declaration', () => {
       .expect(409)
 
     expect(refused.body.error.code).toBe('not_open')
+  })
+})
+
+/**
+ * The membership register over HTTP.
+ *
+ * Which months a member has paid is the thing the club actually looks at, and it is
+ * derived from their declarations rather than stored, so these tests are as much
+ * about the two ends agreeing — a member's own page and the officers' roster — as
+ * about the arithmetic.
+ */
+describe('the membership register', () => {
+  it('starts a member owing the whole year', async () => {
+    const token = await signIn('member@demo.club')
+
+    const response = await request(app)
+      .get('/api/v1/members/me/membership?year=2030-31')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+
+    const { membership, dues } = response.body
+    expect(membership.months).toHaveLength(12)
+    expect(membership.months[0].month).toBe('2030-04')
+    expect(membership.months[11].month).toBe('2031-03')
+    expect(membership.monthsPaid).toBe(0)
+    expect(membership.outstandingPaise).toBe(60_000)
+
+    // The rates the form has to price against.
+    expect(dues.monthlyPaise).toBe(5_000)
+    expect(dues.yearlyPaise).toBe(60_000)
+  })
+
+  it('marks the months as paid once an officer verifies the declaration', async () => {
+    const member = await signIn('member@demo.club')
+    const treasurer = await signIn('treasurer@demo.club')
+
+    const payment = await declareMembership(member, '2031-04', '2031-06', {
+      paidOn: '2026-06-12',
+    })
+    expect(payment.amountPaise).toBe(15_000)
+
+    // Not paid until somebody has checked it: a form is not money.
+    const claimed = await request(app)
+      .get('/api/v1/members/me/membership?year=2031-32')
+      .set('Authorization', `Bearer ${member}`)
+    expect(claimed.body.membership.monthsPaid).toBe(0)
+
+    await request(app)
+      .post(`/api/v1/finance/payments/${payment.id}/record`)
+      .set('Authorization', `Bearer ${treasurer}`)
+      .send(await chartOfAccounts(treasurer))
+      .expect(201)
+
+    const verified = await request(app)
+      .get('/api/v1/members/me/membership?year=2031-32')
+      .set('Authorization', `Bearer ${member}`)
+
+    expect(verified.body.membership.monthsPaid).toBe(3)
+    expect(verified.body.membership.monthsUnpaid).toBe(9)
+    expect(verified.body.membership.months[0].paid).toBe(true)
+    expect(verified.body.membership.months[0].receiptNumber).toMatch(/^RCT-/)
+    expect(verified.body.membership.months[3].paid).toBe(false)
+  })
+
+  it('refuses a membership amount that does not match the months', async () => {
+    const token = await signIn('member@demo.club')
+
+    const response = await request(app)
+      .post('/api/v1/members/me/payments')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        purpose: 'membership',
+        method: 'upi',
+        amount: '50',
+        paidOn: '2026-06-10',
+        periodStart: '2032-04',
+        periodEnd: '2033-03',
+        externalReference: '4471829930',
+      })
+      .expect(400)
+
+    expect(response.body.error.message).toContain('600.00')
+  })
+
+  it('refuses months the member has already claimed', async () => {
+    const token = await signIn('member@demo.club')
+    await declareMembership(token, '2033-04', '2033-05', { paidOn: '2026-06-13' })
+
+    const clash = await request(app)
+      .post('/api/v1/members/me/payments')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        purpose: 'membership',
+        method: 'upi',
+        amount: '100',
+        paidOn: '2026-06-14',
+        periodStart: '2033-05',
+        periodEnd: '2033-06',
+        externalReference: '4471829931',
+      })
+      .expect(409)
+
+    expect(clash.body.error.code).toBe('months_already_covered')
+    expect(clash.body.error.message).toMatch(/May 2033/)
+  })
+
+  it('refuses a period that crosses two membership years', async () => {
+    const token = await signIn('member@demo.club')
+
+    await request(app)
+      .post('/api/v1/members/me/payments')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        purpose: 'membership',
+        method: 'upi',
+        amount: '600',
+        paidOn: '2026-06-10',
+        periodStart: '2034-10',
+        periodEnd: '2035-09',
+        externalReference: '4471829930',
+      })
+      .expect(400)
+  })
+})
+
+describe('the officers’ roster', () => {
+  it('is closed to a member', async () => {
+    const token = await signIn('member@demo.club')
+    await request(app)
+      .get('/api/v1/finance/members')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(403)
+  })
+
+  it('lists every account, including one that has never paid anything', async () => {
+    const treasurer = await signIn('treasurer@demo.club')
+
+    const response = await request(app)
+      .get('/api/v1/finance/members?year=2040-41')
+      .set('Authorization', `Bearer ${treasurer}`)
+      .expect(200)
+
+    const emails = response.body.members.map((row: { email: string }) => row.email)
+    // All four demo accounts, not only the ones with payments — the member who has
+    // paid nothing is precisely the row an officer is looking for.
+    expect(emails).toContain('member@demo.club')
+    expect(emails).toContain('president@demo.club')
+    expect(response.body.totals.members).toBe(emails.length)
+
+    for (const row of response.body.members) {
+      expect(row.membership.months).toHaveLength(12)
+      expect(row.membership.monthsPaid).toBe(0)
+    }
+
+    expect(response.body.totals.nothingPaid).toBe(emails.length)
+    expect(response.body.financialYear).toBe('2040-41')
+  })
+
+  it('shows what a member has paid, and totals the year', async () => {
+    const member = await signIn('member@demo.club')
+    const treasurer = await signIn('treasurer@demo.club')
+
+    const payment = await declareMembership(member, '2041-04', '2042-03', {
+      paidOn: '2026-06-15',
+    })
+    await request(app)
+      .post(`/api/v1/finance/payments/${payment.id}/record`)
+      .set('Authorization', `Bearer ${treasurer}`)
+      .send(await chartOfAccounts(treasurer))
+      .expect(201)
+
+    const response = await request(app)
+      .get('/api/v1/finance/members?year=2041-42')
+      .set('Authorization', `Bearer ${treasurer}`)
+      .expect(200)
+
+    const row = response.body.members.find(
+      (candidate: { email: string }) => candidate.email === 'member@demo.club'
+    )
+
+    expect(row.membership.monthsPaid).toBe(12)
+    expect(row.membership.paidInFull).toBe(true)
+    expect(response.body.totals.paidInFull).toBe(1)
+  })
+
+  it('puts whoever owes the most at the top, because the list is there to be acted on', async () => {
+    const treasurer = await signIn('treasurer@demo.club')
+
+    const response = await request(app)
+      .get('/api/v1/finance/members?year=2026-27')
+      .set('Authorization', `Bearer ${treasurer}`)
+      .expect(200)
+
+    const overdue = response.body.members.map(
+      (row: { membership: { monthsOverdue: number } }) => row.membership.monthsOverdue
+    )
+
+    expect([...overdue].sort((a: number, b: number) => b - a)).toEqual(overdue)
   })
 })

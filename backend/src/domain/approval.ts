@@ -5,16 +5,20 @@ import type { Actor, Approval, Transaction, TransactionDraft } from './types.js'
 /**
  * Maker–checker rules for financial entries.
  *
- * The whole point is that no single person can move the club's money. Concretely:
+ * How many people must agree is a single number, `REQUIRED_APPROVALS`, counted *in
+ * addition to* whoever recorded the entry. The club currently runs it at **0**, so
+ * one officer records and the entry is posted there and then. Everything below still
+ * holds and is what makes raising it back to 1 a one-line change:
  *
  *   • The officer who records an entry can never approve it. Not "should not" —
- *     `approve` refuses, and the Firestore rules refuse independently.
+ *     `approve` refuses.
  *   • Approvals must come from distinct people. Approving twice does nothing.
  *   • Only an entry that has gathered enough approvals is 'posted', and only a
- *     posted entry affects any balance.
+ *     posted entry affects any balance. At 0 required, "enough" is none, which is
+ *     why `newEntryState` posts immediately rather than leaving a pending entry
+ *     nobody will ever be asked to approve.
  *   • A posted entry is never edited or deleted. It is cancelled by an equal and
- *     opposite reversal, which itself needs two people. The original stays in the
- *     ledger marked 'reversed'.
+ *     opposite reversal, and the original stays in the ledger marked 'reversed'.
  *
  * Every function here is pure: it returns the next state or an explanation, and
  * touches nothing. That is what makes these rules testable.
@@ -36,6 +40,39 @@ export function approvalsOutstanding(
   required = REQUIRED_APPROVALS
 ): number {
   return Math.max(0, required - transaction.approvals.length)
+}
+
+/**
+ * The state a newly recorded entry starts in.
+ *
+ * The single place that decides whether recording is also posting, so the ordinary
+ * entry form, the CSV import and the member-payment flow cannot disagree about it.
+ *
+ * With `required` at 0 an entry is posted the moment it is written. Leaving it
+ * 'pending' instead would be worse than pointless: nobody can approve it, because
+ * `canApprove` correctly refuses an entry that already has every signature it needs,
+ * so it would sit outside the balances for ever with no way to get in.
+ */
+export function newEntryState(
+  now: string,
+  required = REQUIRED_APPROVALS
+): Pick<Transaction, 'status' | 'approvals' | 'createdAt'> & { postedAt?: string } {
+  return required <= 0
+    ? { status: 'posted', approvals: [], createdAt: now, postedAt: now }
+    : { status: 'pending', approvals: [], createdAt: now }
+}
+
+/**
+ * Cancel the original that a just-posted reversal refers to.
+ *
+ * Extracted because a reversal reaches 'posted' by two different routes — a second
+ * officer approving it, or being posted on creation when no approval is required —
+ * and the original must be marked 'reversed' either way. It was only handled on the
+ * approval route, so at 0 required a reversal would have posted while the entry it
+ * cancelled still looked live, and the club's books would have counted both.
+ */
+export function reversalTarget(reversal: Transaction): string | null {
+  return reversal.status === 'posted' && reversal.reverses ? reversal.reverses : null
 }
 
 /**

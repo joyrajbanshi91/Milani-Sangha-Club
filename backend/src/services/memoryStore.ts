@@ -1,3 +1,4 @@
+import { REQUIRED_APPROVALS } from '../config/constants.js'
 import { parseCategoriesCsv, parseFundsCsv, parseTransactionsCsv } from '../domain/csv.js'
 import type { Category, Fund, Transaction } from '../domain/types.js'
 import { logger } from '../lib/logger.js'
@@ -101,28 +102,41 @@ export class InMemoryFinanceStore implements FinanceStore {
       }
     })
 
-    // One entry left pending on purpose, so the approval queue is not empty on a
-    // first look and the two-person flow can be tried immediately.
+    /**
+     * One more entry, in whatever state the club's approval rule can actually reach.
+     *
+     * It used to be left 'pending' unconditionally, so the approval queue was not
+     * empty on a first look. That became a trap the moment `REQUIRED_APPROVALS`
+     * dropped to 0: nothing can approve an entry that needs no approvals — the rule
+     * correctly refuses — so it sat outside every balance for ever with no screen
+     * asking anyone to deal with it. Seeded demo data must not contain a state the
+     * application cannot leave.
+     */
     this.sequence += 1
     const cashFund = this.funds[0]
     const expenseCategory = this.categories.find((category) => category.kind === 'expense')
     if (cashFund && expenseCategory) {
+      const awaitingApproval = REQUIRED_APPROVALS > 0
+
       this.transactions.push({
         id: `txn-${this.sequence}`,
         reference: formatReference(2026, this.sequence),
         kind: 'expense',
-        status: 'pending',
+        status: awaitingApproval ? 'pending' : 'posted',
         date: '2026-06-02',
         amountPaise: 245_000,
         fundId: cashFund.id,
         categoryId: expenseCategory.id,
         source: 'Netaji Printers',
-        description: 'Banners for the annual programme — awaiting a second signature',
+        description: awaitingApproval
+          ? 'Banners for the annual programme — awaiting a second signature'
+          : 'Banners for the annual programme',
         externalReference: 'INV-6001',
         createdBy: 'demo-treasurer',
         createdByName: 'Demo Treasurer',
         createdAt: '2026-06-02T09:15:00.000Z',
         approvals: [],
+        ...(awaitingApproval ? {} : { postedAt: '2026-06-02T09:15:00.000Z' }),
       })
     }
 

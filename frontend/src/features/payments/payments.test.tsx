@@ -5,7 +5,8 @@ import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AuthContext, type AuthState } from '@/features/auth/authContext'
-import type { Payment } from '@/features/payments/api'
+import type { MembershipStatus, Payment } from '@/features/payments/api'
+import { MembersPage } from '@/pages/office/MembersPage'
 import { PaymentsPage } from '@/pages/office/PaymentsPage'
 import { MemberPortalPage } from '@/pages/portal/MemberPortalPage'
 
@@ -49,9 +50,63 @@ function payment(overrides: Partial<Payment> = {}): Payment {
     method: 'upi',
     amountPaise: 50_000,
     paidOn: '2026-06-10',
+    periodStart: '2026-06',
+    periodEnd: '2026-06',
     externalReference: '4471829930',
     submittedAt: '2026-06-10T09:00:00.000Z',
     ...overrides,
+  }
+}
+
+/** A membership register with the given months paid. */
+function register(paidMonths: string[] = []): MembershipStatus {
+  const months = Array.from({ length: 12 }, (_, index) => {
+    const absolute = 3 + index
+    const month = `${2026 + Math.floor(absolute / 12)}-${String((absolute % 12) + 1).padStart(2, '0')}`
+    const paid = paidMonths.includes(month)
+
+    return {
+      month,
+      label: new Date(`${month}-01T00:00:00Z`).toLocaleDateString('en-IN', {
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'UTC',
+      }),
+      short: month,
+      paid,
+      overdue: !paid && month <= '2026-08',
+      ...(paid ? { receiptNumber: 'RCT-2026-000001' } : {}),
+    }
+  })
+
+  const paid = months.filter((month) => month.paid).length
+
+  return {
+    financialYear: '2026-27',
+    label: 'April 2026 to March 2027',
+    months,
+    monthsPaid: paid,
+    monthsUnpaid: 12 - paid,
+    monthsOverdue: months.filter((month) => month.overdue).length,
+    paidPaise: paid * 5_000,
+    outstandingPaise: (12 - paid) * 5_000,
+    overduePaise: months.filter((month) => month.overdue).length * 5_000,
+    paidInFull: paid === 12,
+    nothingPaid: paid === 0,
+  }
+}
+
+const DUES = { monthlyPaise: 5_000, yearlyPaise: 60_000 }
+
+/** Answers the endpoints every portal render needs, so tests only mock what they test. */
+function portalDefaults(paidMonths: string[] = []) {
+  return (url: string): Response | null => {
+    if (url.includes('/members/me/membership')) {
+      return json({ membership: register(paidMonths), dues: DUES })
+    }
+    if (url.includes('/members/me/payments')) return json({ payments: [] })
+    if (url.includes('/members/me')) return json({ profile: null })
+    return null
   }
 }
 
@@ -106,12 +161,64 @@ describe('the member’s payment form', () => {
           json({ payment: payment(), message: 'Sent to the office bearers. REF-2026-000001' }, 201)
         )
       }
-      return Promise.resolve(json({ payments: [], profile: null }))
+      return Promise.resolve(portalDefaults()(String(url)) ?? json({}))
     })
 
     renderWith(<MemberPortalPage />, MEMBER)
 
-    await userEvent.type(screen.getByLabelText(/amount paid/i), '500')
+    await userEvent.type(await screen.findByLabelText(/UPI transaction ID/i), '4471829930')
+    await userEvent.click(screen.getByRole('button', { name: /send for verification/i }))
+
+    const posted = await waitFor(() => {
+      const found = calls().find(
+        (call) => call.method === 'POST' && call.url.includes('/members/me/payments')
+      )
+      expect(found).toBeDefined()
+      return found
+    })
+
+    /**
+     * The months travel with the payment, and the amount is derived from them.
+     *
+     * A member who has paid nothing is offered their first unpaid month — April —
+     * priced at the club's monthly rate. There is no amount field to type into for
+     * membership: the server refuses a figure that does not match the months, so
+     * letting them type one could only ever produce a rejected form.
+     */
+    expect(posted?.body).toMatchObject({
+      purpose: 'membership',
+      method: 'upi',
+      periodStart: '2026-04',
+      periodEnd: '2026-04',
+      amount: '50.00',
+      externalReference: '4471829930',
+    })
+  })
+
+  it('prices the whole remaining year at the yearly rate, without asking for a figure', async () => {
+    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+      if (String(url).includes('/members/me/payments') && init?.method === 'POST') {
+        return Promise.resolve(json({ payment: payment(), message: 'Sent.' }, 201))
+      }
+      return Promise.resolve(portalDefaults()(String(url)) ?? json({}))
+    })
+
+    renderWith(<MemberPortalPage />, MEMBER)
+
+    // Wait for the register before touching the form: the months on offer come from
+    // it, so choosing "the rest of the year" before it arrives chooses nothing.
+    await screen.findByText('0 of 12 months paid')
+
+    // Nothing paid, so "the rest of the year" is all twelve months — ₹600, the yearly
+    // rate rather than twelve times the monthly one.
+    await userEvent.selectOptions(screen.getByLabelText(/which months/i), 'rest')
+
+    // The figure in the "Amount to pay" panel, not the rate sentence elsewhere on the
+    // page — that one also says ₹600.00 and would make this pass without the select.
+    const panel = screen.getByText('Amount to pay').parentElement as HTMLElement
+    expect(panel.textContent).toContain('₹600.00')
+    expect(panel.textContent).toContain('12 months')
+
     await userEvent.type(screen.getByLabelText(/UPI transaction ID/i), '4471829930')
     await userEvent.click(screen.getByRole('button', { name: /send for verification/i }))
 
@@ -124,15 +231,52 @@ describe('the member’s payment form', () => {
     })
 
     expect(posted?.body).toMatchObject({
-      purpose: 'membership',
-      method: 'upi',
-      amount: '500',
-      externalReference: '4471829930',
+      periodStart: '2026-04',
+      periodEnd: '2027-03',
+      amount: '600.00',
     })
   })
 
+  it('offers the first month the member has not paid, not the first of the year', async () => {
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(portalDefaults(['2026-04', '2026-05'])(String(url)) ?? json({}))
+    )
+
+    renderWith(<MemberPortalPage />, MEMBER)
+
+    // April and May are paid, so the next one to offer is June.
+    expect(await screen.findByRole('option', { name: /One month — June 2026/ })).toBeInTheDocument()
+  })
+
+  it('asks for a typed amount for a donation, which has no months', async () => {
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(portalDefaults()(String(url)) ?? json({}))
+    )
+
+    renderWith(<MemberPortalPage />, MEMBER)
+
+    await userEvent.selectOptions(await screen.findByLabelText(/what was it for/i), 'donation')
+
+    expect(screen.getByLabelText(/amount paid/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/which months/i)).not.toBeInTheDocument()
+  })
+
+  it('shows the member which months they have paid and what is left', async () => {
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(portalDefaults(['2026-04', '2026-05', '2026-06'])(String(url)) ?? json({}))
+    )
+
+    renderWith(<MemberPortalPage />, MEMBER)
+
+    expect(await screen.findByText('3 of 12 months paid')).toBeInTheDocument()
+    // "How many months are left" is stated as both the count and what it costs.
+    expect(screen.getByText(/9 months left, costing ₹450.00/)).toBeInTheDocument()
+  })
+
   it('asks who took the cash instead of a transaction id', async () => {
-    fetchMock.mockResolvedValue(json({ payments: [] }))
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(portalDefaults()(String(url)) ?? json({}))
+    )
     renderWith(<MemberPortalPage />, MEMBER)
 
     await userEvent.click(screen.getByRole('button', { name: /In cash/i }))
@@ -142,29 +286,45 @@ describe('the member’s payment form', () => {
   })
 
   it('shows the member what happened to each declaration', async () => {
-    fetchMock.mockResolvedValue(
-      json({
-        payments: [
-          payment({ id: 'pay-2', status: 'approved', reviewedByName: 'Treasurer' }),
-          payment({
-            id: 'pay-3',
-            reference: 'REF-2026-000003',
-            status: 'rejected',
-            reviewedByName: 'Treasurer',
-            declineReason: 'No payment with that ID reached the club account.',
-          }),
-        ],
-      })
-    )
+    fetchMock.mockImplementation((url: string) => {
+      if (String(url).includes('/members/me/payments')) {
+        return Promise.resolve(
+          json({
+            payments: [
+              payment({
+                id: 'pay-2',
+                status: 'approved',
+                reviewedByName: 'Treasurer',
+                receiptNumber: 'RCT-2026-000007',
+              }),
+              payment({
+                id: 'pay-3',
+                reference: 'REF-2026-000003',
+                status: 'rejected',
+                reviewedByName: 'Treasurer',
+                declineReason: 'No payment with that ID reached the club account.',
+              }),
+            ],
+          })
+        )
+      }
+      return Promise.resolve(portalDefaults()(String(url)) ?? json({}))
+    })
 
     renderWith(<MemberPortalPage />, MEMBER)
 
     expect(await screen.findByText('Verified')).toBeInTheDocument()
     expect(screen.getByText('Not accepted')).toBeInTheDocument()
     expect(screen.getByText(/reached the club account/)).toBeInTheDocument()
-    // "Verified" must not be allowed to read as "receipted": the ledger entry it
-    // created is still waiting for a second officer.
-    expect(screen.getByText(/second officer has approved/i)).toBeInTheDocument()
+
+    // Verified is the only status that promises a receipt, because it is the only one
+    // where a receipt exists — and the button to fetch it is offered with it.
+    expect(screen.getByText(/receipt is ready to download/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /download receipt/i })).toBeInTheDocument()
+    expect(screen.getByText('RCT-2026-000007')).toBeInTheDocument()
+
+    // The declined one gets no receipt button at all.
+    expect(screen.getAllByRole('button', { name: /download receipt/i })).toHaveLength(1)
   })
 
   it('reports the server’s refusal rather than pretending it worked', async () => {
@@ -182,16 +342,18 @@ describe('the member’s payment form', () => {
           )
         )
       }
-      return Promise.resolve(json({ payments: [] }))
+      return Promise.resolve(portalDefaults()(String(url)) ?? json({}))
     })
 
     renderWith(<MemberPortalPage />, MEMBER)
 
-    await userEvent.type(screen.getByLabelText(/amount paid/i), '500')
-    await userEvent.type(screen.getByLabelText(/UPI transaction ID/i), '4471829930')
+    await userEvent.type(await screen.findByLabelText(/UPI transaction ID/i), '4471829930')
     await userEvent.click(screen.getByRole('button', { name: /send for verification/i }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/already declared this payment/i)
+    const alerts = await screen.findAllByRole('alert')
+    expect(alerts.map((node) => node.textContent).join(' ')).toMatch(
+      /already declared this payment/i
+    )
   })
 })
 
@@ -304,5 +466,126 @@ describe('the officers’ queue', () => {
 
     expect(recorded?.body).toMatchObject({ fundId: 'fund-bank', categoryId: 'cat-fees' })
     expect(await screen.findByRole('status')).toHaveTextContent(/needs a second officer/i)
+  })
+})
+
+/**
+ * The officers' membership register.
+ *
+ * The screen a committee meets over, so what it must never do is quietly omit a
+ * member. A roster built from the payments table would leave out exactly the people
+ * who have paid nothing — the rows the meeting is about.
+ */
+describe('the membership register', () => {
+  function roster(rows: Array<{ name: string; email: string; paid: string[]; role?: string }>) {
+    const members = rows.map((row, index) => ({
+      uid: `u-${index}`,
+      name: row.name,
+      email: row.email,
+      role: row.role ?? 'member',
+      membership: register(row.paid),
+      awaitingVerification: 0,
+    }))
+
+    return {
+      members: [...members].sort(
+        (a, b) => b.membership.monthsOverdue - a.membership.monthsOverdue
+      ),
+      financialYear: '2026-27',
+      dues: DUES,
+      totals: {
+        members: members.length,
+        paidInFull: members.filter((row) => row.membership.paidInFull).length,
+        nothingPaid: members.filter((row) => row.membership.nothingPaid).length,
+        overduePaise: members.reduce((sum, row) => sum + row.membership.overduePaise, 0),
+        outstandingPaise: members.reduce((sum, row) => sum + row.membership.outstandingPaise, 0),
+        awaitingVerification: 0,
+      },
+    }
+  }
+
+  const ROWS = [
+    { name: 'Bristi Ghosh', email: 'bristi@example.org', paid: [] as string[] },
+    {
+      name: 'Ashoke Banerjee',
+      email: 'ashoke@example.org',
+      paid: ['2026-04', '2026-05', '2026-06', '2026-07', '2026-08'],
+      role: 'president',
+    },
+  ]
+
+  it('lists every member with their months paid and what is left', async () => {
+    fetchMock.mockImplementation(() => Promise.resolve(json(roster(ROWS))))
+
+    renderWith(<MembersPage />, TREASURER)
+
+    expect(await screen.findByText('Bristi Ghosh')).toBeInTheDocument()
+    expect(screen.getByText('Ashoke Banerjee')).toBeInTheDocument()
+
+    // Months paid out of twelve, for each of them.
+    expect(screen.getByText('5')).toBeInTheDocument()
+    expect(screen.getByText('₹350.00 left')).toBeInTheDocument()
+    expect(screen.getByText('₹600.00 left')).toBeInTheDocument()
+  })
+
+  it('flags who is overdue, and puts them first', async () => {
+    fetchMock.mockImplementation(() => Promise.resolve(json(roster(ROWS))))
+
+    renderWith(<MembersPage />, TREASURER)
+
+    expect(await screen.findByText('5 months overdue')).toBeInTheDocument()
+
+    // Bristi has paid nothing, so she is above the president who is up to date.
+    const names = screen.getAllByText(/Bristi Ghosh|Ashoke Banerjee/).map((node) => node.textContent)
+    expect(names[0]).toBe('Bristi Ghosh')
+  })
+
+  it('can be narrowed to the members still owing something', async () => {
+    const paidUp = [
+      ROWS[0] as { name: string; email: string; paid: string[] },
+      {
+        name: 'Ratna Das',
+        email: 'ratna@example.org',
+        paid: register([]).months.map((month) => month.month),
+      },
+    ]
+
+    fetchMock.mockImplementation(() => Promise.resolve(json(roster(paidUp))))
+
+    renderWith(<MembersPage />, TREASURER)
+
+    expect(await screen.findByText('Ratna Das')).toBeInTheDocument()
+    // 'nothing due' rather than the 'Paid in full' badge: that phrase is also the
+    // filter button's label, so it matches twice.
+    expect(screen.getByText('nothing due')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Still owing' }))
+
+    expect(screen.getByText('Bristi Ghosh')).toBeInTheDocument()
+    expect(screen.queryByText('Ratna Das')).not.toBeInTheDocument()
+  })
+
+  it('finds a member by name without asking the server again', async () => {
+    fetchMock.mockImplementation(() => Promise.resolve(json(roster(ROWS))))
+
+    renderWith(<MembersPage />, TREASURER)
+    await screen.findByText('Bristi Ghosh')
+
+    const before = fetchMock.mock.calls.length
+    await userEvent.type(screen.getByLabelText(/find a member/i), 'ashoke')
+
+    expect(screen.getByText('Ashoke Banerjee')).toBeInTheDocument()
+    expect(screen.queryByText('Bristi Ghosh')).not.toBeInTheDocument()
+    // Filtering is local: a search box that refetched on every keystroke would put
+    // one request per character on a club's free-tier database.
+    expect(fetchMock.mock.calls.length).toBe(before)
+  })
+
+  it('reports an unreachable API rather than an empty register', async () => {
+    fetchMock.mockImplementation(() => Promise.resolve(json({ error: { message: 'nope' } }, 500)))
+
+    renderWith(<MembersPage />, TREASURER)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not be loaded/i)
   })
 })

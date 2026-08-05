@@ -88,7 +88,7 @@ export function OfficeDashboardPage() {
         <div>
           <h1 className="font-display text-2xl text-ink-900 sm:text-3xl">Club finances</h1>
           <p className="mt-1 text-sm text-ink-500">
-            Only entries approved by two office bearers are counted here.
+            Only posted entries are counted here. Each names the officer who recorded it.
           </p>
         </div>
 

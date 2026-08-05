@@ -7,7 +7,9 @@ import {
   canApprove,
   discard,
   isFinanceOfficer,
+  newEntryState,
   reject,
+  reversalTarget,
   validateDraft,
 } from '../src/domain/approval.js'
 import type { TransactionDraft } from '../src/domain/types.js'
@@ -41,10 +43,67 @@ describe('who counts as a finance officer', () => {
   })
 })
 
+/**
+ * What one officer gets, which is how the club runs today.
+ *
+ * `REQUIRED_APPROVALS` is 0, so recording is posting. The block after this one keeps
+ * the two-person machinery under test with an explicit `required: 1`, because that
+ * is what makes turning it back on a one-line change rather than a rewrite.
+ */
+describe('recording with no further approval required', () => {
+  it('posts the entry immediately', () => {
+    const state = newEntryState(NOW, 0)
+
+    expect(state.status).toBe('posted')
+    expect(state.postedAt).toBe(NOW)
+    expect(state.approvals).toEqual([])
+  })
+
+  it('leaves it pending as soon as one approval is required', () => {
+    const state = newEntryState(NOW, 1)
+
+    expect(state.status).toBe('pending')
+    expect(state.postedAt).toBeUndefined()
+  })
+
+  it('treats a negative requirement as none, rather than as an unreachable state', () => {
+    expect(newEntryState(NOW, -1).status).toBe('posted')
+  })
+
+  it('refuses an approval on an entry that needs none', () => {
+    // Nothing should be able to reach this state — `newEntryState` posts instead of
+    // leaving a pending entry — but if one ever did, the refusal must explain itself
+    // rather than silently adding a signature that changes nothing.
+    const entry = makePending({ createdBy: TREASURER.uid })
+    const result = approve(entry, SECRETARY, NOW, { required: 0 })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.code).toBe('already_satisfied')
+  })
+
+  it('still names a reversal’s target, which is what marks the original cancelled', () => {
+    // At 0 required a reversal is posted on creation, so nobody ever calls `approve`
+    // on it — and the original was only marked 'reversed' on that path. Without this
+    // the books would count a cancelled payment twice.
+    const reversal = makeTransaction({ status: 'posted', reverses: 'txn-original' })
+    expect(reversalTarget(reversal)).toBe('txn-original')
+
+    expect(reversalTarget(makePending({ reverses: 'txn-original' }))).toBeNull()
+    expect(reversalTarget(makeTransaction({ status: 'posted' }))).toBeNull()
+  })
+})
+
+/**
+ * The two-person rule, kept under test at `required: 1`.
+ *
+ * The club runs at 0 today. These pass an explicit requirement so the machinery is
+ * exercised regardless — set `REQUIRED_APPROVALS` back to 1 and this is the
+ * behaviour that returns, unchanged and already proven.
+ */
 describe('the two-person rule', () => {
   it('refuses to let the author approve their own entry', () => {
     const entry = makePending({ createdBy: TREASURER.uid })
-    const result = approve(entry, TREASURER, NOW)
+    const result = approve(entry, TREASURER, NOW, { required: 1 })
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.code).toBe('self_approval')
@@ -52,7 +111,7 @@ describe('the two-person rule', () => {
 
   it('posts the entry once a different officer approves', () => {
     const entry = makePending({ createdBy: TREASURER.uid })
-    const result = approve(entry, SECRETARY, NOW)
+    const result = approve(entry, SECRETARY, NOW, { required: 1 })
 
     expect(result.ok).toBe(true)
     if (!result.ok) return
@@ -117,9 +176,9 @@ describe('the two-person rule', () => {
   it('explains refusals through canApprove without changing anything', () => {
     const entry = makePending({ createdBy: TREASURER.uid })
 
-    expect(canApprove(entry, TREASURER).ok).toBe(false)
-    expect(canApprove(entry, SECRETARY).ok).toBe(true)
-    expect(canApprove(entry, MEMBER).ok).toBe(false)
+    expect(canApprove(entry, TREASURER, 1).ok).toBe(false)
+    expect(canApprove(entry, SECRETARY, 1).ok).toBe(true)
+    expect(canApprove(entry, MEMBER, 1).ok).toBe(false)
   })
 })
 

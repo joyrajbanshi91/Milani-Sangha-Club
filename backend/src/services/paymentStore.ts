@@ -3,7 +3,7 @@ import { AppwriteException, ID, Query, type Models, type TablesDB } from 'node-a
 import { databaseId, getTables } from '../config/appwrite.js'
 import { COLLECTIONS, type PaymentStatus } from '../config/constants.js'
 import { hasAppwriteCredentials } from '../config/env.js'
-import { formatPaymentReference } from '../domain/payments.js'
+import { formatPaymentReference, formatReceiptNumber } from '../domain/payments.js'
 import type { Payment } from '../domain/types.js'
 import { allocateSequence } from './appwriteCounter.js'
 import { StoreConflictError } from './store.js'
@@ -33,6 +33,17 @@ export interface PaymentStore {
 
   /** Write a declaration, allocating its acknowledgement reference. */
   create(draft: Omit<Payment, 'id' | 'reference'>): Promise<Payment>
+
+  /**
+   * Take the next receipt number for a year.
+   *
+   * Separate from `create` because a receipt exists only once an officer has
+   * confirmed the money arrived, and separate from the payment reference series
+   * because the two count different things: how many members have told the club
+   * something, and how many receipts the club has issued. A club that has to produce
+   * its receipt book wants the second to be gapless on its own.
+   */
+  nextReceiptNumber(year: number): Promise<string>
 
   /**
    * Replace a declaration, but only if it is still in the state the caller saw.
@@ -65,6 +76,7 @@ export class InMemoryPaymentStore implements PaymentStore {
 
   private payments: Payment[] = []
   private sequence = 0
+  private receipts = 0
 
   listForMember(memberUid: string): Promise<Payment[]> {
     return Promise.resolve(
@@ -94,6 +106,11 @@ export class InMemoryPaymentStore implements PaymentStore {
     }
     this.payments.push(created)
     return Promise.resolve(created)
+  }
+
+  nextReceiptNumber(year: number): Promise<string> {
+    this.receipts += 1
+    return Promise.resolve(formatReceiptNumber(year, this.receipts))
   }
 
   update(id: string, next: Payment, expectedStatus: PaymentStatus): Promise<Payment> {
@@ -196,6 +213,11 @@ export class AppwritePaymentStore implements PaymentStore {
     })
 
     return toPayment(row)
+  }
+
+  async nextReceiptNumber(year: number): Promise<string> {
+    const sequence = await allocateSequence(this.tables, this.db, `counter_receipts_${year}`)
+    return formatReceiptNumber(year, sequence)
   }
 
   async update(id: string, next: Payment, expectedStatus: PaymentStatus): Promise<Payment> {

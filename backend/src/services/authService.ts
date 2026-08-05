@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { Account } from 'node-appwrite'
+import { Account, Query } from 'node-appwrite'
 
 import { createCallerClient, getUsers } from '../config/appwrite.js'
 import { ROLES, type Role } from '../config/constants.js'
@@ -131,6 +131,49 @@ export class AuthService {
     } catch (error) {
       logger.warn({ err: error }, 'JWT verification failed')
       return null
+    }
+  }
+
+  /**
+   * Every account the club has, for the officers' membership roster.
+   *
+   * Reads from the authentication service rather than from any table of members,
+   * because that is where an account actually exists — a member who has never paid
+   * anything has no row in the payments table and is exactly the person an officer
+   * is looking for on that screen.
+   *
+   * Paginated: `list` returns 25 by default, so a club of a hundred would have
+   * silently shown the first quarter of itself as though that were everyone.
+   */
+  async listAccounts(): Promise<Array<{ uid: string; name: string; email: string; role: Role }>> {
+    if (this.mode === 'demo') {
+      return DEMO_ACCOUNTS.map((account) => ({
+        uid: `demo-${account.role}`,
+        name: account.name,
+        email: account.email,
+        role: account.role,
+      }))
+    }
+
+    const accounts: Array<{ uid: string; name: string; email: string; role: Role }> = []
+    let cursor: string | undefined
+
+    for (;;) {
+      const queries = [Query.limit(100), ...(cursor ? [Query.cursorAfter(cursor)] : [])]
+      const page = await getUsers().list({ queries })
+
+      for (const user of page.users) {
+        accounts.push({
+          uid: user.$id,
+          name: user.name || user.email || 'Member',
+          email: user.email,
+          role: roleFromLabels(user.labels),
+        })
+      }
+
+      if (page.users.length < 100) return accounts
+      cursor = page.users[page.users.length - 1]?.$id
+      if (!cursor) return accounts
     }
   }
 

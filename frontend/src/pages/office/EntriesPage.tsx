@@ -35,8 +35,9 @@ export function EntriesPage() {
         <div>
           <h1 className="font-display text-2xl text-ink-900 sm:text-3xl">Entries</h1>
           <p className="mt-1 text-sm text-ink-500">
-            Every entry needs a second officer's approval before it counts. Nothing is ever deleted —
-            a posted entry is cancelled by a reversal.
+            An entry counts as soon as it is recorded, and names the officer who recorded it.
+            Nothing is ever deleted — a posted entry is cancelled by a reversal, and both halves
+            stay on the record.
           </p>
         </div>
 
@@ -307,7 +308,8 @@ function NewEntryForm({ onDone }: { onDone: () => void }) {
     >
       <h2 className="font-display text-lg text-ink-900">Record an entry</h2>
       <p className="mt-1 text-xs text-ink-500">
-        It is saved as pending. A different officer approves it before it affects any balance.
+        It is posted immediately and affects the balances at once. To undo one, cancel it by
+        reversal — nothing is ever deleted.
       </p>
 
       <div className="mt-5 grid gap-5 sm:grid-cols-2">
@@ -408,7 +410,7 @@ function NewEntryForm({ onDone }: { onDone: () => void }) {
           disabled={create.isPending}
           className="inline-flex h-10 items-center gap-2 rounded-full bg-brand-800 px-5 text-sm font-medium text-white disabled:opacity-60"
         >
-          {create.isPending ? 'Saving…' : 'Save as pending'}
+          {create.isPending ? 'Saving…' : 'Record it'}
         </button>
         <button
           type="button"
