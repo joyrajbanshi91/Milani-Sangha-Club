@@ -417,9 +417,9 @@ export const committee = {
     // photo: '/committee/secretary-2.jpg'
     { name: 'Partha Dey', role: 'Secretary', since: '2026', photo: '/committee/secretary-2.jpg', email: '' },
     // photo: '/committee/cultural-secretary.jpg'
-    { name: 'Full name', role: 'Cultural Secretary', since: '', photo: '', email: '' },
+    { name: 'Sudip Ghosh', role: 'Cultural Secretary', since: '2026', photo: '/committee/cultural-secretary.jpg', email: '' },
     // photo: '/committee/treasurer.jpg'
-    { name: 'Full name', role: 'Treasurer', since: '', photo: '', email: '' },
+    { name: 'Sukanta Bose', role: 'Treasurer', since: '', photo: '', email: '' },
     // photo: '/committee/cashier.jpg'
     { name: 'Full name', role: 'Cashier', since: '', photo: '', email: '' },
     // photo: '/committee/game-secretary-1.jpg'
