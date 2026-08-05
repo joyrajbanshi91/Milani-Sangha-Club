@@ -106,6 +106,8 @@ export interface MemberRegisterRow {
   name: string
   email: string
   role: Role
+  /** The account is gone; their money is not. Nothing about them is overdue. */
+  former: boolean
   membership: MembershipStatus
   awaitingVerification: number
 }

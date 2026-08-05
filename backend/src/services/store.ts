@@ -1,4 +1,4 @@
-import type { Category, Fund, Transaction } from '../domain/types.js'
+import type { Category, Fund, Transaction, YearOpening } from '../domain/types.js'
 
 /**
  * Data access for the finance area.
@@ -60,6 +60,24 @@ export interface FinanceStore {
     next: Transaction,
     expectedStatus: Transaction['status']
   ): Promise<Transaction>
+
+  /**
+   * The financial years the club has opened, with what each was started with.
+   *
+   * Read on every dashboard and statement, because the figures are measured from the
+   * latest one rather than from the beginning of the ledger.
+   */
+  listYearOpenings(): Promise<YearOpening[]>
+  createYearOpening(opening: Omit<YearOpening, 'id'>): Promise<YearOpening>
+
+  /**
+   * Undo an opening, reopening the year before it.
+   *
+   * A carry-forward adopted from the wrong figures has to be fixable, and the
+   * alternative — editing it in place — would leave the club unable to tell whether
+   * the number on the adopted statement was ever the number in the system.
+   */
+  deleteYearOpening(financialYear: string): Promise<void>
 
   /** Write several entries as one unit — a CSV import batch. */
   createTransactionBatch(

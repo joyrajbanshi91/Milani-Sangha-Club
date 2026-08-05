@@ -8,6 +8,7 @@ import {
   financeApi,
   type ReportDetail,
 } from '@/features/finance/api'
+import { FinancialYears } from '@/features/finance/YearEnd'
 import { formatDate, formatPaise } from '@/features/finance/money'
 import { cn } from '@/lib/cn'
 
@@ -265,6 +266,7 @@ export function ReportsPage() {
           </div>
         </>
       ) : null}
+      <FinancialYears />
     </Container>
   )
 }

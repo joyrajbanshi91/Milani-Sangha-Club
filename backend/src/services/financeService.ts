@@ -18,8 +18,16 @@ import {
   periodTotals,
   totalFundsPaise,
 } from '../domain/ledger.js'
+import {
+  baselineFor,
+  isDateInClosedYear,
+  needsOpening,
+  suggestCarryForward,
+  type CarryForwardSuggestion,
+} from '../domain/financialYear.js'
+import { todayInIndia } from '../domain/dates.js'
 import { buildPeriodReport, type PeriodReport } from '../domain/report.js'
-import type { Actor, Transaction, TransactionDraft } from '../domain/types.js'
+import type { Actor, Transaction, TransactionDraft, YearOpening } from '../domain/types.js'
 import { logger } from '../lib/logger.js'
 import type { FinanceStore } from './store.js'
 
@@ -47,13 +55,17 @@ export class FinanceService {
   // -------------------------------------------------------------------------
 
   async dashboard(period: { from: string; to: string }): Promise<DashboardData> {
-    const [funds, categories, transactions] = await Promise.all([
+    const [funds, categories, transactions, openings] = await Promise.all([
       this.store.listFunds(),
       this.store.listCategories(),
       this.store.listTransactions({ status: 'all' }),
+      this.store.listYearOpenings(),
     ])
 
-    const balances = fundBalances(funds, transactions, period.to)
+    // Measured from whatever the club last declared it held, so a year's figures are
+    // its own rather than an accumulation since the club's first entry.
+    const baseline = baselineFor(openings, period.from) ?? undefined
+    const balances = fundBalances(funds, transactions, period.to, baseline)
     const window = transactions.filter((t) => t.date >= period.from && t.date <= period.to)
 
     return {
@@ -71,14 +83,17 @@ export class FinanceService {
       // Almost always a wrong amount, a missing opening balance or a repeated
       // import. Shown, not hidden.
       overdrawnFunds: balances.filter((balance) => balance.balancePaise < 0),
+      // The year-end prompt, which is quiet for eleven months of every twelve.
+      openingNeededFor: needsOpening({ today: todayInIndia(), transactions, openings }),
     }
   }
 
   async report(period: { from: string; to: string }, generatedBy: string): Promise<PeriodReport> {
-    const [funds, categories, transactions] = await Promise.all([
+    const [funds, categories, transactions, openings] = await Promise.all([
       this.store.listFunds(),
       this.store.listCategories(),
       this.store.listTransactions({ status: 'all' }),
+      this.store.listYearOpenings(),
     ])
 
     return buildPeriodReport({
@@ -90,6 +105,7 @@ export class FinanceService {
       transactions,
       generatedAt: this.now(),
       generatedBy,
+      ...(baselineFor(openings, period.from) ? { baseline: baselineFor(openings, period.from)! } : {}),
     })
   }
 
@@ -113,6 +129,29 @@ export class FinanceService {
       categoryIds: new Set(categories.map((category) => category.id)),
     })
     if (!valid.ok) return valid
+
+    /**
+     * Nothing may be dated into a year the club has closed.
+     *
+     * The carry-forward the committee adopted was computed from that year's entries.
+     * Adding one afterwards would make the figure they signed off stop matching the
+     * year it came from, silently, with no screen anywhere showing the difference.
+     *
+     * Money that genuinely arrives late is not refused — it is dated when it arrived,
+     * which is this year, and carried into these accounts. That is what a treasurer
+     * would do with a cheque that turns up in June for last year's subscription.
+     */
+    const closed = isDateInClosedYear(await this.store.listYearOpenings(), draft.date)
+    if (closed.closed) {
+      return {
+        ok: false,
+        code: 'year_closed',
+        reason:
+          `${closed.financialYear} has been closed and its carry-forward adopted, so nothing more ` +
+          'can be dated into it. Date this entry when the money actually reached the club — it ' +
+          'then counts in the current year, which is where it arrived.',
+      }
+    }
 
     const created = await this.store.createTransaction({ ...draft, ...newEntryState(this.now()) })
 
@@ -275,6 +314,114 @@ export class FinanceService {
     )
   }
 
+  // -------------------------------------------------------------------------
+  // Financial years
+  // -------------------------------------------------------------------------
+
+  listYearOpenings(): Promise<YearOpening[]> {
+    return this.store.listYearOpenings()
+  }
+
+  /**
+   * What the ledger says should be carried into a year — the committee's starting
+   * point, not the answer. See domain/financialYear.ts.
+   */
+  async carryForwardSuggestion(financialYear: string): Promise<CarryForwardSuggestion> {
+    const [funds, transactions, openings] = await Promise.all([
+      this.store.listFunds(),
+      this.store.listTransactions({ status: 'all' }),
+      this.store.listYearOpenings(),
+    ])
+
+    return suggestCarryForward({ financialYear, funds, transactions, openings })
+  }
+
+  /**
+   * Open a year with the balances the committee adopted, closing the one before it.
+   *
+   * The suggestion is recomputed here rather than trusted from the request: the
+   * figure the officer saw could be minutes old, and the one worth recording
+   * alongside their decision is what the ledger said at the moment they made it.
+   */
+  async openYear(
+    financialYear: string,
+    balances: Record<string, number>,
+    actor: Actor,
+    note?: string
+  ): Promise<Outcome<YearOpening>> {
+    if (!isFinanceOfficer(actor.role)) {
+      return { ok: false, code: 'not_officer', reason: 'You are not permitted to close a year.' }
+    }
+
+    const funds = await this.store.listFunds()
+    const known = new Set(funds.map((fund) => fund.id))
+
+    for (const fundId of Object.keys(balances)) {
+      if (!known.has(fundId)) {
+        return { ok: false, code: 'fund', reason: 'That is not one of the club’s funds.' }
+      }
+    }
+
+    for (const [fundId, amount] of Object.entries(balances)) {
+      if (!Number.isInteger(amount)) {
+        return {
+          ok: false,
+          code: 'amount',
+          reason: `The figure carried forward for ${funds.find((f) => f.id === fundId)?.name ?? fundId} must be a whole number of paise.`,
+        }
+      }
+    }
+
+    const suggestion = await this.carryForwardSuggestion(financialYear)
+
+    const created = await this.store.createYearOpening({
+      financialYear,
+      balances,
+      suggestedTotalPaise: suggestion.totalPaise,
+      ...(note ? { note } : {}),
+      createdAt: this.now(),
+      createdBy: actor.uid,
+      createdByName: actor.name,
+    })
+
+    const adopted = Object.values(balances).reduce((sum, amount) => sum + amount, 0)
+
+    await this.audit({
+      action: 'finance.year.opened',
+      actor,
+      targetId: created.id,
+      details: {
+        financialYear,
+        adoptedTotalPaise: adopted,
+        suggestedTotalPaise: suggestion.totalPaise,
+        // The difference is the interesting part, and the reason both are kept.
+        differencePaise: adopted - suggestion.totalPaise,
+        closes: suggestion.fromYear,
+        note,
+      },
+    })
+
+    return { ok: true, value: created }
+  }
+
+  /** Undo an opening, reopening the year before it. */
+  async reopenYear(financialYear: string, actor: Actor): Promise<Outcome<true>> {
+    if (!isFinanceOfficer(actor.role)) {
+      return { ok: false, code: 'not_officer', reason: 'You are not permitted to reopen a year.' }
+    }
+
+    await this.store.deleteYearOpening(financialYear)
+
+    await this.audit({
+      action: 'finance.year.reopened',
+      actor,
+      targetId: financialYear,
+      details: { financialYear },
+    })
+
+    return { ok: true, value: true }
+  }
+
   async listFunds() {
     return this.store.listFunds()
   }
@@ -310,4 +457,9 @@ export interface DashboardData {
   pending: Transaction[]
   recent: Transaction[]
   overdrawnFunds: ReturnType<typeof fundBalances>
+  /**
+   * The financial year the club has moved into without declaring what it starts with,
+   * or null. Drives the year-end panel, which is otherwise invisible.
+   */
+  openingNeededFor: string | null
 }

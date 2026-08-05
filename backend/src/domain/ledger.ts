@@ -52,6 +52,21 @@ export interface FundBalance {
 }
 
 /**
+ * Balances the club has declared it holds, as at a date.
+ *
+ * When one is supplied, it replaces the funds' own opening balances and everything
+ * before its date: the club has adopted a figure for that moment, and the ledger is
+ * measured forward from it rather than accumulated from the beginning of time. That
+ * is what makes each financial year independent — see domain/financialYear.ts.
+ */
+export interface Baseline {
+  /** The day the balances are true for. Entries before it are already inside them. */
+  asOf: string
+  /** Fund id → paise. A fund missing from the record starts at zero. */
+  balances: Readonly<Record<string, number>>
+}
+
+/**
  * Closing balance for every fund.
  *
  * A transfer is deliberately counted twice — out of one fund, into the other — so
@@ -60,11 +75,18 @@ export interface FundBalance {
 export function fundBalances(
   funds: readonly Fund[],
   transactions: readonly Transaction[],
-  asOf?: string
+  asOf?: string,
+  baseline?: Baseline
 ): FundBalance[] {
-  const posted = postedOnly(transactions).filter((t) => (asOf ? t.date <= asOf : true))
+  const posted = postedOnly(transactions)
+    .filter((t) => (asOf ? t.date <= asOf : true))
+    // Entries before the baseline are already counted inside it. Including them would
+    // add the club's whole history to a figure that already contains it.
+    .filter((t) => (baseline ? t.date >= baseline.asOf : true))
 
   return funds.map((fund) => {
+    const opening = baseline ? (baseline.balances[fund.id] ?? 0) : fund.openingBalancePaise
+
     let inPaise = 0
     let outPaise = 0
 
@@ -83,10 +105,10 @@ export function fundBalances(
       fundId: fund.id,
       fundName: fund.name,
       kind: fund.kind,
-      openingBalancePaise: fund.openingBalancePaise,
+      openingBalancePaise: opening,
       inPaise,
       outPaise,
-      balancePaise: fund.openingBalancePaise + inPaise - outPaise,
+      balancePaise: opening + inPaise - outPaise,
     }
   })
 }
@@ -242,8 +264,9 @@ export function periodTotals(
 export function openingTotalPaise(
   funds: readonly Fund[],
   transactions: readonly Transaction[],
-  from: string
+  from: string,
+  baseline?: Baseline
 ): number {
   const before = postedOnly(transactions).filter((t) => t.date < from)
-  return totalFundsPaise(fundBalances(funds, before))
+  return totalFundsPaise(fundBalances(funds, before, undefined, baseline))
 }

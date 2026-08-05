@@ -210,7 +210,7 @@ export function canReview(payment: Payment, actor: Actor): Outcome<true> {
 export function buildEntryFor(
   payment: Payment,
   actor: Actor,
-  choice: { fundId: string; categoryId: string }
+  choice: { fundId: string; categoryId: string; earliestDate?: string }
 ): TransactionDraft {
   const method =
     payment.method === 'upi' ? 'UPI' : payment.method === 'bank' ? 'bank transfer' : 'cash'
@@ -219,16 +219,32 @@ export function buildEntryFor(
   // should not have to open another table to see what the subscription bought.
   const period = periodLabel(payment)
 
+  /**
+   * A payment that arrives after its year has been closed.
+   *
+   * The money is real and the club has it, so refusing to record it would simply keep
+   * it off the books. It goes in on the first day the books are open, and the
+   * description keeps the date the member actually paid — so the ledger says both
+   * when the club received it and what it was for.
+   *
+   * This is the ordinary treatment of a cheque that turns up in June for last year's
+   * subscription, and it is what "the system will carry forward" means in practice:
+   * the arrears land in the year that is open.
+   */
+  const late = choice.earliestDate !== undefined && payment.paidOn < choice.earliestDate
+  const date = late ? (choice.earliestDate as string) : payment.paidOn
+
   return {
     kind: 'income',
-    date: payment.paidOn,
+    date,
     amountPaise: payment.amountPaise,
     fundId: choice.fundId,
     categoryId: choice.categoryId,
     source: payment.memberName,
     description:
       `${PURPOSE_LABEL[payment.purpose]} from ${payment.memberName}` +
-      `${period ? ` for ${period}` : ''} by ${method} (${payment.reference})`,
+      `${period ? ` for ${period}` : ''} by ${method} (${payment.reference})` +
+      (late ? ` — arrears, paid ${payment.paidOn}` : ''),
     ...(payment.externalReference ? { externalReference: payment.externalReference } : {}),
     createdBy: actor.uid,
     createdByName: actor.name,

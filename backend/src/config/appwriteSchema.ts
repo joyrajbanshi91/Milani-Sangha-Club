@@ -143,6 +143,26 @@ export const TABLES: Table[] = [
     indexes: [],
   },
   {
+    id: COLLECTIONS.financeYears,
+    name: 'Financial years',
+    columns: [
+      str('financialYear', 16, true),
+      // Fund id → paise, serialised. Appwrite columns hold scalars, not maps, and
+      // nothing queries by an individual fund's carried figure.
+      str('balancesJson', TEXT_SIZE.json, true),
+      int('suggestedTotalPaise', true),
+      str('note', TEXT_SIZE.medium),
+      str('createdAt', 32, true),
+      str('createdBy', TEXT_SIZE.id, true),
+      str('createdByName', TEXT_SIZE.short, true),
+    ],
+    indexes: [
+      // One opening per year, enforced by the database as well as by the service: a
+      // second row would make the year a club started with ambiguous.
+      { key: 'unique_year', type: 'unique', columns: ['financialYear'] },
+    ],
+  },
+  {
     id: COLLECTIONS.payments,
     name: 'Member payment declarations',
     columns: [

@@ -30,6 +30,7 @@ import {
 import { Container } from '@/components/ui/Container'
 import { financeApi, type Rollup } from '@/features/finance/api'
 import { formatMonth, formatPaise, formatRupeesShort } from '@/features/finance/money'
+import { YearEndPanel } from '@/features/finance/YearEnd'
 import { officePaymentsApi } from '@/features/payments/api'
 import { cn } from '@/lib/cn'
 
@@ -102,6 +103,15 @@ export function OfficeDashboardPage() {
           />
         </label>
       </div>
+
+      {/*
+        The year-end panel, above everything.
+
+        It appears only when the calendar has turned into a year the club has not
+        opened, and it changes what every figure below means — so it goes first, not
+        as a note at the bottom that gets scrolled past for a fortnight.
+      */}
+      {data.openingNeededFor ? <YearEndPanel financialYear={data.openingNeededFor} /> : null}
 
       {/* Warnings first: a figure that is wrong matters more than one that is big. */}
       {data.overdrawnFunds.length > 0 ? (

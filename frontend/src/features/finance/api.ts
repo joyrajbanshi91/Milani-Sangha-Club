@@ -87,6 +87,36 @@ export interface Dashboard {
   pending: Transaction[]
   recent: Transaction[]
   overdrawnFunds: FundBalance[]
+  /**
+   * The financial year the club has moved into without saying what it starts with,
+   * or null. This is the only thing that makes the year-end panel appear, which is
+   * why it comes from the server rather than being worked out from today's date in
+   * the browser — a laptop with the wrong clock should not close a club's year.
+   */
+  openingNeededFor: string | null
+}
+
+/** What a financial year was opened with. Mirrors domain/types.ts. */
+export interface YearOpening {
+  id: string
+  financialYear: string
+  /** Fund id → paise, as adopted. */
+  balances: Record<string, number>
+  suggestedTotalPaise: number
+  note?: string
+  createdAt: string
+  createdBy: string
+  createdByName: string
+}
+
+export interface CarryForwardSuggestion {
+  financialYear: string
+  /** The year being closed to produce it. */
+  fromYear: string
+  balances: FundBalance[]
+  totalPaise: number
+  /** Entries in that year still unapproved, so not in the figures. */
+  pendingCount: number
 }
 
 export interface PeriodReport extends Omit<Dashboard, 'pending' | 'recent' | 'period'> {
@@ -156,6 +186,21 @@ export const financeApi = {
 
   report: (params: { month?: string; from?: string; to?: string }) =>
     api.get<PeriodReport>(`/reports/period${toQuery(params)}`),
+
+  years: (suggestFor?: string) =>
+    api.get<{ years: YearOpening[]; suggestion?: CarryForwardSuggestion }>(
+      `/finance/years${suggestFor ? `?suggestFor=${suggestFor}` : ''}`
+    ),
+
+  openYear: (body: {
+    financialYear: string
+    /** Fund id → rupees as typed. The server converts to exact paise. */
+    balances: Record<string, string>
+    note?: string
+  }) => api.post<{ year: YearOpening; message: string }>('/finance/years', body),
+
+  reopenYear: (financialYear: string) =>
+    api.delete<{ message: string }>(`/finance/years/${financialYear}`),
 }
 
 function toQuery(params: Record<string, string | undefined>): string {

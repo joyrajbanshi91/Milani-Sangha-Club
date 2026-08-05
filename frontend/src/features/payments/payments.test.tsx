@@ -211,7 +211,7 @@ describe('the member’s payment form', () => {
 
     // Nothing paid, so "the rest of the year" is all twelve months — ₹600, the yearly
     // rate rather than twelve times the monthly one.
-    await userEvent.selectOptions(screen.getByLabelText(/which months/i), 'rest')
+    await userEvent.click(screen.getByRole('button', { name: /The rest of the year/ }))
 
     // The figure in the "Amount to pay" panel, not the rate sentence elsewhere on the
     // page — that one also says ₹600.00 and would make this pass without the select.
@@ -244,8 +244,74 @@ describe('the member’s payment form', () => {
 
     renderWith(<MemberPortalPage />, MEMBER)
 
-    // April and May are paid, so the next one to offer is June.
-    expect(await screen.findByRole('option', { name: /One month — June 2026/ })).toBeInTheDocument()
+    // April and May are paid, so the next one to offer is June — and it is already
+    // selected, so a member who just wants to pay this month can submit at once.
+    expect(await screen.findByRole('button', { name: /Next month — June 2026/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /June 2026 — selected/ })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+  })
+
+  it('lets the member click months, and prices the run as they go', async () => {
+    // The bug this replaced: choosing particular months left the amount at ₹0.00 and
+    // the submit button disabled, because the month inputs started empty.
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(portalDefaults()(String(url)) ?? json({}))
+    )
+
+    renderWith(<MemberPortalPage />, MEMBER)
+    await screen.findByText('0 of 12 months paid')
+
+    const panel = () => screen.getByText('Amount to pay').parentElement as HTMLElement
+
+    // One click: one month.
+    await userEvent.click(screen.getByRole('button', { name: /June 2026 — click to select/ }))
+    expect(panel().textContent).toContain('₹50.00')
+    expect(panel().textContent).toContain('1 month')
+
+    // A second click extends the run.
+    await userEvent.click(screen.getByRole('button', { name: /August 2026 — click to select/ }))
+    expect(panel().textContent).toContain('₹150.00')
+    expect(panel().textContent).toContain('June 2026 to August 2026')
+
+    expect(screen.getByRole('button', { name: /send for verification/i })).toBeEnabled()
+  })
+
+  it('extends backwards too, so the order of the two clicks does not matter', async () => {
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(portalDefaults()(String(url)) ?? json({}))
+    )
+
+    renderWith(<MemberPortalPage />, MEMBER)
+    await screen.findByText('0 of 12 months paid')
+
+    await userEvent.click(screen.getByRole('button', { name: /August 2026 — click to select/ }))
+    await userEvent.click(screen.getByRole('button', { name: /June 2026 — click to select/ }))
+
+    const panel = screen.getByText('Amount to pay').parentElement as HTMLElement
+    expect(panel.textContent).toContain('June 2026 to August 2026')
+    expect(panel.textContent).toContain('₹150.00')
+  })
+
+  it('will not let a run cross a month that is already paid', async () => {
+    // The server refuses it; saying so at the month is better than a rejected form.
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(portalDefaults(['2026-06'])(String(url)) ?? json({}))
+    )
+
+    renderWith(<MemberPortalPage />, MEMBER)
+    await screen.findByText('1 of 12 months paid')
+
+    // June is paid, so it cannot be clicked at all.
+    expect(screen.getByRole('button', { name: /June 2026 — already paid/ })).toBeDisabled()
+
+    await userEvent.click(screen.getByRole('button', { name: /May 2026 — click to select/ }))
+    await userEvent.click(screen.getByRole('button', { name: /July 2026 — click to select/ }))
+
+    const alerts = await screen.findAllByRole('alert')
+    expect(alerts.map((node) => node.textContent).join(' ')).toMatch(/June 2026 is already paid/)
+    expect(screen.getByRole('button', { name: /send for verification/i })).toBeDisabled()
   })
 
   it('asks for a typed amount for a donation, which has no months', async () => {

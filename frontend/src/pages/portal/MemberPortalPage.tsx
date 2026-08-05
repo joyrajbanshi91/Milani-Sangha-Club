@@ -22,6 +22,12 @@ import { useAuth } from '@/features/auth/authContext'
 import { formatDate, formatDateTime, formatPaise } from '@/features/finance/money'
 import { ProfilePhoto } from '@/features/profile/ProfilePhoto'
 import { MembershipSummary, MonthGrid } from '@/features/payments/MonthGrid'
+import { MonthPicker } from '@/features/payments/MonthPicker'
+import {
+  paidMonthsInside,
+  selectedCount,
+  type MonthSelection,
+} from '@/features/payments/monthSelection'
 import {
   PAYMENT_METHOD_LABEL,
   PAYMENT_PURPOSE_LABEL,
@@ -44,17 +50,8 @@ function monthLabelOf(month: string): string {
   })
 }
 
-/** Inclusive month count, or 0 if the pair does not make a period. */
-function countMonths(start: string, end: string): number {
-  if (!/^\d{4}-\d{2}$/.test(start) || !/^\d{4}-\d{2}$/.test(end)) return 0
-
-  const months =
-    (Number(end.slice(0, 4)) - Number(start.slice(0, 4))) * 12 +
-    (Number(end.slice(5, 7)) - Number(start.slice(5, 7))) +
-    1
-
-  return months > 0 ? months : 0
-}
+/** A full membership year, at which the yearly rate applies instead of the monthly. */
+const MONTHS_IN_YEAR = 12
 
 /**
  * The member's own area.
@@ -226,23 +223,52 @@ function DeclarePayment() {
   /**
    * What the member is paying for, as months.
    *
-   * Defaults to the first month they have not paid, because that is what a member
-   * paying monthly always wants and it saves them working out where they got to.
+   * Held as a range and chosen by clicking the grid. It starts on the first month they
+   * have not paid, because that is what a member paying monthly always wants and it
+   * saves them working out where they got to — and because a selection that starts
+   * empty is what made this form unusable before: no months meant no amount, and the
+   * submit button sat disabled with nothing saying why.
    */
-  const unpaid = register.data?.membership?.months?.filter((month) => !month.paid) ?? []
-  const [span, setSpan] = useState<'one' | 'rest' | 'custom'>('one')
-  const [customStart, setCustomStart] = useState('')
-  const [customEnd, setCustomEnd] = useState('')
-
+  const months = register.data?.membership?.months ?? []
+  const unpaid = months.filter((month) => !month.paid)
   const firstUnpaid = unpaid[0]?.month ?? ''
   const lastUnpaid = unpaid[unpaid.length - 1]?.month ?? ''
 
-  const period =
-    span === 'one'
-      ? { start: firstUnpaid, end: firstUnpaid }
-      : span === 'rest'
-        ? { start: firstUnpaid, end: lastUnpaid }
-        : { start: customStart, end: customEnd }
+  const [chosen, setChosen] = useState<MonthSelection | null>(null)
+
+  /**
+   * The month a run is being measured from, once the member has clicked one.
+   *
+   * Null while the selection is the form's own suggestion or a completed range, which
+   * is the distinction that matters: somebody arriving with April pre-selected and
+   * clicking June means "June", not "April to June". Only a month they chose
+   * themselves anchors the next click.
+   */
+  const [anchor, setAnchor] = useState<string | null>(null)
+
+  // Once the register has loaded, fall back to the first unpaid month rather than
+  // leaving the member with nothing selected.
+  const period: MonthSelection | null =
+    chosen ?? (firstUnpaid ? { start: firstUnpaid, end: firstUnpaid } : null)
+
+  const pickMonth = (month: string) => {
+    if (anchor === null) {
+      setAnchor(month)
+      setChosen({ start: month, end: month })
+      return
+    }
+
+    setChosen(month < anchor ? { start: month, end: anchor } : { start: anchor, end: month })
+    setAnchor(null)
+  }
+
+  const pickRange = (range: MonthSelection) => {
+    setChosen(range)
+    setAnchor(null)
+  }
+
+  const alreadyPaid = paidMonthsInside(months, period)
+  const monthCount = alreadyPaid.length > 0 ? 0 : selectedCount(months, period)
 
   /**
    * The amount is computed, never typed.
@@ -251,11 +277,10 @@ function DeclarePayment() {
    * so letting the member type it would only ever produce a rejected form. Showing
    * the figure also answers the question they came with — "how much do I owe?".
    */
-  const monthCount = countMonths(period.start, period.end)
   const dues = register.data?.dues
   const membershipPaise =
     dues && monthCount > 0
-      ? monthCount === 12
+      ? monthCount === MONTHS_IN_YEAR
         ? dues.yearlyPaise
         : monthCount * dues.monthlyPaise
       : 0
@@ -378,7 +403,7 @@ function DeclarePayment() {
                 ? (membershipPaise / 100).toFixed(2)
                 : String(form.get('amount')),
             paidOn: String(form.get('paidOn')),
-            ...(purpose === 'membership'
+            ...(purpose === 'membership' && period
               ? { periodStart: period.start, periodEnd: period.end }
               : {}),
             ...(method === 'cash'
@@ -408,74 +433,105 @@ function DeclarePayment() {
             </Select>
           </Field>
 
-          {purpose === 'membership' ? (
-            <Field
-              htmlFor="span"
-              label="Which months"
-              required
-              hint={
-                unpaid.length === 0
-                  ? 'You have paid the whole year already.'
-                  : `Your next unpaid month is ${unpaid[0]?.label ?? ''}.`
-              }
-            >
-              <Select
-                id="span"
-                value={span}
-                onChange={(event) => setSpan(event.target.value as typeof span)}
-                disabled={unpaid.length === 0}
-              >
-                <option value="one">One month{firstUnpaid ? ` — ${unpaid[0]?.label}` : ''}</option>
-                <option value="rest">
-                  The rest of the year{unpaid.length > 0 ? ` — ${unpaid.length} months` : ''}
-                </option>
-                <option value="custom">Particular months…</option>
-              </Select>
-            </Field>
-          ) : (
+          {purpose !== 'membership' ? (
             <Field htmlFor="amount" label="Amount paid (₹)" required hint="e.g. 500 or 500.50">
               <Input id="amount" name="amount" required inputMode="decimal" placeholder="500" />
             </Field>
-          )}
-
-          {purpose === 'membership' && span === 'custom' ? (
-            <>
-              <Field htmlFor="customStart" label="From month" required>
-                <Input
-                  id="customStart"
-                  type="month"
-                  required
-                  value={customStart}
-                  onChange={(event) => setCustomStart(event.target.value)}
-                />
-              </Field>
-              <Field htmlFor="customEnd" label="To month" required>
-                <Input
-                  id="customEnd"
-                  type="month"
-                  required
-                  value={customEnd}
-                  onChange={(event) => setCustomEnd(event.target.value)}
-                />
-              </Field>
-            </>
           ) : null}
 
           {purpose === 'membership' ? (
-            <div className="rounded-card border border-brand-200 bg-brand-50 p-4 sm:col-span-2">
-              <p className="text-xs uppercase tracking-wide text-brand-800">Amount to pay</p>
-              <p className="mt-1 font-display text-2xl tabular-nums text-brand-900">
-                {formatPaise(membershipPaise)}
+            <div className="sm:col-span-2">
+              <p className="text-sm font-medium text-ink-800">
+                Which months are you paying for?
+                <span className="ml-1 text-red-600" aria-hidden="true">
+                  *
+                </span>
               </p>
-              <p className="mt-1 text-xs/relaxed text-brand-900">
-                {monthCount > 0
-                  ? `${monthCount} month${monthCount === 1 ? '' : 's'}${
-                      period.start === period.end
-                        ? ''
-                        : ` — ${monthLabelOf(period.start)} to ${monthLabelOf(period.end)}`
-                    }. The club sets this rate; you cannot change it here.`
-                  : 'Choose which months you are paying for.'}
+              <p className="mt-1 text-xs/relaxed text-ink-500">
+                Click a month, then click another to pay for a run of them. Green months are
+                already paid.
               </p>
+
+              {/* Shortcuts for the two things almost everybody wants. */}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(
+                  [
+                    {
+                      key: 'one',
+                      label: firstUnpaid ? `Next month — ${unpaid[0]?.label}` : 'Next month',
+                      range: firstUnpaid ? { start: firstUnpaid, end: firstUnpaid } : null,
+                    },
+                    {
+                      key: 'rest',
+                      label: `The rest of the year — ${unpaid.length} month${unpaid.length === 1 ? '' : 's'}`,
+                      range: firstUnpaid ? { start: firstUnpaid, end: lastUnpaid } : null,
+                    },
+                  ] as const
+                ).map((option) => {
+                  const active =
+                    option.range !== null &&
+                    period?.start === option.range.start &&
+                    period?.end === option.range.end
+
+                  return (
+                    <button
+                      key={option.key}
+                      type="button"
+                      disabled={option.range === null}
+                      aria-pressed={active}
+                      onClick={() => option.range && pickRange(option.range)}
+                      className={cn(
+                        'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
+                        active
+                          ? 'border-brand-400 bg-brand-50 text-brand-900'
+                          : 'border-ink-200 bg-white text-ink-600 hover:border-ink-300'
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  )
+                })}
+              </div>
+
+              <div className="mt-3">
+                <MonthPicker
+                  months={months}
+                  selection={period}
+                  onSelect={pickMonth}
+                  disabled={unpaid.length === 0}
+                />
+              </div>
+
+              {unpaid.length === 0 ? (
+                <p className="mt-3 rounded-lg bg-emerald-50 p-3 text-xs text-emerald-800">
+                  You have paid every month of this year. Nothing is outstanding.
+                </p>
+              ) : null}
+
+              {alreadyPaid.length > 0 ? (
+                <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-xs/relaxed text-red-700">
+                  {alreadyPaid.map((month) => month.label).join(', ')}{' '}
+                  {alreadyPaid.length === 1 ? 'is' : 'are'} already paid, so this run cannot be
+                  charged for. Choose months that do not cross{' '}
+                  {alreadyPaid.length === 1 ? 'it' : 'them'}.
+                </p>
+              ) : null}
+
+              <div className="mt-3 rounded-card border border-brand-200 bg-brand-50 p-4">
+                <p className="text-xs uppercase tracking-wide text-brand-800">Amount to pay</p>
+                <p className="mt-1 font-display text-2xl tabular-nums text-brand-900">
+                  {formatPaise(membershipPaise)}
+                </p>
+                <p className="mt-1 text-xs/relaxed text-brand-900">
+                  {monthCount > 0 && period
+                    ? `${monthCount} month${monthCount === 1 ? '' : 's'} — ` +
+                      (period.start === period.end
+                        ? monthLabelOf(period.start)
+                        : `${monthLabelOf(period.start)} to ${monthLabelOf(period.end)}`) +
+                      '. The club sets this rate; you cannot change it here.'
+                    : 'Choose which months you are paying for.'}
+                </p>
+              </div>
             </div>
           ) : null}
 

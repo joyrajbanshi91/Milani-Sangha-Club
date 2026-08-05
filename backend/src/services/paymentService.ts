@@ -1,6 +1,7 @@
 import type { Role } from '../config/constants.js'
 import type { Outcome } from '../domain/approval.js'
 import { todayInIndia } from '../domain/dates.js'
+import { earliestOpenDate } from '../domain/financialYear.js'
 import {
   financialYearOf,
   membershipStatus,
@@ -103,21 +104,57 @@ export class PaymentService {
       else byMember.set(payment.memberUid, [payment])
     }
 
-    return accounts
-      .map((account) => {
-        const payments = byMember.get(account.uid) ?? []
+    const rows: MemberRegisterRow[] = accounts.map((account) => {
+      const payments = byMember.get(account.uid) ?? []
 
-        return {
-          uid: account.uid,
-          name: account.name,
-          email: account.email,
-          role: account.role,
-          membership: membershipStatus({ financialYear: year, payments, today }),
-          awaitingVerification: payments.filter(
-            (payment) => payment.status === 'pending_verification'
-          ).length,
-        }
+      return {
+        uid: account.uid,
+        name: account.name,
+        email: account.email,
+        role: account.role,
+        former: false,
+        membership: membershipStatus({ financialYear: year, payments, today }),
+        awaitingVerification: payments.filter(
+          (payment) => payment.status === 'pending_verification'
+        ).length,
+      }
+    })
+
+    /**
+     * People who have paid the club but no longer have an account.
+     *
+     * Deleting a member deletes their sign-in, not their money. Their payments stay
+     * in the ledger — the club has the cash, and an entry that vanished would leave
+     * the accounts short with nothing explaining it — so they stay on this register
+     * too, marked as former members.
+     *
+     * Without this they would disappear from the roster while their money remained in
+     * the totals, and the two would never add up again.
+     */
+    const known = new Set(accounts.map((account) => account.uid))
+
+    for (const [uid, payments] of byMember) {
+      if (known.has(uid)) continue
+
+      const name = payments[payments.length - 1]?.memberName ?? 'Former member'
+      const register = membershipStatus({ financialYear: year, payments, today })
+
+      // Only worth listing for a year they actually paid something towards; a former
+      // member owes the club nothing, so their unpaid months are not a debt.
+      if (register.monthsPaid === 0) continue
+
+      rows.push({
+        uid,
+        name,
+        email: '',
+        role: 'member',
+        former: true,
+        membership: { ...register, monthsOverdue: 0, overduePaise: 0 },
+        awaitingVerification: 0,
       })
+    }
+
+    return rows
       .sort(
         (a, b) =>
           // Who owes the most, first: the list exists to be acted on, and a roster
@@ -215,7 +252,21 @@ export class PaymentService {
     const permitted = canReview(existing, actor)
     if (!permitted.ok) return permitted
 
-    const draft = buildEntryFor(existing, actor, choice)
+    /**
+     * Where the money may land, given the years the club has closed.
+     *
+     * A subscription paid in March but declared in June, after the year was closed,
+     * cannot be dated back into it — the committee has adopted that year's
+     * carry-forward. It is entered on the first day of the open year instead, and the
+     * member's months are still marked against the year they paid for.
+     */
+    const openings = await this.finance.listYearOpenings()
+    const earliest = earliestOpenDate(openings)
+
+    const draft = buildEntryFor(existing, actor, {
+      ...choice,
+      ...(earliest ? { earliestDate: earliest } : {}),
+    })
     const entry = await this.finance.createEntry(
       choice.note ? { ...draft, description: `${draft.description} — ${choice.note}` } : draft,
       actor
@@ -305,6 +356,13 @@ export interface MemberRegisterRow {
   name: string
   email: string
   role: Role
+  /**
+   * The account is gone but the money is not.
+   *
+   * A former member's payments stay in the ledger and in this register; what they
+   * have not paid is no longer a debt, so nothing about them is shown as overdue.
+   */
+  former: boolean
   membership: MembershipStatus
   /** Declarations from this member still waiting to be checked. */
   awaitingVerification: number

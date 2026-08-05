@@ -738,3 +738,195 @@ describe('the officers’ roster', () => {
     expect([...overdue].sort((a: number, b: number) => b - a)).toEqual(overdue)
   })
 })
+
+/**
+ * The club's year, over HTTP.
+ *
+ * Closing a year settles it: the committee adopts a carry-forward, that figure opens
+ * the next year, and nothing more can be dated into the old one. Money that arrives
+ * late is not refused — it lands in the year that is open, which is where the club
+ * actually received it.
+ */
+describe('closing a year and carrying the balance forward', () => {
+  /** Undo whatever a test opened, so the shared demo store stays usable. */
+  async function reopen(token: string, year: string): Promise<void> {
+    await request(app)
+      .delete(`/api/v1/finance/years/${year}`)
+      .set('Authorization', `Bearer ${token}`)
+  }
+
+  it('is closed to a member', async () => {
+    const token = await signIn('member@demo.club')
+
+    await request(app).get('/api/v1/finance/years').set('Authorization', `Bearer ${token}`).expect(403)
+    await request(app)
+      .post('/api/v1/finance/years')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ financialYear: '2030-31', balances: {} })
+      .expect(403)
+  })
+
+  it('suggests what the ledger says should be carried, per fund', async () => {
+    const treasurer = await signIn('treasurer@demo.club')
+
+    const response = await request(app)
+      .get('/api/v1/finance/years?suggestFor=2030-31')
+      .set('Authorization', `Bearer ${treasurer}`)
+      .expect(200)
+
+    expect(response.body.suggestion.fromYear).toBe('2029-30')
+    expect(Array.isArray(response.body.suggestion.balances)).toBe(true)
+    expect(response.body.suggestion.totalPaise).toBeTypeOf('number')
+  })
+
+  it('opens the year with the figures the committee adopted, not the suggested ones', async () => {
+    const treasurer = await signIn('treasurer@demo.club')
+    const funds = await request(app)
+      .get('/api/v1/finance/funds')
+      .set('Authorization', `Bearer ${treasurer}`)
+
+    const cash = funds.body.funds[0].id
+
+    const opened = await request(app)
+      .post('/api/v1/finance/years')
+      .set('Authorization', `Bearer ${treasurer}`)
+      .send({
+        financialYear: '2031-32',
+        balances: { [cash]: '7500' },
+        note: 'Adopted at the AGM; ₹120 short after the cash count.',
+      })
+      .expect(201)
+
+    expect(opened.body.year.financialYear).toBe('2031-32')
+    expect(opened.body.year.balances[cash]).toBe(750_000)
+    // What the ledger said at the time is kept beside it, so a later difference is
+    // explicable rather than mysterious.
+    expect(opened.body.year.suggestedTotalPaise).toBeTypeOf('number')
+    expect(opened.body.message).toContain('2030-31 is now closed')
+
+    await reopen(treasurer, '2031-32')
+  })
+
+  it('refuses to open the same year twice', async () => {
+    const treasurer = await signIn('treasurer@demo.club')
+
+    await request(app)
+      .post('/api/v1/finance/years')
+      .set('Authorization', `Bearer ${treasurer}`)
+      .send({ financialYear: '2032-33', balances: {} })
+      .expect(201)
+
+    const again = await request(app)
+      .post('/api/v1/finance/years')
+      .set('Authorization', `Bearer ${treasurer}`)
+      .send({ financialYear: '2032-33', balances: {} })
+      .expect(409)
+
+    expect(again.body.error.message).toMatch(/already been opened/i)
+
+    await reopen(treasurer, '2032-33')
+  })
+
+  it('refuses an entry dated into a year that has been closed', async () => {
+    const treasurer = await signIn('treasurer@demo.club')
+    const [funds, categories] = await Promise.all([
+      request(app).get('/api/v1/finance/funds').set('Authorization', `Bearer ${treasurer}`),
+      request(app).get('/api/v1/finance/categories').set('Authorization', `Bearer ${treasurer}`),
+    ])
+
+    await request(app)
+      .post('/api/v1/finance/years')
+      .set('Authorization', `Bearer ${treasurer}`)
+      .send({ financialYear: '2026-27', balances: {} })
+      .expect(201)
+
+    // 2025-26 is now closed, so nothing may be dated into it.
+    const refused = await request(app)
+      .post('/api/v1/finance/transactions')
+      .set('Authorization', `Bearer ${treasurer}`)
+      .send({
+        kind: 'income',
+        date: '2025-08-01',
+        amount: '100',
+        fundId: funds.body.funds[0].id,
+        categoryId: categories.body.categories.find((c: { kind: string }) => c.kind === 'income').id,
+        source: 'Late',
+        description: 'Should be refused',
+      })
+      .expect(409)
+
+    expect(refused.body.error.code).toBe('year_closed')
+    expect(refused.body.error.message).toMatch(/2025-26 has been closed/)
+    // And it says what to do instead, rather than only refusing.
+    expect(refused.body.error.message).toMatch(/when the money actually reached the club/)
+
+    await reopen(treasurer, '2026-27')
+  })
+
+  it('lets an officer reopen a year to correct it', async () => {
+    const treasurer = await signIn('treasurer@demo.club')
+
+    await request(app)
+      .post('/api/v1/finance/years')
+      .set('Authorization', `Bearer ${treasurer}`)
+      .send({ financialYear: '2033-34', balances: {} })
+      .expect(201)
+
+    const reopened = await request(app)
+      .delete('/api/v1/finance/years/2033-34')
+      .set('Authorization', `Bearer ${treasurer}`)
+      .expect(200)
+
+    expect(reopened.body.message).toMatch(/2032-33 can be corrected/)
+
+    const years = await request(app)
+      .get('/api/v1/finance/years')
+      .set('Authorization', `Bearer ${treasurer}`)
+
+    expect(
+      years.body.years.some((year: { financialYear: string }) => year.financialYear === '2033-34')
+    ).toBe(false)
+  })
+
+  /**
+   * The late-payment case the club asked about.
+   *
+   * A subscription for months in a closed year, declared afterwards. The money is
+   * real, so it is entered — dated when the club actually received it, which is the
+   * open year — while the member's months are still marked against the year they
+   * paid for.
+   */
+  it('carries a late payment into the open year, and still credits the right months', async () => {
+    const member = await signIn('member@demo.club')
+    const treasurer = await signIn('treasurer@demo.club')
+
+    const payment = await declareMembership(member, '2035-04', '2035-05', {
+      paidOn: '2026-06-20',
+    })
+
+    // Close every year up to and including the one the money was paid in.
+    await request(app)
+      .post('/api/v1/finance/years')
+      .set('Authorization', `Bearer ${treasurer}`)
+      .send({ financialYear: '2027-28', balances: {} })
+      .expect(201)
+
+    const recorded = await request(app)
+      .post(`/api/v1/finance/payments/${payment.id}/record`)
+      .set('Authorization', `Bearer ${treasurer}`)
+      .send(await chartOfAccounts(treasurer))
+      .expect(201)
+
+    // Not refused, and not dated back into the settled year.
+    expect(recorded.body.transaction.date).toBe('2027-04-01')
+    expect(recorded.body.transaction.description).toMatch(/arrears, paid 2026-06-20/)
+
+    // The months are still the ones the member paid for.
+    const register = await request(app)
+      .get('/api/v1/members/me/membership?year=2035-36')
+      .set('Authorization', `Bearer ${member}`)
+    expect(register.body.membership.monthsPaid).toBe(2)
+
+    await reopen(treasurer, '2027-28')
+  })
+})
