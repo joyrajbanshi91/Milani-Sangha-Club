@@ -383,7 +383,7 @@ export const history = {
 //           office instead.
 //
 //  ON PUBLISHING EMAIL ADDRESSES: prefer a club address that belongs to the
-//  office rather than to the person — secretary@yourclub.in rather than
+//  office rather than to the person — secretary@example.org rather than
 //  somebody's personal Gmail. An address on a public page is collected by
 //  spammers within days, and an office address can be handed to the next
 //  bearer at the end of the term without editing the site or losing the mail.
@@ -413,7 +413,7 @@ export const committee = {
     // photo: '/committee/president.jpg'
     { name: 'Full name', role: 'President', since: '', photo: '', email: '' },
     // photo: '/committee/secretary-1.jpg'
-    { name: 'Full name', role: 'Secretary', since: '', photo: '', email: '' },
+    { name: 'Gobindo Ghosh', role: 'Secretary', since: '2026', photo: '/committee/secretary-1.jpg', email: '' },
     // photo: '/committee/secretary-2.jpg'
     { name: 'Full name', role: 'Secretary', since: '', photo: '', email: '' },
     // photo: '/committee/cultural-secretary.jpg'
