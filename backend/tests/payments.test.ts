@@ -9,6 +9,7 @@ import {
   validatePaymentDraft,
   withdraw,
 } from '../src/domain/payments.js'
+import { duesForMonths, monthsBetween } from '../src/domain/membership.js'
 import type { Payment, PaymentDraft } from '../src/domain/types.js'
 import { CASH, FEES, MEMBER, PRESIDENT, TREASURER, VOLUNTEER } from './helpers/fixtures.js'
 
@@ -23,17 +24,40 @@ import { CASH, FEES, MEMBER, PRESIDENT, TREASURER, VOLUNTEER } from './helpers/f
 
 const TODAY = '2026-06-15'
 
+/**
+ * A donation by default, not a membership payment.
+ *
+ * Membership is priced by the month and carries its own rules — which months, and an
+ * amount that matches them — so using it as the fixture for "does this form validate"
+ * would make every unrelated test also a test of the dues table. Membership has its
+ * own block below.
+ */
 function draft(overrides: Partial<PaymentDraft> = {}): PaymentDraft {
   return {
     memberUid: MEMBER.uid,
     memberName: MEMBER.name,
-    purpose: 'membership',
+    purpose: 'donation',
     method: 'upi',
     amountPaise: 50_000,
     paidOn: '2026-06-14',
     externalReference: '4471829930',
     ...overrides,
   }
+}
+
+/** A membership payment for whole months, priced correctly. */
+function membershipDraft(
+  periodStart: string,
+  periodEnd: string,
+  overrides: Partial<PaymentDraft> = {}
+): PaymentDraft {
+  return draft({
+    purpose: 'membership',
+    periodStart,
+    periodEnd,
+    amountPaise: duesForMonths(monthsBetween(periodStart, periodEnd).length),
+    ...overrides,
+  })
 }
 
 let counter = 0
@@ -46,7 +70,7 @@ function makePayment(overrides: Partial<Payment> = {}): Payment {
     status: 'pending_verification',
     memberUid: MEMBER.uid,
     memberName: MEMBER.name,
-    purpose: 'membership',
+    purpose: 'donation',
     method: 'upi',
     amountPaise: 50_000,
     paidOn: '2026-06-14',
@@ -54,6 +78,18 @@ function makePayment(overrides: Partial<Payment> = {}): Payment {
     submittedAt: '2026-06-14T09:00:00.000Z',
     ...overrides,
   }
+}
+
+/** An approved membership payment covering the given months. */
+function paidMonths(periodStart: string, periodEnd: string, overrides: Partial<Payment> = {}): Payment {
+  return makePayment({
+    purpose: 'membership',
+    status: 'approved',
+    periodStart,
+    periodEnd,
+    amountPaise: duesForMonths(monthsBetween(periodStart, periodEnd).length),
+    ...overrides,
+  })
 }
 
 describe('what a member may declare', () => {
@@ -157,6 +193,129 @@ describe('what a member may declare', () => {
     expect(validatePaymentDraft(draft({ paidOn: '2026-06-13' }), { today: TODAY, existing }).ok).toBe(
       true
     )
+  })
+})
+
+describe('declaring membership months', () => {
+  const context = { today: TODAY, existing: [] as Payment[] }
+
+  it('accepts one month at the monthly rate', () => {
+    const result = validatePaymentDraft(membershipDraft('2026-06', '2026-06'), context)
+    expect(result.ok).toBe(true)
+  })
+
+  it('accepts a whole year at the yearly rate', () => {
+    const draft = membershipDraft('2026-04', '2027-03')
+    expect(draft.amountPaise).toBe(60_000)
+    expect(validatePaymentDraft(draft, context).ok).toBe(true)
+  })
+
+  it('refuses an amount that does not match the months', () => {
+    // The register is derived from these declarations, so ₹50 against twelve months
+    // would show a member paid up for a year the club never received.
+    const result = validatePaymentDraft(
+      membershipDraft('2026-04', '2027-03', { amountPaise: 5_000 }),
+      context
+    )
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.code).toBe('amount')
+      expect(result.reason).toContain('600.00')
+    }
+  })
+
+  it('refuses membership with no months at all', () => {
+    const result = validatePaymentDraft(
+      draft({ purpose: 'membership', amountPaise: 5_000 }),
+      context
+    )
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.code).toBe('period')
+  })
+
+  it('refuses a period that crosses two membership years', () => {
+    // April to March is the year. A payment spanning two could not be filed in
+    // either register, and the receipt could not name the year it was for.
+    const result = validatePaymentDraft(membershipDraft('2026-10', '2027-09'), context)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.code).toBe('period')
+      expect(result.reason).toMatch(/April to March/)
+    }
+  })
+
+  it('refuses months already paid for', () => {
+    const result = validatePaymentDraft(membershipDraft('2026-05', '2026-07'), {
+      today: TODAY,
+      existing: [paidMonths('2026-04', '2026-06')],
+    })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.code).toBe('months_already_covered')
+      expect(result.reason).toMatch(/May 2026, June 2026/)
+    }
+  })
+
+  it('refuses months already claimed but not yet verified', () => {
+    // Otherwise a member could declare April twice while the first is in the queue,
+    // and the treasurer would record both.
+    const claimed = makePayment({
+      purpose: 'membership',
+      status: 'pending_verification',
+      periodStart: '2026-04',
+      periodEnd: '2026-04',
+      amountPaise: 5_000,
+    })
+
+    const result = validatePaymentDraft(membershipDraft('2026-04', '2026-04'), {
+      today: TODAY,
+      existing: [claimed],
+    })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toMatch(/awaiting verification/)
+  })
+
+  it('allows a month again once the earlier claim was declined or withdrawn', () => {
+    for (const status of ['rejected', 'withdrawn'] as const) {
+      const abandoned = makePayment({
+        purpose: 'membership',
+        status,
+        periodStart: '2026-04',
+        periodEnd: '2026-04',
+        amountPaise: 5_000,
+      })
+
+      const result = validatePaymentDraft(membershipDraft('2026-04', '2026-04'), {
+        today: TODAY,
+        existing: [abandoned],
+      })
+
+      expect(result.ok, status).toBe(true)
+    }
+  })
+
+  it('lets a member pay the rest of the year alongside months already paid', () => {
+    const result = validatePaymentDraft(membershipDraft('2026-07', '2027-03'), {
+      today: TODAY,
+      existing: [paidMonths('2026-04', '2026-06')],
+    })
+
+    expect(result.ok).toBe(true)
+  })
+
+  it('refuses months on anything that is not membership', () => {
+    const result = validatePaymentDraft(
+      draft({ purpose: 'donation', periodStart: '2026-04', periodEnd: '2026-04' }),
+      context
+    )
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.code).toBe('period')
   })
 })
 
@@ -294,11 +453,14 @@ describe('the ledger entry a declaration becomes', () => {
 })
 
 describe('marking a declaration verified', () => {
-  it('records who checked it and which entry it produced', () => {
-    const saved = markVerified(makePayment(), TREASURER, '2026-06-15T12:00:00.000Z', {
-      id: 'txn-9',
-      reference: 'TXN-2026-000009',
-    })
+  it('records who checked it, which entry it produced and the receipt issued', () => {
+    const saved = markVerified(
+      makePayment(),
+      TREASURER,
+      '2026-06-15T12:00:00.000Z',
+      { id: 'txn-9', reference: 'TXN-2026-000009' },
+      'RCT-2026-000004'
+    )
 
     expect(saved.status).toBe('approved')
     expect(saved.reviewedBy).toBe(TREASURER.uid)
@@ -306,6 +468,9 @@ describe('marking a declaration verified', () => {
     expect(saved.reviewedAt).toBe('2026-06-15T12:00:00.000Z')
     expect(saved.transactionId).toBe('txn-9')
     expect(saved.transactionReference).toBe('TXN-2026-000009')
+    // The receipt number exists only from this moment: before an officer confirmed
+    // the money arrived there was nothing to issue a receipt for.
+    expect(saved.receiptNumber).toBe('RCT-2026-000004')
   })
 })
 

@@ -154,6 +154,10 @@ export const TABLES: Table[] = [
       str('method', 32, true),
       int('amountPaise', true),
       str('paidOn', 10, true),
+      // 'YYYY-MM'. Membership only; a donation buys no months.
+      str('periodStart', 7),
+      str('periodEnd', 7),
+      str('receiptNumber', 32),
       str('externalReference', TEXT_SIZE.short),
       str('handedTo', TEXT_SIZE.short),
       str('note', TEXT_SIZE.medium),

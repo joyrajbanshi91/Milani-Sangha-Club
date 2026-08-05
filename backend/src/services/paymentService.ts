@@ -1,5 +1,11 @@
+import type { Role } from '../config/constants.js'
 import type { Outcome } from '../domain/approval.js'
 import { todayInIndia } from '../domain/dates.js'
+import {
+  financialYearOf,
+  membershipStatus,
+  type MembershipStatus,
+} from '../domain/membership.js'
 import {
   buildEntryFor,
   canReview,
@@ -52,6 +58,73 @@ export class PaymentService {
   /** One member's own history. Never anybody else's. */
   listMine(memberUid: string): Promise<Payment[]> {
     return this.store.listForMember(memberUid)
+  }
+
+  /**
+   * One member's subscription register for a financial year.
+   *
+   * Computed from their approved declarations every time rather than stored, so it
+   * cannot drift from the money — see the note at the top of domain/membership.ts.
+   */
+  async membership(memberUid: string, financialYear?: string): Promise<MembershipStatus> {
+    const today = todayInIndia()
+
+    return membershipStatus({
+      financialYear: financialYear ?? financialYearOf(today),
+      payments: await this.store.listForMember(memberUid),
+      today,
+    })
+  }
+
+  /**
+   * Every member, with what they have paid — the officers' roster.
+   *
+   * Built by reading the payments table once and grouping in memory rather than
+   * asking per member. A club of a few hundred is one query either way, and the
+   * alternative is a request per member on every page load.
+   *
+   * Accounts come from the authentication service, not from the payments table:
+   * a member who has never paid anything must appear on this list — they are
+   * precisely the row an officer is looking for.
+   */
+  async roster(
+    accounts: readonly { uid: string; name: string; email: string; role: Role }[],
+    financialYear?: string
+  ): Promise<MemberRegisterRow[]> {
+    const today = todayInIndia()
+    const year = financialYear ?? financialYearOf(today)
+
+    const all = await this.store.list({ status: 'all', limit: 5000 })
+
+    const byMember = new Map<string, Payment[]>()
+    for (const payment of all) {
+      const existing = byMember.get(payment.memberUid)
+      if (existing) existing.push(payment)
+      else byMember.set(payment.memberUid, [payment])
+    }
+
+    return accounts
+      .map((account) => {
+        const payments = byMember.get(account.uid) ?? []
+
+        return {
+          uid: account.uid,
+          name: account.name,
+          email: account.email,
+          role: account.role,
+          membership: membershipStatus({ financialYear: year, payments, today }),
+          awaitingVerification: payments.filter(
+            (payment) => payment.status === 'pending_verification'
+          ).length,
+        }
+      })
+      .sort(
+        (a, b) =>
+          // Who owes the most, first: the list exists to be acted on, and a roster
+          // sorted alphabetically buries the people it is meant to surface.
+          b.membership.monthsOverdue - a.membership.monthsOverdue ||
+          a.name.localeCompare(b.name)
+      )
   }
 
   /**
@@ -119,6 +192,11 @@ export class PaymentService {
     return this.store.list(filter)
   }
 
+  /** Any member's declaration, by id. Officer routes only — there is no scoping. */
+  get(id: string): Promise<Payment | null> {
+    return this.store.get(id)
+  }
+
   /**
    * Confirm a member's payment and enter it in the books.
    *
@@ -148,9 +226,13 @@ export class PaymentService {
     if (!entry.ok) return entry
 
     try {
+      // Numbered by the year the money was paid, not the year it was verified, so a
+      // receipt issued in April for a March payment sits in the right book.
+      const receiptNumber = await this.store.nextReceiptNumber(Number(existing.paidOn.slice(0, 4)))
+
       const saved = await this.store.update(
         id,
-        markVerified(existing, actor, this.now(), entry.value),
+        markVerified(existing, actor, this.now(), entry.value, receiptNumber),
         'pending_verification'
       )
 
@@ -163,6 +245,7 @@ export class PaymentService {
           amountPaise: saved.amountPaise,
           member: saved.memberName,
           entry: entry.value.reference,
+          receipt: saved.receiptNumber,
         },
       })
 
@@ -214,4 +297,15 @@ export class PaymentService {
 
 function notFound<T>(): Outcome<T> {
   return { ok: false, code: 'not_found', reason: 'That payment could not be found.' }
+}
+
+/** One line of the officers' membership roster. */
+export interface MemberRegisterRow {
+  uid: string
+  name: string
+  email: string
+  role: Role
+  membership: MembershipStatus
+  /** Declarations from this member still waiting to be checked. */
+  awaitingVerification: number
 }

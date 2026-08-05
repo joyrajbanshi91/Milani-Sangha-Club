@@ -153,6 +153,16 @@ export interface Payment {
   /** The date the member says they paid, 'YYYY-MM-DD'. */
   paidOn: string
 
+  /**
+   * Which months of membership this pays for, inclusive, as 'YYYY-MM'.
+   *
+   * Membership only — a donation buys no months. Both are set together or neither
+   * is, and a single payment never crosses a financial year, so the receipt can name
+   * the year it belongs to and the register can add months up without ambiguity.
+   */
+  periodStart?: string
+  periodEnd?: string
+
   /** UPI transaction id or cheque number. Required for 'upi' and 'bank'. */
   externalReference?: string
   /** Which office bearer took the cash, in the member's words. Cash only. */
@@ -170,9 +180,19 @@ export interface Payment {
   /** Why an officer could not accept it. */
   declineReason?: string
 
-  /** The pending ledger entry an officer created from this declaration. */
+  /** The ledger entry an officer created from this declaration. */
   transactionId?: string
   transactionReference?: string
+
+  /**
+   * The receipt, once one exists. 'RCT-2026-000042'.
+   *
+   * Allocated at the moment an officer verifies the payment and never before: a
+   * receipt number handed out at declaration time would be a numbered receipt for
+   * money nobody has confirmed arrived, which is the one document a club cannot
+   * afford to issue speculatively.
+   */
+  receiptNumber?: string
 
   /** Set when the member took their own declaration back. */
   withdrawnAt?: string
@@ -187,6 +207,8 @@ export type PaymentDraft = Pick<
   | 'method'
   | 'amountPaise'
   | 'paidOn'
+  | 'periodStart'
+  | 'periodEnd'
   | 'externalReference'
   | 'handedTo'
   | 'note'

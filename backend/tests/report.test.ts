@@ -1,5 +1,5 @@
-import { PDFDocument, PDFPage, StandardFonts, type PDFFont } from 'pdf-lib'
-import { describe, expect, it, vi } from 'vitest'
+import { PDFDocument, StandardFonts } from 'pdf-lib'
+import { describe, expect, it } from 'vitest'
 
 import {
   buildPeriodReport,
@@ -9,6 +9,7 @@ import {
 } from '../src/domain/report.js'
 import { renderFinanceReportPdf, wrapText } from '../src/lib/pdf/financeReport.js'
 import { BANK, CASH, CATEGORIES, FUNDS, GROUND, makeTransaction } from './helpers/fixtures.js'
+import { overlaps, textBoxes } from './helpers/pdfBoxes.js'
 
 const GENERATED = '2026-05-02T04:30:00.000Z'
 
@@ -260,102 +261,21 @@ describe('PDF statement', () => {
 /**
  * Nothing in the statement may be drawn on top of anything else.
  *
- * This is the property the club actually cares about, so it is asserted directly
- * rather than through a proxy: every call to `drawText` is captured with its
- * position, font and size, turned into the rectangle the glyphs occupy, and every
- * pair on a page is checked for intersection.
+ * The property the club actually cares about, asserted directly: every drawText call
+ * becomes the rectangle its glyphs occupy, and every pair on a page is checked for
+ * intersection. Verified to fail on the old code, reproducing the exact collision
+ * from the club's August statement:
  *
- * It fails on the statement that prompted it — descriptions wrapped by pdf-lib's
- * `maxWidth` while the cursor advanced a fixed 12 points, so row three landed on top
- * of rows four and five and then on the Certification block.
+ *   page 1: "cash (REF-2026-000001) - Receipt" overlaps
+ *           "Membership payment from Bristi Ghosh by" by 116.7x4.7pt
+ *
+ * The harness lives in helpers/pdfBoxes.ts, shared with the receipt tests.
  */
-interface Box {
-  page: number
-  x: number
-  y: number
-  width: number
-  height: number
-  text: string
-}
-
-async function textBoxes(build: () => Promise<Uint8Array>): Promise<Box[]> {
-  const boxes: Box[] = []
-  let pageCount = 0
-  const pageNumbers = new WeakMap<PDFPage, number>()
-
-  const original = PDFPage.prototype.drawText
-  const spy = vi
-    .spyOn(PDFPage.prototype, 'drawText')
-    .mockImplementation(function (this: PDFPage, text: string, options) {
-      let page = pageNumbers.get(this)
-      if (page === undefined) {
-        pageCount += 1
-        page = pageCount
-        pageNumbers.set(this, page)
-      }
-
-      const size = (options?.size as number | undefined) ?? 8
-      const font = options?.font as PDFFont | undefined
-
-      if (text.trim() !== '' && font) {
-        boxes.push({
-          page,
-          x: (options?.x as number | undefined) ?? 0,
-          y: (options?.y as number | undefined) ?? 0,
-          width: font.widthOfTextAtSize(text, size),
-          height: size,
-          text,
-        })
-      }
-
-      return original.call(this, text, options)
-    })
-
-  try {
-    await build()
-  } finally {
-    spy.mockRestore()
-  }
-
-  return boxes
-}
-
-/** Helvetica's ascender and descender, with 1pt of slack so touching is not colliding. */
-function overlap(a: Box, b: Box): { x: number; y: number } | null {
-  const top = (box: Box) => box.y + box.height * 0.72
-  const bottom = (box: Box) => box.y - box.height * 0.21
-
-  const x = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)
-  const y = Math.min(top(a), top(b)) - Math.max(bottom(a), bottom(b))
-
-  return x > 1 && y > 1 ? { x, y } : null
-}
-
 describe('no text overlaps any other text', () => {
-  const check = (boxes: Box[]): string[] => {
-    const problems: string[] = []
-    for (let i = 0; i < boxes.length; i += 1) {
-      for (let j = i + 1; j < boxes.length; j += 1) {
-        const a = boxes[i] as Box
-        const b = boxes[j] as Box
-        if (a.page !== b.page) continue
-        const hit = overlap(a, b)
-        if (hit) {
-          problems.push(
-            `page ${a.page}: "${a.text.slice(0, 40)}" (${a.x.toFixed(0)},${a.y.toFixed(0)}) ` +
-              `overlaps "${b.text.slice(0, 40)}" (${b.x.toFixed(0)},${b.y.toFixed(0)}) ` +
-              `by ${hit.x.toFixed(1)}x${hit.y.toFixed(1)}pt`
-          )
-        }
-      }
-    }
-    return problems
-  }
-
   it('for an ordinary statement', async () => {
     const boxes = await textBoxes(() => renderFinanceReportPdf(report()))
     expect(boxes.length).toBeGreaterThan(40)
-    expect(check(boxes)).toEqual([])
+    expect(overlaps(boxes)).toEqual([])
   })
 
   /** The club's actual August statement, which is what went wrong. */
@@ -384,7 +304,7 @@ describe('no text overlaps any other text', () => {
       }),
     ])
 
-    expect(check(await textBoxes(() => renderFinanceReportPdf(built)))).toEqual([])
+    expect(overlaps(await textBoxes(() => renderFinanceReportPdf(built)))).toEqual([])
   })
 
   it('when a description, a source and a fund name are all long at once', async () => {
@@ -416,7 +336,7 @@ describe('no text overlaps any other text', () => {
       generatedBy: 'Treasurer',
     })
 
-    expect(check(await textBoxes(() => renderFinanceReportPdf(built)))).toEqual([])
+    expect(overlaps(await textBoxes(() => renderFinanceReportPdf(built)))).toEqual([])
   })
 
   it('when an unbroken reference number is wider than its column', async () => {
@@ -430,7 +350,7 @@ describe('no text overlaps any other text', () => {
       }),
     ])
 
-    expect(check(await textBoxes(() => renderFinanceReportPdf(built)))).toEqual([])
+    expect(overlaps(await textBoxes(() => renderFinanceReportPdf(built)))).toEqual([])
   })
 
   it('when three funds are overdrawn, so the warning wraps', async () => {
@@ -463,7 +383,7 @@ describe('no text overlaps any other text', () => {
     })
 
     expect(built.overdrawnFunds.length).toBe(3)
-    expect(check(await textBoxes(() => renderFinanceReportPdf(built)))).toEqual([])
+    expect(overlaps(await textBoxes(() => renderFinanceReportPdf(built)))).toEqual([])
   })
 })
 

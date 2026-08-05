@@ -1,9 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, Download, FileText, Loader2 } from 'lucide-react'
+import { AlertTriangle, Download, FileText, ListOrdered, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 
 import { Container } from '@/components/ui/Container'
-import { downloadStatementPdf, financeApi } from '@/features/finance/api'
+import {
+  downloadStatementPdf,
+  financeApi,
+  type ReportDetail,
+} from '@/features/finance/api'
 import { formatDate, formatPaise } from '@/features/finance/money'
 import { cn } from '@/lib/cn'
 
@@ -14,7 +18,8 @@ export function ReportsPage() {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7))
   const [from, setFrom] = useState(`${new Date().getFullYear()}-04-01`)
   const [to, setTo] = useState(new Date().toISOString().slice(0, 10))
-  const [downloading, setDownloading] = useState(false)
+  /** Which of the two is being generated, so only that button says "Generating…". */
+  const [downloading, setDownloading] = useState<ReportDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const params = mode === 'month' ? { month } : { from, to }
@@ -24,15 +29,15 @@ export function ReportsPage() {
     queryFn: () => financeApi.report(params),
   })
 
-  const download = async () => {
-    setDownloading(true)
+  const download = async (detail: ReportDetail) => {
+    setDownloading(detail)
     setError(null)
     try {
-      await downloadStatementPdf(params)
+      await downloadStatementPdf({ ...params, detail })
     } catch {
       setError('The statement could not be generated.')
     } finally {
-      setDownloading(false)
+      setDownloading(null)
     }
   }
 
@@ -40,9 +45,10 @@ export function ReportsPage() {
     <Container className="space-y-6">
       <div>
         <h1 className="font-display text-2xl text-ink-900 sm:text-3xl">Statements</h1>
-        <p className="mt-1 text-sm text-ink-500">
-          A detailed statement for a month or any period, on screen and as a PDF for the committee.
-          Both come from the same figures.
+        <p className="mt-1 text-sm/relaxed text-ink-500">
+          A statement for a month or any period, on screen and as a PDF for the committee. Both
+          come from the same figures, and the file is named with the period and the day it was
+          issued so it can be found again.
         </p>
       </div>
 
@@ -98,15 +104,61 @@ export function ReportsPage() {
             </>
           )}
 
-          <button
-            type="button"
-            onClick={() => void download()}
-            disabled={downloading}
-            className="ml-auto inline-flex h-10 items-center gap-2 rounded-full bg-gradient-to-r from-brand-700 to-brand-500 px-5 text-sm font-medium text-white disabled:opacity-60"
-          >
-            <Download className="h-4 w-4" aria-hidden="true" />
-            {downloading ? 'Generating…' : 'Download PDF'}
-          </button>
+        </div>
+
+        {/*
+          Two documents, described rather than labelled.
+
+          "Summary" and "Detailed" mean nothing on their own, and the difference is
+          the one thing an officer needs to get right before circulating a page: the
+          summary merges every member's subscription into its category, so a list of
+          who paid what does not end up on a noticeboard.
+        */}
+        <div className="mt-5 grid gap-3 border-t border-ink-100 pt-5 sm:grid-cols-2">
+          {(
+            [
+              {
+                detail: 'summary' as ReportDetail,
+                title: 'Summary statement',
+                body: 'Totals by category, with every membership payment merged into one line. For the committee and the noticeboard.',
+                icon: FileText,
+              },
+              {
+                detail: 'detailed' as ReportDetail,
+                title: 'Detailed statement',
+                body: 'Every entry listed, with who each payment came from. For checking the books against the bank.',
+                icon: ListOrdered,
+              },
+            ] as const
+          ).map((option) => (
+            <div
+              key={option.detail}
+              className="flex flex-col justify-between rounded-card border border-ink-200 p-4"
+            >
+              <div>
+                <p className="flex items-center gap-2 text-sm font-medium text-ink-900">
+                  <option.icon className="h-4 w-4 text-brand-700" aria-hidden="true" />
+                  {option.title}
+                </p>
+                <p className="mt-1 text-xs/relaxed text-ink-500">{option.body}</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void download(option.detail)}
+                disabled={downloading !== null}
+                className={cn(
+                  'mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-full px-5 text-sm font-medium disabled:opacity-60',
+                  option.detail === 'detailed'
+                    ? 'bg-gradient-to-r from-brand-700 to-brand-500 text-white'
+                    : 'border border-brand-300 bg-brand-50 text-brand-900'
+                )}
+              >
+                <Download className="h-4 w-4" aria-hidden="true" />
+                {downloading === option.detail ? 'Generating…' : 'Download PDF'}
+              </button>
+            </div>
+          ))}
         </div>
 
         {error ? (

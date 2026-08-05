@@ -1,5 +1,6 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib'
 
+import { REQUIRED_APPROVALS } from '../../config/constants.js'
 import { formatPaise } from '../../domain/money.js'
 import { reconcile, type PeriodReport } from '../../domain/report.js'
 import type { Rollup } from '../../domain/ledger.js'
@@ -185,9 +186,33 @@ function positionsOf(columns: readonly Column[]): number[] {
   return positions
 }
 
-export async function renderFinanceReportPdf(report: PeriodReport): Promise<Uint8Array> {
+/**
+ * How much of the statement to print.
+ *
+ * **summary** — the club's position in categories. Every membership payment is one
+ * line under "Membership fees" rather than one line per member, which is the whole
+ * point: the by-source breakdown and the entry list both name individual members,
+ * and a page of subscriptions is not what a committee meeting is for. This is the
+ * version to read out, circulate, or pin to the noticeboard.
+ *
+ * **detailed** — everything, entry by entry, for the person checking the books
+ * against the bank statement.
+ *
+ * Both are built from the same `PeriodReport`, so the figures at the top of the two
+ * documents are identical by construction. Only how much is shown differs.
+ */
+export type ReportDetail = 'summary' | 'detailed'
+
+export async function renderFinanceReportPdf(
+  report: PeriodReport,
+  options: { detail?: ReportDetail } = {}
+): Promise<Uint8Array> {
+  const detail = options.detail ?? 'detailed'
+
   const pdf = await PDFDocument.create()
-  pdf.setTitle(`${report.club.name} — financial statement ${report.period.label}`)
+  pdf.setTitle(
+    `${report.club.name} — ${detail} financial statement ${report.period.label}`
+  )
   pdf.setSubject('Period financial statement')
   pdf.setProducer('Milani Sangha Club platform')
   pdf.setCreationDate(new Date(report.generatedAt))
@@ -198,14 +223,20 @@ export async function renderFinanceReportPdf(report: PeriodReport): Promise<Uint
   const cursor: Cursor = { page: pdf.addPage([A4.width, A4.height]), y: 0, pageNumber: 1 }
   cursor.y = A4.height - MARGIN
 
-  drawHeader(cursor, report, bold, regular)
+  drawHeader(cursor, report, detail, bold, regular)
   drawSummary(cursor, report, bold, regular)
   drawFunds(cursor, report, bold, regular, pdf)
   drawRollup(cursor, 'Income by category', report.incomeByCategory, bold, regular, pdf)
   drawRollup(cursor, 'Expenditure by category', report.expenseByCategory, bold, regular, pdf)
-  drawRollup(cursor, 'Collections by source', report.incomeBySource, bold, regular, pdf)
-  drawRollup(cursor, 'Payments by recipient', report.expenseBySource, bold, regular, pdf)
-  drawTransactions(cursor, report, bold, regular, pdf)
+
+  if (detail === 'detailed') {
+    drawRollup(cursor, 'Collections by source', report.incomeBySource, bold, regular, pdf)
+    drawRollup(cursor, 'Payments by recipient', report.expenseBySource, bold, regular, pdf)
+    drawTransactions(cursor, report, bold, regular, pdf)
+  } else {
+    drawSummaryNote(cursor, report, bold, regular, pdf)
+  }
+
   drawSignatures(cursor, bold, regular, pdf)
 
   // Page numbers can only be written once the total is known.
@@ -238,7 +269,13 @@ function ensureSpace(cursor: Cursor, needed: number, pdf: PDFDocument): void {
   cursor.y = A4.height - MARGIN
 }
 
-function drawHeader(cursor: Cursor, report: PeriodReport, bold: PDFFont, regular: PDFFont): void {
+function drawHeader(
+  cursor: Cursor,
+  report: PeriodReport,
+  detail: ReportDetail,
+  bold: PDFFont,
+  regular: PDFFont
+): void {
   const { page } = cursor
 
   page.drawRectangle({
@@ -256,7 +293,9 @@ function drawHeader(cursor: Cursor, report: PeriodReport, bold: PDFFont, regular
     font: bold,
     color: rgb(1, 1, 1),
   })
-  page.drawText(safe('Financial statement'), {
+  // Which of the two this is, on the face of it. Two documents covering the same
+  // period with different totals visible is exactly the confusion to head off.
+  page.drawText(safe(detail === 'summary' ? 'Financial statement — summary' : 'Financial statement — detailed'), {
     x: MARGIN,
     y: A4.height - 65,
     size: 10,
@@ -677,6 +716,41 @@ function drawTransactions(
 }
 
 /**
+ * What the summary deliberately leaves out.
+ *
+ * A reader holding the summary must be able to tell that individual entries exist
+ * and where to get them, or the missing detail looks like missing money. Naming the
+ * count is what makes the two documents reconcile in someone's head.
+ */
+function drawSummaryNote(
+  cursor: Cursor,
+  report: PeriodReport,
+  bold: PDFFont,
+  regular: PDFFont,
+  pdf: PDFDocument
+): void {
+  ensureSpace(cursor, 70, pdf)
+  drawSectionTitle(cursor, 'About this summary', bold)
+
+  const count = report.transactions.length
+
+  const used = drawWrapped(
+    cursor.page,
+    safe(
+      `This is the summary statement. The ${count} entr${count === 1 ? 'y' : 'ies'} behind these ` +
+        'totals are grouped into the categories above, so members who paid a subscription appear ' +
+        'once under their category rather than one line each. For the entry-by-entry version, ' +
+        'including who each payment came from, print the detailed statement for the same period — ' +
+        'the totals are identical.'
+    ),
+    cursor.y,
+    { x: MARGIN, size: 8, font: regular, color: MUTED, maxWidth: A4.width - MARGIN * 2 }
+  )
+
+  cursor.y -= used + 16
+}
+
+/**
  * Signature block. A club statement is adopted at a meeting, so the printed
  * document needs somewhere for that to be recorded on paper.
  */
@@ -684,8 +758,17 @@ function drawSignatures(cursor: Cursor, bold: PDFFont, regular: PDFFont, pdf: PD
   ensureSpace(cursor, 90, pdf)
   drawSectionTitle(cursor, 'Certification', bold)
 
+  // Says what is actually true of these figures. It read "approved by two office
+  // bearers each" while the club required two signatures; printing that on a
+  // statement produced under one would be a false certification on a financial
+  // document, which is worse than saying nothing.
   cursor.page.drawText(
-    safe('The figures above are drawn from entries approved by two office bearers each.'),
+    safe(
+      REQUIRED_APPROVALS > 0
+        ? `The figures above are drawn from entries approved by ${REQUIRED_APPROVALS + 1} office bearers each.`
+        : 'The figures above are drawn from posted entries. Each was recorded by an office bearer, ' +
+            'named against it in the club’s audit trail.'
+    ),
     { x: MARGIN, y: cursor.y, size: 8, font: regular, color: MUTED }
   )
   cursor.y -= 40

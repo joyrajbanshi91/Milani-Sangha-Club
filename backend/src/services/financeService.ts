@@ -4,7 +4,9 @@ import {
   buildReversal,
   discard as discardEntry,
   isFinanceOfficer,
+  newEntryState,
   reject as rejectEntry,
+  reversalTarget,
   validateDraft,
   type Outcome,
 } from '../domain/approval.js'
@@ -112,21 +114,20 @@ export class FinanceService {
     })
     if (!valid.ok) return valid
 
-    const created = await this.store.createTransaction({
-      ...draft,
-      status: 'pending',
-      approvals: [],
-      createdAt: this.now(),
-    })
+    const created = await this.store.createTransaction({ ...draft, ...newEntryState(this.now()) })
 
     await this.audit({
-      action: 'finance.entry.created',
+      // Named for what actually happened. At 0 required approvals the entry is in
+      // the balances the moment it is written, and an audit trail that called that
+      // "created" would leave nothing recording when the money started counting.
+      action: created.status === 'posted' ? 'finance.entry.posted' : 'finance.entry.created',
       actor,
       targetId: created.id,
       details: {
         reference: created.reference,
         kind: created.kind,
         amountPaise: created.amountPaise,
+        posted: created.status === 'posted',
       },
     })
 
@@ -151,22 +152,7 @@ export class FinanceService {
     if (!result.ok) return result
 
     const saved = await this.store.updateTransaction(id, result.value, 'pending')
-
-    if (saved.status === 'posted' && saved.reverses) {
-      const original = await this.store.getTransaction(saved.reverses)
-      if (original && original.status === 'posted') {
-        await this.store.updateTransaction(
-          original.id,
-          { ...original, status: 'reversed', reversedBy: saved.id },
-          'posted'
-        )
-      } else {
-        logger.error(
-          { reversal: saved.id, original: saved.reverses, status: original?.status },
-          'reversal posted but the original was not in a reversible state'
-        )
-      }
-    }
+    await this.cancelReversedOriginal(saved)
 
     await this.audit({
       action: saved.status === 'posted' ? 'finance.entry.posted' : 'finance.entry.approved',
@@ -238,19 +224,55 @@ export class FinanceService {
 
     const created = await this.store.createTransaction({
       ...draft.value,
-      status: 'pending',
-      approvals: [],
-      createdAt: this.now(),
+      ...newEntryState(this.now()),
     })
 
+    // When no further approval is required the reversal is posted on creation, so
+    // the original has to be marked here as well as in `approve`. Missing this would
+    // leave a posted reversal against an entry that still looked live — the club's
+    // books counting a cancelled payment twice.
+    await this.cancelReversedOriginal(created)
+
     await this.audit({
-      action: 'finance.entry.reversal_requested',
+      action:
+        created.status === 'posted'
+          ? 'finance.entry.reversed'
+          : 'finance.entry.reversal_requested',
       actor,
       targetId: created.id,
       details: { reverses: original.reference, reason, amountPaise: original.amountPaise },
     })
 
     return { ok: true, value: created }
+  }
+
+  /**
+   * Mark the entry a just-posted reversal cancels.
+   *
+   * Reached from both routes a reversal can take to 'posted' — a second officer
+   * approving it, or being posted on creation — because the original must end up
+   * 'reversed' either way, and a crash between the two writes is the one case where
+   * the ledger would double-count.
+   */
+  private async cancelReversedOriginal(reversal: Transaction): Promise<void> {
+    const targetId = reversalTarget(reversal)
+    if (!targetId) return
+
+    const original = await this.store.getTransaction(targetId)
+
+    if (original && original.status === 'posted') {
+      await this.store.updateTransaction(
+        original.id,
+        { ...original, status: 'reversed', reversedBy: reversal.id },
+        'posted'
+      )
+      return
+    }
+
+    logger.error(
+      { reversal: reversal.id, original: targetId, status: original?.status },
+      'reversal posted but the original was not in a reversible state'
+    )
   }
 
   async listFunds() {

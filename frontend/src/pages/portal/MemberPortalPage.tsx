@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  BadgeCheck,
   Banknote,
   Building2,
+  CalendarDays,
   Clock,
+  Download,
   Info,
   Loader2,
   QrCode,
@@ -15,21 +16,45 @@ import { useState } from 'react'
 
 import { Container } from '@/components/ui/Container'
 import { Field, Input, Select } from '@/components/ui/Field'
-import type { PaymentMethod } from '@/config/constants'
+import type { PaymentMethod, PaymentPurpose } from '@/config/constants'
 import { club, membership } from '@/content/site'
 import { useAuth } from '@/features/auth/authContext'
 import { formatDate, formatDateTime, formatPaise } from '@/features/finance/money'
 import { ProfilePhoto } from '@/features/profile/ProfilePhoto'
+import { MembershipSummary, MonthGrid } from '@/features/payments/MonthGrid'
 import {
   PAYMENT_METHOD_LABEL,
   PAYMENT_PURPOSE_LABEL,
   PAYMENT_STATUS_LABEL,
   PAYMENT_STATUS_STYLE,
+  downloadReceipt,
   memberPaymentsApi,
   type Payment,
 } from '@/features/payments/api'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
+
+/** 'April 2026' from '2026-04'. */
+function monthLabelOf(month: string): string {
+  if (!/^\d{4}-\d{2}$/.test(month)) return month
+  return new Date(`${month}-01T00:00:00Z`).toLocaleDateString('en-IN', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
+}
+
+/** Inclusive month count, or 0 if the pair does not make a period. */
+function countMonths(start: string, end: string): number {
+  if (!/^\d{4}-\d{2}$/.test(start) || !/^\d{4}-\d{2}$/.test(end)) return 0
+
+  const months =
+    (Number(end.slice(0, 4)) - Number(start.slice(0, 4))) * 12 +
+    (Number(end.slice(5, 7)) - Number(start.slice(5, 7))) +
+    1
+
+  return months > 0 ? months : 0
+}
 
 /**
  * The member's own area.
@@ -57,7 +82,7 @@ export function MemberPortalPage() {
 
       <ProfilePhoto />
 
-      <MembershipStatus />
+      <MyMembershipYear />
       <DeclarePayment />
       <MyPayments />
       <MembershipCategories />
@@ -65,43 +90,91 @@ export function MemberPortalPage() {
       <p className="flex gap-2 rounded-card border border-ink-200 bg-ink-50 p-4 text-xs/relaxed text-ink-600">
         <Info className="h-4 w-4 shrink-0" aria-hidden="true" />
         <span>
-          Downloading your membership card and your receipts arrives with the receipts module. It
-          needs the club's membership decisions first.
+          A downloadable membership card arrives with a later phase. Receipts for payments an
+          office bearer has verified can be downloaded below.
         </span>
       </p>
     </Container>
   )
 }
 
-function MembershipStatus() {
+/**
+ * The member's subscription year: which months are paid, and what is left.
+ *
+ * Derived on the server from their verified payments, so it can never disagree with
+ * the receipts they hold — and never counts a declaration nobody has checked.
+ */
+function MyMembershipYear() {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['payments', 'membership'],
+    queryFn: () => memberPaymentsApi.membership(),
+  })
+
+  /**
+   * Treated as absent unless the register is actually there.
+   *
+   * `data && data.membership.months` would throw on a response missing the field, and
+   * this is the member's only page — a crash here takes their photograph, their
+   * payment history and the form down with it. An unexpected payload should read as
+   * "could not be loaded", which is true and recoverable.
+   */
+  const register = data?.membership?.months ? data.membership : null
+
   return (
     <section className="rounded-card border border-ink-200 bg-white p-5 shadow-soft">
       <div className="flex items-start gap-4">
         <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-brand-700">
-          <BadgeCheck className="h-5 w-5" aria-hidden="true" />
+          <CalendarDays className="h-5 w-5" aria-hidden="true" />
         </span>
-        <div className="min-w-0">
-          <h2 className="font-display text-lg text-ink-900">Membership status</h2>
-          <p className="mt-1 text-sm/relaxed text-ink-600">
-            Your membership number, category and validity appear here once the membership records
-            are set up. That needs the club's decisions on the membership year, the fee for each
-            category and how family membership works.
-          </p>
+        <div className="min-w-0 flex-1">
+          <h2 className="font-display text-lg text-ink-900">
+            My subscription {register ? `· ${register.financialYear}` : ''}
+          </h2>
+
+          {isLoading ? (
+            <Loader2 className="mt-2 h-4 w-4 animate-spin text-brand-600" aria-hidden="true" />
+          ) : error || !register ? (
+            <p role="alert" className="mt-1 text-sm text-red-700">
+              Your subscription record could not be loaded. Is the API running?
+            </p>
+          ) : (
+            <div className="mt-1">
+              <MembershipSummary membership={register} />
+            </div>
+          )}
         </div>
       </div>
 
-      <dl className="mt-5 grid gap-4 border-t border-ink-100 pt-5 sm:grid-cols-3">
-        {[
-          { label: 'Membership number', value: 'To be assigned' },
-          { label: 'Category', value: 'To be confirmed' },
-          { label: 'Valid until', value: 'To be confirmed' },
-        ].map((item) => (
-          <div key={item.label}>
-            <dt className="text-xs uppercase tracking-wide text-ink-500">{item.label}</dt>
-            <dd className="mt-1 text-sm font-medium text-ink-400">{item.value}</dd>
+      {register ? (
+        <>
+          <div className="mt-5 border-t border-ink-100 pt-5">
+            <MonthGrid membership={register} />
           </div>
-        ))}
-      </dl>
+
+          <dl className="mt-5 grid gap-4 border-t border-ink-100 pt-5 sm:grid-cols-3">
+            {[
+              { label: 'Months paid', value: `${register.monthsPaid} of 12` },
+              { label: 'Months left', value: String(register.monthsUnpaid) },
+              { label: 'Still to pay', value: formatPaise(register.outstandingPaise) },
+            ].map((item) => (
+              <div key={item.label}>
+                <dt className="text-xs uppercase tracking-wide text-ink-500">{item.label}</dt>
+                <dd className="mt-1 font-display text-xl tabular-nums text-ink-900">
+                  {item.value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+
+          {data?.dues ? (
+            <p className="mt-4 text-xs text-ink-500">
+              Membership is {formatPaise(data.dues.monthlyPaise)} a month, or{' '}
+              {formatPaise(data.dues.yearlyPaise)} for the year. The club's year runs April to
+              March.
+            </p>
+          ) : null}
+        </>
+      ) : null}
     </section>
   )
 }
@@ -141,15 +214,58 @@ const METHODS = [
 function DeclarePayment() {
   const queryClient = useQueryClient()
   const [method, setMethod] = useState<PaymentMethod>('upi')
+  const [purpose, setPurpose] = useState<PaymentPurpose>('membership')
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<{ reference: string; message: string } | null>(null)
+
+  const register = useQuery({
+    queryKey: ['payments', 'membership'],
+    queryFn: () => memberPaymentsApi.membership(),
+  })
+
+  /**
+   * What the member is paying for, as months.
+   *
+   * Defaults to the first month they have not paid, because that is what a member
+   * paying monthly always wants and it saves them working out where they got to.
+   */
+  const unpaid = register.data?.membership?.months?.filter((month) => !month.paid) ?? []
+  const [span, setSpan] = useState<'one' | 'rest' | 'custom'>('one')
+  const [customStart, setCustomStart] = useState('')
+  const [customEnd, setCustomEnd] = useState('')
+
+  const firstUnpaid = unpaid[0]?.month ?? ''
+  const lastUnpaid = unpaid[unpaid.length - 1]?.month ?? ''
+
+  const period =
+    span === 'one'
+      ? { start: firstUnpaid, end: firstUnpaid }
+      : span === 'rest'
+        ? { start: firstUnpaid, end: lastUnpaid }
+        : { start: customStart, end: customEnd }
+
+  /**
+   * The amount is computed, never typed.
+   *
+   * The server refuses a membership payment whose amount does not match its months,
+   * so letting the member type it would only ever produce a rejected form. Showing
+   * the figure also answers the question they came with — "how much do I owe?".
+   */
+  const monthCount = countMonths(period.start, period.end)
+  const dues = register.data?.dues
+  const membershipPaise =
+    dues && monthCount > 0
+      ? monthCount === 12
+        ? dues.yearlyPaise
+        : monthCount * dues.monthlyPaise
+      : 0
 
   const submit = useMutation({
     mutationFn: memberPaymentsApi.submit,
     onSuccess: async (result) => {
       setError(null)
       setDone({ reference: result.payment.reference, message: result.message })
-      await queryClient.invalidateQueries({ queryKey: ['payments', 'mine'] })
+      await queryClient.invalidateQueries({ queryKey: ['payments'] })
     },
     onError: (caught) => {
       setDone(null)
@@ -254,10 +370,17 @@ function DeclarePayment() {
           const form = new FormData(event.currentTarget)
 
           submit.mutate({
-            purpose: String(form.get('purpose')) as 'membership',
+            purpose,
             method,
-            amount: String(form.get('amount')),
+            // Membership is priced from the months; anything else is typed.
+            amount:
+              purpose === 'membership'
+                ? (membershipPaise / 100).toFixed(2)
+                : String(form.get('amount')),
             paidOn: String(form.get('paidOn')),
+            ...(purpose === 'membership'
+              ? { periodStart: period.start, periodEnd: period.end }
+              : {}),
             ...(method === 'cash'
               ? { handedTo: String(form.get('handedTo')) }
               : { externalReference: String(form.get('externalReference')) }),
@@ -267,7 +390,17 @@ function DeclarePayment() {
       >
         <div className="grid gap-5 sm:grid-cols-2">
           <Field htmlFor="purpose" label="What was it for" required>
-            <Select id="purpose" name="purpose" required defaultValue="membership">
+            <Select
+              id="purpose"
+              name="purpose"
+              required
+              value={purpose}
+              onChange={(event) => {
+                setPurpose(event.target.value as PaymentPurpose)
+                setDone(null)
+                setError(null)
+              }}
+            >
               <option value="membership">Membership subscription</option>
               <option value="donation">Donation</option>
               <option value="event">An event</option>
@@ -275,9 +408,76 @@ function DeclarePayment() {
             </Select>
           </Field>
 
-          <Field htmlFor="amount" label="Amount paid (₹)" required hint="e.g. 500 or 500.50">
-            <Input id="amount" name="amount" required inputMode="decimal" placeholder="500" />
-          </Field>
+          {purpose === 'membership' ? (
+            <Field
+              htmlFor="span"
+              label="Which months"
+              required
+              hint={
+                unpaid.length === 0
+                  ? 'You have paid the whole year already.'
+                  : `Your next unpaid month is ${unpaid[0]?.label ?? ''}.`
+              }
+            >
+              <Select
+                id="span"
+                value={span}
+                onChange={(event) => setSpan(event.target.value as typeof span)}
+                disabled={unpaid.length === 0}
+              >
+                <option value="one">One month{firstUnpaid ? ` — ${unpaid[0]?.label}` : ''}</option>
+                <option value="rest">
+                  The rest of the year{unpaid.length > 0 ? ` — ${unpaid.length} months` : ''}
+                </option>
+                <option value="custom">Particular months…</option>
+              </Select>
+            </Field>
+          ) : (
+            <Field htmlFor="amount" label="Amount paid (₹)" required hint="e.g. 500 or 500.50">
+              <Input id="amount" name="amount" required inputMode="decimal" placeholder="500" />
+            </Field>
+          )}
+
+          {purpose === 'membership' && span === 'custom' ? (
+            <>
+              <Field htmlFor="customStart" label="From month" required>
+                <Input
+                  id="customStart"
+                  type="month"
+                  required
+                  value={customStart}
+                  onChange={(event) => setCustomStart(event.target.value)}
+                />
+              </Field>
+              <Field htmlFor="customEnd" label="To month" required>
+                <Input
+                  id="customEnd"
+                  type="month"
+                  required
+                  value={customEnd}
+                  onChange={(event) => setCustomEnd(event.target.value)}
+                />
+              </Field>
+            </>
+          ) : null}
+
+          {purpose === 'membership' ? (
+            <div className="rounded-card border border-brand-200 bg-brand-50 p-4 sm:col-span-2">
+              <p className="text-xs uppercase tracking-wide text-brand-800">Amount to pay</p>
+              <p className="mt-1 font-display text-2xl tabular-nums text-brand-900">
+                {formatPaise(membershipPaise)}
+              </p>
+              <p className="mt-1 text-xs/relaxed text-brand-900">
+                {monthCount > 0
+                  ? `${monthCount} month${monthCount === 1 ? '' : 's'}${
+                      period.start === period.end
+                        ? ''
+                        : ` — ${monthLabelOf(period.start)} to ${monthLabelOf(period.end)}`
+                    }. The club sets this rate; you cannot change it here.`
+                  : 'Choose which months you are paying for.'}
+              </p>
+            </div>
+          ) : null}
 
           <Field htmlFor="paidOn" label="Date you paid" required>
             <Input
@@ -349,7 +549,7 @@ function DeclarePayment() {
 
         <button
           type="submit"
-          disabled={submit.isPending}
+          disabled={submit.isPending || (purpose === 'membership' && monthCount === 0)}
           className="mt-5 inline-flex h-10 items-center gap-2 rounded-full bg-brand-800 px-5 text-sm font-medium text-white disabled:opacity-60"
         >
           {submit.isPending ? 'Sending…' : 'Send for verification'}
@@ -361,7 +561,7 @@ function DeclarePayment() {
         <span>
           A receipt is only ever issued after an office bearer has confirmed your payment against
           the club's records. Nobody can mark a payment as received without that check — and the
-          entry they then make in the books needs a second officer's approval before it counts.
+          receipt is issued at the same moment, and every entry names the officer who made it.
         </span>
       </p>
     </section>
@@ -423,8 +623,19 @@ function MyPayments() {
                   </div>
 
                   <p className="mt-2 text-sm text-ink-800">
-                    {PAYMENT_PURPOSE_LABEL[payment.purpose]} · {PAYMENT_METHOD_LABEL[payment.method]}{' '}
-                    · paid {formatDate(payment.paidOn)}
+                    {PAYMENT_PURPOSE_LABEL[payment.purpose]}
+                    {payment.periodStart && payment.periodEnd ? (
+                      <>
+                        {' '}
+                        for{' '}
+                        <span className="font-medium">
+                          {payment.periodStart === payment.periodEnd
+                            ? monthLabelOf(payment.periodStart)
+                            : `${monthLabelOf(payment.periodStart)} to ${monthLabelOf(payment.periodEnd)}`}
+                        </span>
+                      </>
+                    ) : null}{' '}
+                    · {PAYMENT_METHOD_LABEL[payment.method]} · paid {formatDate(payment.paidOn)}
                   </p>
                   <p className="mt-0.5 text-xs text-ink-500">
                     Sent {formatDateTime(payment.submittedAt)}
@@ -440,17 +651,44 @@ function MyPayments() {
                 </p>
               </div>
 
-              {payment.status === 'pending_verification' ? (
-                <button
-                  type="button"
-                  disabled={withdraw.isPending}
-                  onClick={() => withdraw.mutate(payment.id)}
-                  className="mt-3 inline-flex h-8 items-center gap-1.5 rounded-lg border border-ink-200 px-3 text-xs font-medium text-ink-700 hover:bg-ink-50 disabled:opacity-60"
-                >
-                  <Undo2 className="h-3.5 w-3.5" aria-hidden="true" />
-                  Withdraw this
-                </button>
-              ) : null}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {payment.status === 'pending_verification' ? (
+                  <button
+                    type="button"
+                    disabled={withdraw.isPending}
+                    onClick={() => withdraw.mutate(payment.id)}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-ink-200 px-3 text-xs font-medium text-ink-700 hover:bg-ink-50 disabled:opacity-60"
+                  >
+                    <Undo2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    Withdraw this
+                  </button>
+                ) : null}
+
+                {payment.status === 'approved' ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError(null)
+                      downloadReceipt(payment.id).catch((caught: unknown) => {
+                        setError(
+                          caught instanceof ApiError
+                            ? caught.message
+                            : 'That receipt could not be downloaded.'
+                        )
+                      })
+                    }}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-brand-300 bg-brand-50 px-3 text-xs font-medium text-brand-900 hover:bg-brand-100"
+                  >
+                    <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                    Download receipt
+                    {payment.receiptNumber ? (
+                      <span className="font-mono text-[10px] text-brand-700">
+                        {payment.receiptNumber}
+                      </span>
+                    ) : null}
+                  </button>
+                ) : null}
+              </div>
             </li>
           ))}
         </ul>
@@ -466,9 +704,10 @@ function MyPayments() {
 /**
  * What happened to a declaration, in terms of what the member should do next.
  *
- * "Verified" deliberately does not say "receipted": the entry the officer made is
- * itself waiting for a second signature, and promising a receipt that has not been
- * issued is how a member turns up at the office expecting one.
+ * Each status says what the member should do next, not what the system did. "Verified"
+ * is the only one that promises a receipt, because it is the only one where a receipt
+ * exists — telling a member their receipt is ready when it is not is how they turn up at
+ * the office for nothing.
  */
 function PaymentOutcome({ payment }: { payment: Payment }) {
   if (payment.status === 'pending_verification') {
@@ -484,7 +723,7 @@ function PaymentOutcome({ payment }: { payment: Payment }) {
     return (
       <p className="mt-2 text-xs text-emerald-700">
         Confirmed by {payment.reviewedByName ?? 'an office bearer'} and entered in the club's books.
-        Your receipt follows once a second officer has approved the entry.
+        Your receipt is ready to download below.
       </p>
     )
   }

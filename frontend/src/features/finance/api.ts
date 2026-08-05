@@ -168,19 +168,32 @@ function toQuery(params: Record<string, string | undefined>): string {
 }
 
 /**
+ * Which statement to print.
+ *
+ * **summary** merges every member's subscription into its category, so what goes to
+ * a committee meeting is the club's position rather than a page of names.
+ * **detailed** lists every entry, for checking the books against the bank.
+ */
+export type ReportDetail = 'summary' | 'detailed'
+
+/**
  * Download the PDF statement.
  *
  * Fetched with the bearer token rather than opened as a plain link, because a
  * link cannot carry the Authorization header and the endpoint refuses anonymous
- * requests. The blob is handed to the browser as a normal download.
+ * requests. The server decides the filename — it carries the club, which report,
+ * the period and the day it was issued, so two downloads of the same month do not
+ * arrive as statement.pdf and statement(1).pdf.
  */
 export async function downloadStatementPdf(params: {
   month?: string
   from?: string
   to?: string
+  detail?: ReportDetail
 }): Promise<void> {
   const { resolveToken } = await import('@/lib/session')
   const { env } = await import('@/config/env')
+  const { saveBlob } = await import('@/features/payments/api')
 
   const token = await resolveToken()
   const response = await fetch(`${env.VITE_API_BASE_URL}/reports/period.pdf${toQuery(params)}`, {
@@ -189,15 +202,8 @@ export async function downloadStatementPdf(params: {
 
   if (!response.ok) throw new Error('The statement could not be generated.')
 
-  const blob = await response.blob()
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download =
-    response.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] ??
-    'statement.pdf'
-  document.body.append(link)
-  link.click()
-  link.remove()
-  URL.revokeObjectURL(url)
+  saveBlob(
+    await response.blob(),
+    response.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] ?? 'statement.pdf'
+  )
 }

@@ -152,15 +152,18 @@ npm run user -- disable --email person@example.com
 Disabling keeps the record and the audit trail. Deleting an account that has recorded
 finance entries would leave those entries pointing at nobody.
 
-### You need at least two officers
+### You still want at least two officers
 
-`REQUIRED_APPROVALS` is **1 approval in addition to** whoever recorded an entry, and
-an officer can never approve their own. **With one account, nothing can ever be
-posted** — the entry sits pending and the finance area looks broken when it is working
-exactly as intended.
+`REQUIRED_APPROVALS` is now **0**, so one officer can record an entry and it is posted
+immediately — the club asked for that, and §4 sets out what it costs.
 
-Three officer accounts, each a real person with their own password, is the sensible
-arrangement. Sharing one account defeats the rule entirely.
+Two officers are still worth having, for one rule that has not changed: **an officer
+cannot verify their own membership payment.** With a single active officer, that
+officer's own subscription can never be verified, no receipt is issued for it, and their
+months never show as paid. Nothing is broken; there is simply nobody else to check it.
+
+Each officer should be a real person with their own password. Sharing one account
+destroys the only remaining record of who did what.
 
 ---
 
@@ -295,32 +298,48 @@ hands over a set of books on paper.
 
 ---
 
-## 4. Recording money — the two-person rule
+## 4. Recording money — one officer
 
-1. An officer records an entry in **Office → Entries**. It is `pending` and has moved
-   no balance.
-2. A **different** officer approves it. It becomes `posted`, gets a gapless reference
-   number, and the balances move.
-3. Nothing is ever deleted. A mistake is **reversed** — the original entry stays and a
-   matching opposite entry is added, so the record explains itself years later.
+1. An officer records an entry in **Office → Entries**. It is **posted immediately**:
+   it gets a gapless reference number and the balances move.
+2. Nothing is ever deleted. A mistake is **reversed** — the original entry stays, marked
+   `reversed`, and a matching opposite entry is added, so the record explains itself
+   years later.
 
-An officer may **withdraw** their own entry while nobody else has approved it. Once
-somebody has, it must be posted or rejected, so the record shows what happened.
+### ⚠️ This used to take two people
 
-### Who can approve — and how you decide it
+`REQUIRED_APPROVALS` was `1`, meaning one approval **in addition to** whoever recorded
+the entry — so two different people had to sign before any money moved. The club asked
+for one, and it is now `0`.
 
-Approving is not a separate permission. **Any account with a finance role can approve,
-except whoever recorded the entry.** So you control who can approve by controlling roles:
+Be clear about what changed, because the software no longer prevents it: **a single
+officer can now enter whatever they like into the club's books.** At `1`, they could not
+— an officer could record but never approve their own entry.
 
-| Role | Can record | Can approve someone else's |
+What still protects the club:
+
+- every entry names **who recorded it**, with a timestamp, in the audit log
+- **nothing can be deleted.** Cancelling a posted entry creates a reversal, and both
+  halves stay on the record for anyone reading the statement afterwards
+- an officer **still cannot verify their own membership payment** — a different
+  question, and one that matters more now that a single signature is enough
+- the detailed statement lists every entry with the officer who made it
+
+If the committee wants the two-person rule back, it is one line — see below. Nothing
+else has to change: the approval queue, the self-approval refusal and their tests are
+all still in place and still tested.
+
+### Who can record
+
+| Role | Can record and post | Can verify a member's payment |
 | --- | --- | --- |
-| `treasurer` (the cashier) | yes | yes |
-| `secretary` | yes | yes |
-| `president` | yes | yes |
-| `administrator` | yes | yes |
+| `treasurer` (the cashier) | yes | yes — but never their own |
+| `secretary` | yes | yes — but never their own |
+| `president` | yes | yes — but never their own |
+| `administrator` | yes | yes — but never their own |
 | `member`, `volunteer`, `visitor` | no | no |
 
-So to let someone approve:
+So to let someone record entries:
 
 ```bash
 npm run user -- role --email person@example.org --role secretary
@@ -334,22 +353,28 @@ npm run user -- role --email person@example.org --role member
 
 Effective on their **next request** — no sign-out needed.
 
-### Restricting it further
+### Putting the two-person rule back, or tightening it further
 
 Two knobs, both in `backend/src/config/constants.ts`, and both a code change plus a
 deploy rather than a setting in the app:
 
-- **`FINANCE_ROLES`** — which roles may see and approve the accounts. Remove
-  `administrator` if the system's maintainer should not be able to approve club money;
-  that is a defensible choice and costs nothing.
-- **`REQUIRED_APPROVALS`** — currently `1`, meaning **one approval in addition to** the
-  officer who recorded the entry, so two different people have signed. Set it to `2` and
-  three people are needed.
+- **`REQUIRED_APPROVALS`** — approvals needed **in addition to** whoever recorded the
+  entry. `0` today: one officer, posted immediately. `1` means two different people must
+  sign; `2` means three.
+- **`FINANCE_ROLES`** — which roles may see the accounts and record entries. Remove
+  `administrator` if the system's maintainer should not be able to move club money; that
+  is a defensible choice and costs nothing.
 
 ```ts
 export const FINANCE_ROLES: readonly Role[] = ['treasurer', 'secretary', 'president', 'administrator']
-export const REQUIRED_APPROVALS = 1
+export const REQUIRED_APPROVALS = 0
 ```
+
+Changing `REQUIRED_APPROVALS` to `1` needs nothing else. Entries start `pending`, the
+recording officer cannot approve their own, and **Office → Entries** shows the queue —
+all of it already written and tested. Remember that with only one officer account,
+nothing could ever be posted; three real people with their own passwords is the sensible
+arrangement.
 
 These are deliberately not editable in the interface. A rule that decides how many people
 must agree before the club's money moves should not be changeable by one person who is
@@ -378,6 +403,17 @@ against the club's records and enters it. This is the only way anything a member
 reaches the accounts, and it is deliberately a **declaration**, not a payment: the
 website never takes money.
 
+### What membership costs
+
+**₹50 a month, or ₹600 for the year.** The club's year runs **April to March**, so
+2026-27 means April 2026 to March 2027. Twelve months at the monthly rate is exactly the
+yearly rate, so paying annually is a convenience rather than a discount.
+
+To change the rates, edit `MEMBERSHIP_DUES` in `backend/src/config/constants.ts` **and**
+the identical block in `frontend/src/config/constants.ts` — `npm run check:constants`
+fails the build if they drift apart. Everything else follows: the form, the register, the
+receipts and the officers' totals all price from one function.
+
 ### What the member does
 
 **My membership → Tell the club about a payment.**
@@ -392,13 +428,55 @@ nothing to quote in a UPI note. What the treasurer actually matches against is:
 | Bank | the cheque number, or the bank's reference |
 | Cash | which office bearer took it |
 
+For a **membership** payment they also choose which months: one month (the form offers
+their first unpaid one), the rest of the year, or a particular range. **They do not type
+the amount** — it is worked out from the months and shown to them. A member cannot pay
+₹50 and claim twelve months.
+
 They get an acknowledgement number — `REF-2026-000001` — to quote if they ask about it.
 It is **not** a receipt, and the screen says so.
 
 A member sees only their own declarations, and can **withdraw** one while nobody has
-acted on it. The same payment cannot be declared twice while the first is still waiting;
-that guard exists because two identical claims in the queue is how a club credits itself
-with money it received once.
+acted on it. Two guards stop the register becoming a guess:
+
+- the same payment cannot be declared twice while the first is still waiting
+- **months already paid or already claimed are refused**, naming which ones and under
+  which reference
+
+One payment cannot cross two membership years — April to March is the year, and a
+payment spanning two could not be filed in either register.
+
+### The member's own record: months paid, months left
+
+**My membership** shows the year as twelve boxes: green and ticked for paid, red for
+unpaid and already due, grey for months still to come. Underneath: months paid out of
+twelve, months left, and what those cost.
+
+A month counts as paid only when an office bearer has **verified** the payment behind it.
+A declaration sitting in the queue shows as unpaid, because a form is not money.
+
+### Receipts
+
+Once a payment is verified, a **Download receipt** button appears against it in the
+member's list, and the receipt number (`RCT-2026-000001`) with it. The receipt carries:
+
+- the member, the amount, and **which months it covers**, in words
+- how they paid and the reference matched against
+- the declaration and the ledger entry it produced, so it can be traced
+- two signature lines — **Cashier / Treasurer** and **Approved by** — both naming the
+  officer who verified it
+
+Both lines name the same officer, because one officer records and posts. That is
+deliberate: two different names would claim a second check nobody made. The lines are
+left ruled for a hand signature, which is what a paper receipt needs.
+
+An officer can reprint any member's receipt from **Office → Members' payments** — the
+commonest request an office ever gets.
+
+Receipt numbers are a separate gapless series from declaration references, numbered by
+the year the money was **paid**, so a receipt issued in April for a March payment sits in
+the right book. There is no receipt for a payment that has not been verified, and asking
+for one says so rather than producing a blank document.
 
 ### What the office bearer does
 
@@ -415,16 +493,13 @@ people waiting.
 
 ### What recording it actually does
 
-It creates an **ordinary pending ledger entry** — exactly as if you had typed it into
-Office → Entries yourself:
+Three things at once:
 
-- dated the day the **member** paid, not the day you got round to it
-- attributed to **you**, which means **you cannot approve it**
-- **a second officer must still approve it** before it appears in any balance
-
-So verifying a payment does not finish the job. Until another officer approves the entry
-it created, that money is in no total anywhere. The confirmation names the entry and says
-what it is waiting for; the dashboard's amber bar counts it.
+- an **ordinary ledger entry**, exactly as if you had typed it into Office → Entries —
+  dated the day the **member** paid, not the day you got round to it, attributed to you,
+  and posted immediately
+- a **receipt number**, which is what makes the member's download button appear
+- the **months are marked paid** in the register, if it was a membership payment
 
 ### An officer cannot verify their own payment
 
@@ -432,10 +507,13 @@ A treasurer pays their subscription like everybody else. When they declare it, t
 **Verify** button is not offered to them and the API refuses it — another officer has to
 confirm it.
 
-This is not bureaucracy for its own sake. The question being answered at this step is
-"did this money actually arrive?", and nobody can answer that about themselves. The
-two-person rule further down does not cover it: that one asks whether an entry should be
-made, which is a different question.
+This is not bureaucracy for its own sake, and it matters more now that a single officer
+can post an entry. The question being answered at this step is "did this money actually
+arrive?", and nobody can answer that about themselves.
+
+**If your club has only one active officer, nobody can verify that officer's own
+subscription.** That is the rule working, not a fault. Give a second person the
+`secretary` role — see §1.
 
 ### If it goes wrong halfway
 
@@ -446,34 +524,82 @@ declaration stays in the queue so it can be dealt with once, properly.
 
 ---
 
-## 6. Testing it end to end
+## 6. The membership register, and the two statements
+
+### Who has paid what
+
+**Office → Membership register.** Every account the club has, for one membership year,
+each with their twelve boxes and what they still owe.
+
+- **Sorted by who owes the most**, not alphabetically. The list is there to be acted on.
+- **Every account appears**, including members who have paid nothing — those are the rows
+  the meeting is about. A list built from the payments table would leave exactly them out.
+- Filter to **Still owing** or **Paid in full**, search by name or email, and switch
+  membership year with the picker.
+
+Along the top: how many members, how much is **overdue now** (months already begun and
+unpaid), how much is outstanding for the whole year, and how many declarations are
+waiting to be checked.
+
+A member's months come from payments an officer verified, so this register and the
+receipts members hold can never disagree.
+
+### The two statements
+
+**Office → Statements**, for a month or any date range. Same figures in both; they differ
+in how much they show.
+
+| | Shows | For |
+| --- | --- | --- |
+| **Summary** | Totals by category, with every membership payment merged into one line | The committee, the noticeboard, the AGM |
+| **Detailed** | Every entry, with who each payment came from | Checking the books against the bank statement |
+
+The summary deliberately leaves out the by-source breakdown and the entry list, because
+both name individual members — a page of who paid what is not what goes on a
+noticeboard. It says on its face how many entries sit behind the totals and that the
+detailed version has them.
+
+Filenames carry the club, which report, the period and the day it was issued:
+
+```
+Milani-Sangha-Club-summary-2026-04-issued-2026-08-05.pdf
+Milani-Sangha-Club-detailed-2026-04-05-to-2026-05-20-issued-2026-08-05.pdf
+```
+
+A period that is exactly one calendar month is named as that month. Two downloads of the
+same month no longer arrive as `statement.pdf` and `statement(1).pdf` with nothing to
+tell them apart.
+
+---
+
+## 7. Testing it end to end
 
 Sign in at <https://newmilanisanghaclub.appwrite.network/login>.
 
 | Step | Expect |
 | --- | --- |
 | Choose **Office bearers**, sign in as the treasurer | Lands on `/office`; **no** amber "Sample data" bar |
-| Office → Entries → record an income entry | Saved as pending |
-| Try to approve it yourself | Refused: approval needs a different officer |
+| Office → Entries → record an income entry | **Posted straight away**; the dashboard figures move |
+| Cancel it by reversal | The original shows `reversed`, a matching opposite entry appears, and the total returns to where it was |
 | Sign out | Returns to the sign-in page, and going back to `/office` asks you to sign in |
-| Sign in as the secretary, approve the entry | Posts; the dashboard figures move |
-| Reports → download the PDF | A real PDF opens |
+| Statements → download **both** PDFs | Two files; the summary has no entry list, the detailed one does, and both names carry the period and today's date |
 | Sign-in page → Reset password | Email arrives; its link opens the new-password page |
 | Choose **General members**, sign in as a member | Lands on `/portal`; `/office` explains it is not available to them |
 | Try the **Office bearers** door with that member's account | Refused, and told to use the General members entrance |
 
-Then the payment flow, which crosses both areas:
+Then the membership flow, which crosses both areas:
 
 | Step | Expect |
 | --- | --- |
-| As a member: My membership → declare a ₹500 UPI payment | An acknowledgement number, `REF-…`, and it appears under "Payments I have declared" as *Awaiting verification* |
-| Send the same one again | Refused as a duplicate, naming the first |
-| Withdraw it, then declare it again | Both work — withdrawing releases the duplicate guard |
-| As the treasurer: Office → Members' payments | The declaration is listed, with the UPI transaction ID to match against |
-| Verify it, choosing a fund and category | Entered as `TXN-…`, **pending**; the dashboard total does **not** move |
-| Try to approve that entry as the treasurer | Refused — they recorded it |
-| As the secretary: Office → Entries → approve it | Posts; the dashboard total moves by ₹500 |
-| Back as the member | Shows *Verified*, naming who confirmed it |
+| As a member: My membership | Twelve boxes, all unpaid; "0 of 12 months paid", ₹600 outstanding |
+| Declare a payment — one month, by UPI | The amount shows ₹50 and **cannot be typed over**; sends with an acknowledgement `REF-…`, listed as *Awaiting verification* |
+| Look at the twelve boxes again | Still unpaid — a declaration is not money until it is verified |
+| Try to declare the same month again | Refused, naming the month and the reference already claiming it |
+| Try "the rest of the year" | Priced at ₹550 for the remaining 11 months |
+| As the treasurer: Office → Members' payments | Listed, with the UPI transaction ID to match against |
+| Verify it, choosing a fund and category | Entered as `TXN-…`, posted; a receipt number `RCT-…` is issued |
+| Office → Membership register | That member shows 1 of 12, one green box, and the rest red or grey |
+| Back as the member | The month is green; **Download receipt** appears and gives a PDF naming the month and the officer |
 | As the treasurer: declare a payment of your own | Office → Members' payments offers no **Verify** button for it, and says another officer must |
 
 The amber **Sample data** bar appearing anywhere means the API has lost its database
@@ -485,7 +611,7 @@ npm run appwrite:check
 
 ---
 
-## 7. When something does not work
+## 8. When something does not work
 
 | Symptom | Cause |
 | --- | --- |
@@ -498,7 +624,7 @@ npm run appwrite:check
 
 ---
 
-## 8. Where the club's data actually lives
+## 9. Where the club's data actually lives
 
 Nothing sensitive is in GitHub, and a check now enforces that.
 
@@ -564,7 +690,7 @@ scheduler, which a public repository rules out.
 
 ---
 
-## 9. Back up before you rely on it
+## 10. Back up before you rely on it
 
 ```bash
 npm run backup                                   # writes backups/<timestamp>.json
