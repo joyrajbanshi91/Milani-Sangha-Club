@@ -23,6 +23,7 @@
     "provision:appwrite": "tsx scripts/provision-appwrite.ts",
     "backup": "tsx scripts/backup-appwrite.ts",
     "restore": "tsx scripts/restore-appwrite.ts",
+    "export:book": "tsx scripts/export-backup.ts",
     "appwrite:check": "tsx scripts/check-appwrite.ts",
     "reset:ledger": "tsx scripts/reset-ledger.ts",
     "members:import": "tsx scripts/import-members.ts"

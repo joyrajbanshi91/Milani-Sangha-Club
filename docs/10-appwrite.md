@@ -252,11 +252,20 @@ are a **paid feature** — Pro takes a daily backup kept for seven days, the fre
 takes none. So the club's backup is its own:
 
 ```bash
-npm run backup                                   # writes backups/<timestamp>.json
+bash scripts/backup-to-drive.sh                  # into Google Drive, with a readable copy
+npm run backup                                   # or locally: backups/<timestamp>.json
 npm run restore -- --file backups/<file>.json    # checks it; --write to restore
+npm run export:book -- --file backups/<file>.json   # a spreadsheet from any backup
 ```
 
 It uses only the ordinary Databases and Users APIs, so it costs nothing on any plan.
+
+**The JSON is a restore file, not a readable one.** `export:book` turns any backup into an
+.xlsx — one sheet per table, amounts in rupees, and a summary of every fund's balance
+computed by the same domain code as the printed statement. That is what the club opens on
+the evening the site is down; `scripts/backup-to-drive.sh` writes both files, so the Drive
+folder always holds one of each. See
+[11-running-the-club-office.md § 11](11-running-the-club-office.md) for the routine.
 Every row of every table in `src/config/appwriteSchema.ts`, plus every account and
 its role labels — the schema is shared with the provisioning script precisely so a
 table added there cannot go unbacked-up.

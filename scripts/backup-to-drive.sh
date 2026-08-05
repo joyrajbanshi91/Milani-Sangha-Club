@@ -100,6 +100,24 @@ newest="$(find "$DEST" -maxdepth 1 -type f -name '*.json' | sort | tail -1)"
 echo "wrote: $newest"
 
 # --------------------------------------------------------------------------
+# A copy the club can actually read.
+# --------------------------------------------------------------------------
+# The JSON is a restore file. It exists so the data can be put back into Appwrite,
+# and it is useless to a treasurer on the evening the site is down — which is the
+# evening they need it. So each backup is also written as a spreadsheet: one sheet
+# per table, amounts in rupees, and a summary of every fund's balance. Excel,
+# Numbers, LibreOffice and Sheets all open it, with no server and no sign-in.
+#
+# Best effort on purpose. If the export fails, the backup has still succeeded, and
+# reporting a failure would send somebody looking for a problem with their data.
+if npm --prefix "$REPO/backend" run export:book --silent -- --file "$newest" >/dev/null 2>&1; then
+  echo "wrote: ${newest%.json}-books.xlsx"
+else
+  echo "note: the readable spreadsheet could not be written. The backup itself is fine;" >&2
+  echo "      run it by hand to see why:  npm run export:book -- --file \"$newest\"" >&2
+fi
+
+# --------------------------------------------------------------------------
 # Prune, keeping the newest KEEP files.
 # --------------------------------------------------------------------------
 # By count rather than by age, deliberately: pruning by age can empty the folder
@@ -108,6 +126,12 @@ echo "wrote: $newest"
 find "$DEST" -maxdepth 1 -type f -name '*.json' | sort -r | tail -n "+$((KEEP + 1))" | while IFS= read -r old; do
   rm -f -- "$old"
   echo "pruned: $(basename "$old")"
+  # The spreadsheet belongs to that backup, so it goes with it. Left behind, the
+  # folder slowly fills with workbooks whose restore file no longer exists.
+  if [ -f "${old%.json}-books.xlsx" ]; then
+    rm -f -- "${old%.json}-books.xlsx"
+    echo "pruned: $(basename "${old%.json}-books.xlsx")"
+  fi
 done
 
 echo "done. keeping at most $KEEP backups in Drive."
