@@ -73,6 +73,20 @@ const envSchema = z.object({
    */
   CLUB_ADDRESS: z.string().optional(),
   CLUB_REGISTRATION_NUMBER: z.string().optional(),
+
+  /**
+   * Where the website's contact form sends enquiries.
+   *
+   * Deliberately here and not in the request: a form that carries its own recipient is
+   * an open mail relay, and automated scanners find those within days. Unset, the club's
+   * own SMTP user receives them, which is the sensible default when both are the same
+   * mailbox.
+   *
+   * Keep it in step with `club.contact.email` in frontend/src/content/site.ts — that is
+   * the address printed on the page, and a visitor who is told one address while the
+   * message goes to another has been misled.
+   */
+  CONTACT_TO: z.string().optional(),
 })
 
 export type Env = z.infer<typeof envSchema>

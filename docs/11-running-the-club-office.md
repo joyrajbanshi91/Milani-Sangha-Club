@@ -1119,3 +1119,83 @@ officer screens need the API, and the API needs Appwrite. The website's pages ar
 by the browser and will still open, but the figures come from the server. Reading the
 books offline is the spreadsheet and the PDFs — which is what a club actually needs when
 the internet is out.
+
+---
+
+## 12. The website's contact form
+
+**Office → nothing.** This one is entirely on the public site: a visitor fills in
+*Send an enquiry* on the contact page and the message arrives in the club's inbox.
+
+Until the four settings below are filled in, the form tells visitors plainly that the
+club's website cannot send email and to write to the address on the page instead. That is
+deliberate. **The one thing it must never do is accept a message and drop it** — which is
+what the previous version effectively did: it handed the message to the visitor's own
+email application, and on a computer with no mail client set up, pressing the button did
+nothing at all.
+
+### Setting it up with Gmail
+
+The club's address is a Gmail account, so Gmail sends the mail. It needs an **app
+password** — a 16-character password for one application, which can be revoked on its own
+without touching the account:
+
+1. That Google account must have **2-Step Verification** switched on. App passwords do not
+   exist without it: <https://myaccount.google.com/signinoptions/two-step-verification>
+2. Go to <https://myaccount.google.com/apppasswords>, name it *Club website*, and copy the
+   16 characters it shows once.
+3. Put these in **Netlify → Project configuration → Environment variables**, scoped to
+   **Functions**:
+
+   ```
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USER=<the club’s Gmail address>
+   SMTP_PASSWORD=the 16-character app password
+   MAIL_FROM=New Barrackpore Milani Sangha Club <the club’s Gmail address>
+   CONTACT_TO=<the same address>
+   ```
+
+4. Redeploy, or trigger a deploy from the Netlify dashboard. Environment variables are
+   read when the function starts, so an existing deployment will not pick them up.
+
+For local testing put the same lines in `backend/.env`.
+
+**`SMTP_PASSWORD` is a credential.** It belongs in Netlify and in `backend/.env` — never
+in `site.ts`, never in a commit, never pasted into a chat or a ticket. If it leaks, revoke
+that one app password on the account and make another; nothing else is affected.
+
+### The four things worth knowing
+
+- **`CONTACT_TO` is where enquiries go, and it is not in the form.** A form that carried
+  its own recipient would be an open mail relay, and automated scanners find those within
+  days. Keep it the same as `club.contact.email` in `site.ts` — that is the address printed
+  on the page, and a visitor told one address while the message goes to another has been
+  misled.
+- **`MAIL_FROM` must be the club's own address**, not the visitor's. Sending as somebody
+  else's address is what spam does; Gmail would fail its own SPF check and the message
+  would land in spam or be refused. The visitor's address goes in **Reply-To**, so hitting
+  reply in Gmail answers the person who wrote.
+- **Ten submissions per quarter of an hour, per visitor.** The same limit sign-in uses.
+- **There is a hidden field bots fill in.** A submission carrying it is answered politely
+  and thrown away, because telling a robot it was detected only teaches it to try again
+  differently.
+
+### If a visitor reports that nothing happens
+
+The form now always says something — a green confirmation or a red explanation. If a
+visitor sees neither, the request never left their browser. If they see the red one, the
+words are the server's own and say what to do. To check it yourself:
+
+```bash
+curl -i -X POST https://<the site>/api/v1/contact \
+  -H 'content-type: application/json' \
+  -d '{"name":"Test Person","email":"you@example.org","subject":"Test",
+       "message":"Checking that the club contact form still works."}'
+```
+
+`201` means it was sent. `503 mail_not_configured` means the Netlify variables are missing
+or the function has not restarted since they were added. `502 mail_failed` means Gmail
+refused the credentials — almost always an app password that was revoked, or 2-Step
+Verification switched off on that account.
+
