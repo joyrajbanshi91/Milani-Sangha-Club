@@ -65,8 +65,9 @@ export function PaymentsPage() {
         <p className="mt-1 text-sm/relaxed text-ink-500">
           What members say they have paid. Check each one against the club's records — the UPI
           statement, the cash box, the cheque — before you enter it in the books. Recording one
-          creates an ordinary ledger entry, dated the day the member paid, and issues their
-          receipt.
+          creates an ordinary ledger entry dated the day the member paid, and issues their
+          receipt. That entry then needs <strong>one</strong> approval from another office bearer,
+          like any other.
         </p>
       </div>
 
@@ -306,8 +307,8 @@ function ReviewForm({ payment, onDone }: { payment: Payment; onDone: () => void 
     >
       <p className="text-xs/relaxed text-ink-600">
         Confirm the money reached the club, then say where it landed. The entry is dated{' '}
-        {formatDate(payment.paidOn)} — the day the member paid — and the member's receipt is
-        issued as soon as you record it.
+        {formatDate(payment.paidOn)} — the day the member paid. The member's receipt is issued
+        at once; the entry itself needs one approval from another bearer, and you cannot give it.
       </p>
 
       {activeFunds.length === 0 || incomeCategories.length === 0 ? (

@@ -186,13 +186,13 @@ describe('officers can see the finances', () => {
 })
 
 /**
- * One officer, over HTTP.
+ * The two-person rule over HTTP: the recorder plus exactly one other, never a third.
  *
- * `REQUIRED_APPROVALS` is 0, so recording is posting and there is no approval queue.
- * The two-person machinery is still exercised in approval.test.ts with an explicit
- * requirement, which is what keeps turning it back on a one-line change.
+ * The club hit this and misread it — an officer records an entry, clicks Approve, is
+ * refused, and concludes the system wants two more people. It wants one signature,
+ * from anyone but the author. These tests count it out.
  */
-describe('recording an entry as a single officer', () => {
+describe('the two-person rule over HTTP', () => {
   async function newEntry(token: string): Promise<string> {
     const [funds, categories] = await Promise.all([
       request(app).get('/api/v1/finance/funds').set('Authorization', `Bearer ${token}`),
@@ -218,62 +218,167 @@ describe('recording an entry as a single officer', () => {
       })
       .expect(201)
 
-    expect(created.body.transaction.status).toBe('posted')
+    expect(created.body.transaction.status).toBe('pending')
     // Parsed exactly, not through a float.
     expect(created.body.transaction.amountPaise).toBe(123_456)
+    // The message counts the outstanding signatures rather than leaving it to be
+    // inferred — the whole reason the club thought a third person was needed.
+    expect(created.body.message).toMatch(/needs 1 more approval/i)
 
     return created.body.transaction.id
   }
 
-  it('posts the entry the moment one officer records it', async () => {
+  it('refuses to let the author approve their own entry', async () => {
     const treasurer = await signIn('treasurer@demo.club')
+    const id = await newEntry(treasurer)
+
+    const response = await request(app)
+      .post(`/api/v1/finance/transactions/${id}/approve`)
+      .set('Authorization', `Bearer ${treasurer}`)
+      .send({})
+      .expect(409)
+
+    expect(response.body.error.code).toBe('self_approval')
+  })
+
+  /** The one that matters: ONE other signature posts it. Not two. */
+  it('posts on the first approval from anyone but the author', async () => {
+    const treasurer = await signIn('treasurer@demo.club')
+    const secretary = await signIn('secretary@demo.club')
+    const id = await newEntry(treasurer)
+
+    const response = await request(app)
+      .post(`/api/v1/finance/transactions/${id}/approve`)
+      .set('Authorization', `Bearer ${secretary}`)
+      .send({ note: 'Bill seen' })
+      .expect(200)
+
+    expect(response.body.transaction.status).toBe('posted')
+    expect(response.body.transaction.approvals).toHaveLength(1)
+    expect(response.body.message).toMatch(/approved and posted/i)
+  })
+
+  it('needs no third person, whichever bearer gives the approval', async () => {
+    // Any finance role can be the second person, so one officer being away does not
+    // stop the club. Each of them posts an entry on their own signature.
+    for (const approver of ['secretary@demo.club', 'president@demo.club']) {
+      const treasurer = await signIn('treasurer@demo.club')
+      const id = await newEntry(treasurer)
+
+      const response = await request(app)
+        .post(`/api/v1/finance/transactions/${id}/approve`)
+        .set('Authorization', `Bearer ${await signIn(approver)}`)
+        .send({})
+        .expect(200)
+
+      expect(response.body.transaction.status, approver).toBe('posted')
+    }
+  })
+
+  it('keeps a pending entry out of the figures until that one approval arrives', async () => {
+    const treasurer = await signIn('treasurer@demo.club')
+    const secretary = await signIn('secretary@demo.club')
 
     const before = await request(app)
       .get('/api/v1/finance/dashboard?from=2026-06-01&to=2026-06-30')
       .set('Authorization', `Bearer ${treasurer}`)
 
-    await newEntry(treasurer)
+    const id = await newEntry(treasurer)
+
+    const during = await request(app)
+      .get('/api/v1/finance/dashboard?from=2026-06-01&to=2026-06-30')
+      .set('Authorization', `Bearer ${treasurer}`)
+    expect(during.body.totals.expensePaise).toBe(before.body.totals.expensePaise)
+
+    await request(app)
+      .post(`/api/v1/finance/transactions/${id}/approve`)
+      .set('Authorization', `Bearer ${secretary}`)
+      .send({})
+      .expect(200)
 
     const after = await request(app)
       .get('/api/v1/finance/dashboard?from=2026-06-01&to=2026-06-30')
       .set('Authorization', `Bearer ${treasurer}`)
-
     expect(after.body.totals.expensePaise).toBe(before.body.totals.expensePaise + 123_456)
   })
 
-  it('leaves nothing sitting in an approval queue', async () => {
-    // The failure this guards against is not a wrong figure but an invisible one:
-    // an entry left 'pending' when nobody can approve it would stay outside every
-    // balance for ever, and no screen would ever ask anyone to deal with it.
+  /**
+   * There is no way to change a recorded entry — not for anyone, author included.
+   *
+   * The club asked for this in as many words. It is not enforced by a check but by
+   * the absence of a route: nothing accepts a new amount, date or description for an
+   * entry that exists. A test rather than a comment, because a future PATCH added for
+   * convenience would silently undo it.
+   */
+  it('offers no way to edit an entry, to its author or anyone else', async () => {
     const treasurer = await signIn('treasurer@demo.club')
-    await newEntry(treasurer)
-
-    const pending = await request(app)
-      .get('/api/v1/finance/transactions?status=pending')
-      .set('Authorization', `Bearer ${treasurer}`)
-      .expect(200)
-
-    expect(pending.body.transactions.filter((t: { reverses?: string }) => !t.reverses)).toEqual([])
-  })
-
-  it('names the officer who recorded it, which is the only trace of who did', async () => {
-    const treasurer = await signIn('treasurer@demo.club')
+    const secretary = await signIn('secretary@demo.club')
     const id = await newEntry(treasurer)
 
+    const attempts: Array<[string, 'put' | 'patch' | 'delete']> = [
+      [`/api/v1/finance/transactions/${id}`, 'put'],
+      [`/api/v1/finance/transactions/${id}`, 'patch'],
+      [`/api/v1/finance/transactions/${id}`, 'delete'],
+    ]
+
+    for (const [route, method] of attempts) {
+      for (const token of [treasurer, secretary]) {
+        const agent = request(app)
+        const response = await agent[method](route)
+          .set('Authorization', `Bearer ${token}`)
+          .send({ amount: '1', description: 'changed' })
+
+        // 404: the route does not exist at all. Anything 2xx would mean it does.
+        expect(response.status, `${method.toUpperCase()} ${route}`).toBe(404)
+      }
+    }
+
+    // And the entry is exactly as it was recorded.
     const all = await request(app)
       .get('/api/v1/finance/transactions?status=all')
       .set('Authorization', `Bearer ${treasurer}`)
-
-    const entry = all.body.transactions.find((t: { id: string }) => t.id === id)
-    expect(entry.createdByName).toBe('Demo Treasurer')
-    expect(entry.postedAt).toBeTruthy()
+    const entry = all.body.transactions.find((candidate: { id: string }) => candidate.id === id)
+    expect(entry.amountPaise).toBe(123_456)
+    expect(entry.description).toBe('API test entry')
   })
 
-  it('reverses rather than deletes, and cancels the original as it posts', async () => {
+  it('lets the author withdraw their own entry, but only before anyone approves it', async () => {
     const treasurer = await signIn('treasurer@demo.club')
+    const secretary = await signIn('secretary@demo.club')
+
+    const mine = await newEntry(treasurer)
+    await request(app)
+      .post(`/api/v1/finance/transactions/${mine}/withdraw`)
+      .set('Authorization', `Bearer ${treasurer}`)
+      .expect(200)
+
+    // Once approved it is posted, and withdrawal is no longer on offer at all.
+    const approved = await newEntry(treasurer)
+    await request(app)
+      .post(`/api/v1/finance/transactions/${approved}/approve`)
+      .set('Authorization', `Bearer ${secretary}`)
+      .send({})
+      .expect(200)
+
+    const late = await request(app)
+      .post(`/api/v1/finance/transactions/${approved}/withdraw`)
+      .set('Authorization', `Bearer ${treasurer}`)
+      .expect(409)
+
+    expect(late.body.error.code).toBe('not_pending')
+  })
+
+  it('reverses rather than deletes, and needs a second officer for that too', async () => {
+    const treasurer = await signIn('treasurer@demo.club')
+    const secretary = await signIn('secretary@demo.club')
     const president = await signIn('president@demo.club')
 
     const id = await newEntry(treasurer)
+    await request(app)
+      .post(`/api/v1/finance/transactions/${id}/approve`)
+      .set('Authorization', `Bearer ${secretary}`)
+      .send({})
+      .expect(200)
 
     const reversal = await request(app)
       .post(`/api/v1/finance/transactions/${id}/reverse`)
@@ -281,75 +386,30 @@ describe('recording an entry as a single officer', () => {
       .send({ reason: 'Wrong fund' })
       .expect(201)
 
-    // The opposite kind, same amount, posted straight away.
+    // The opposite kind, same amount, pending its own approval.
     expect(reversal.body.transaction.kind).toBe('income')
     expect(reversal.body.transaction.amountPaise).toBe(123_456)
-    expect(reversal.body.transaction.status).toBe('posted')
+    expect(reversal.body.transaction.status).toBe('pending')
+
+    await request(app)
+      .post(`/api/v1/finance/transactions/${reversal.body.transaction.id}/approve`)
+      .set('Authorization', `Bearer ${president}`)
+      .send({})
+      .expect(409)
+
+    await request(app)
+      .post(`/api/v1/finance/transactions/${reversal.body.transaction.id}/approve`)
+      .set('Authorization', `Bearer ${treasurer}`)
+      .send({})
+      .expect(200)
 
     const all = await request(app)
       .get('/api/v1/finance/transactions?status=all')
       .set('Authorization', `Bearer ${treasurer}`)
 
-    /**
-     * The original must be marked in the same breath.
-     *
-     * With a second approval required, this happened when that approval arrived.
-     * At zero the reversal posts on creation, and the original was left looking
-     * live — so the ledger held a posted payment and a posted cancellation of it,
-     * and counted both.
-     */
     const original = all.body.transactions.find((t: { id: string }) => t.id === id)
     expect(original.status).toBe('reversed')
     expect(original.reversedBy).toBe(reversal.body.transaction.id)
-  })
-
-  it('nets a reversal against its original in the figures', async () => {
-    const treasurer = await signIn('treasurer@demo.club')
-    const president = await signIn('president@demo.club')
-
-    // A window wide enough to hold both. A reversal is dated the day it is made, not
-    // the day of the entry it cancels, so a June-only view would show the expense
-    // and not the reversal — which looks exactly like the bug this is testing for.
-    const wide = 'from=2026-01-01&to=2027-12-31'
-
-    const before = await request(app)
-      .get(`/api/v1/finance/dashboard?${wide}`)
-      .set('Authorization', `Bearer ${treasurer}`)
-
-    const id = await newEntry(treasurer)
-    await request(app)
-      .post(`/api/v1/finance/transactions/${id}/reverse`)
-      .set('Authorization', `Bearer ${president}`)
-      .send({ reason: 'Wrong fund' })
-      .expect(201)
-
-    const after = await request(app)
-      .get(`/api/v1/finance/dashboard?${wide}`)
-      .set('Authorization', `Bearer ${treasurer}`)
-
-    // The reversal is income of the same amount as the expense it cancels, so the
-    // club's position is exactly where it started.
-    expect(after.body.totalFundsPaise).toBe(before.body.totalFundsPaise)
-  })
-
-  it('refuses to reverse the same entry twice', async () => {
-    const treasurer = await signIn('treasurer@demo.club')
-    const president = await signIn('president@demo.club')
-
-    const id = await newEntry(treasurer)
-    await request(app)
-      .post(`/api/v1/finance/transactions/${id}/reverse`)
-      .set('Authorization', `Bearer ${president}`)
-      .send({ reason: 'Wrong fund' })
-      .expect(201)
-
-    const again = await request(app)
-      .post(`/api/v1/finance/transactions/${id}/reverse`)
-      .set('Authorization', `Bearer ${president}`)
-      .send({ reason: 'Again' })
-      .expect(409)
-
-    expect(again.body.error.code).toBe('not_posted')
   })
 
   it('rejects a future-dated entry', async () => {

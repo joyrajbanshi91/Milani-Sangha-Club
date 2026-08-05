@@ -561,7 +561,8 @@ function DeclarePayment() {
         <span>
           A receipt is only ever issued after an office bearer has confirmed your payment against
           the club's records. Nobody can mark a payment as received without that check — and the
-          receipt is issued at the same moment, and every entry names the officer who made it.
+          receipt is issued at that moment, and the entry it creates is approved by a second
+          office bearer before it counts towards the club's balances.
         </span>
       </p>
     </section>

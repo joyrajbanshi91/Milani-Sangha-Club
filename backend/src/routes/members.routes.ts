@@ -22,7 +22,7 @@ import { StoreConflictError } from '../services/store.js'
  */
 export const membersRouter = Router()
 
-const { auth, profiles, payments } = getContainer()
+const { auth, profiles, payments, store } = getContainer()
 
 membersRouter.use(requireAuth(auth))
 
@@ -200,7 +200,7 @@ membersRouter.get('/me/payments/:id/receipt.pdf', async (req: Request, res: Resp
   // The same answer as somebody else's id: guessing must not reveal what exists.
   if (!payment) throw notFound('That payment could not be found.')
 
-  await sendReceipt(res, payment)
+  await sendReceipt(res, payment, (id) => store.getTransaction(id))
 })
 
 /** Map a domain refusal onto the right HTTP status. */

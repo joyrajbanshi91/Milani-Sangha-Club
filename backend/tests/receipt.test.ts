@@ -82,15 +82,39 @@ describe('the receipt', () => {
     expect(period).toBe('April 2026  (2026-27)')
   })
 
-  it('carries both signature lines, named for the officer who verified it', async () => {
-    // The club runs with one officer able to record and post. Printing the same name
-    // against both roles is the honest thing; two different names would claim a
-    // second check nobody made.
-    const drawn = (await textBoxes(() => render())).map((box) => box.text)
+  it('names the cashier and, once approved, the second bearer who approved it', async () => {
+    const drawn = (
+      await textBoxes(() =>
+        renderReceiptPdf({
+          clubName: 'Milani Sangha Club',
+          payment: payment(),
+          transaction: {
+            status: 'posted',
+            approvals: [
+              { uid: 'u-sec', name: 'Ratna Das', role: 'secretary', at: '2026-04-07T09:00:00.000Z' },
+            ],
+          },
+          generatedAt: GENERATED,
+        })
+      )
+    ).map((box) => box.text)
 
     expect(drawn).toContain('Cashier / Treasurer')
+    expect(drawn).toContain('Debabrata Roy')
     expect(drawn).toContain('Approved by')
-    expect(drawn.filter((text) => text === 'Debabrata Roy')).toHaveLength(2)
+    // Two different people, which is the point of the rule and of the document.
+    expect(drawn).toContain('Ratna Das')
+    expect(drawn).not.toContain('Awaiting a second office bearer')
+  })
+
+  it('says the approval is outstanding rather than repeating the cashier', async () => {
+    // A receipt claiming two signatures it did not have is worse than one that admits
+    // it is waiting. The member still gets their receipt; it just tells the truth.
+    const drawn = (await textBoxes(() => render())).map((box) => box.text)
+
+    expect(drawn).toContain('Approved by')
+    expect(drawn).toContain('Awaiting a second office bearer')
+    expect(drawn.filter((text) => text === 'Debabrata Roy')).toHaveLength(1)
   })
 
   it('links back to the declaration and the ledger entry', async () => {

@@ -88,7 +88,7 @@ export function OfficeDashboardPage() {
         <div>
           <h1 className="font-display text-2xl text-ink-900 sm:text-3xl">Club finances</h1>
           <p className="mt-1 text-sm text-ink-500">
-            Only posted entries are counted here. Each names the officer who recorded it.
+            Only entries approved by a second office bearer are counted here.
           </p>
         </div>
 
@@ -147,8 +147,8 @@ export function OfficeDashboardPage() {
           <Clock className="h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />
           <p className="text-sm text-amber-800">
             <span className="font-semibold">
-              {data.pending.length} entr{data.pending.length === 1 ? 'y' : 'ies'} awaiting a second
-              signature
+              {data.pending.length} entr{data.pending.length === 1 ? 'y' : 'ies'} awaiting one
+              approval each
             </span>{' '}
             — not included in any figure below. Review them →
           </p>

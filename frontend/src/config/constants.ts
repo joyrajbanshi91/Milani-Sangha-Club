@@ -71,8 +71,10 @@ export type MembershipStatus = (typeof MEMBERSHIP_STATUSES)[number]
  * Lifecycle of a member's payment declaration (a "fund request").
  *
  *   pending_verification  the member says they have paid; nobody has checked
- *   approved              an officer confirmed the money arrived and entered it
- *                         in the books, and a receipt was issued
+ *   approved              an officer confirmed the money arrived, recorded it in the
+ *                         ledger and issued the receipt. That ledger entry still
+ *                         needs one other officer's approval before it counts
+ *                         towards a balance
  *   rejected              an officer could not find the payment
  *   withdrawn             the member took their own declaration back
  *
@@ -215,29 +217,33 @@ export const FINANCE_ROLES: readonly Role[] = [
 /**
  * Approvals required *in addition to* the officer who recorded the entry.
  *
- * **0 — one officer records an entry and it is posted immediately.** The club asked
- * for this; it was 1, meaning two different people had to sign off before any money
- * moved.
+ * **1 — two people in total, and never a third.** Whoever records an entry cannot
+ * approve it; exactly one other office bearer does, and it posts. Any of the finance
+ * roles can be that person, so the club is not held up when one of them is away.
  *
- * Worth being clear about what that costs, because the machinery is all still here
- * and the number is the only thing standing between the two arrangements. At 1, no
- * single person could move the club's money: an officer could record but never
- * approve their own entry. At 0 they can, so the control against a single officer
- * entering whatever they like is no longer the software — it is the audit trail, the
- * reversal record, and the committee reading the statement.
+ * The number that follows from this is easy to misread, and the club did misread it:
+ * the officer who recorded an entry clicks Approve, is refused, and it reads as
+ * "somebody has already approved this and it still wants another". It does not. It
+ * wants one signature, from anyone but the author. `approvalsOutstanding` is
+ * therefore shown on screen — "needs 1 more approval" — rather than left to be
+ * inferred from a refusal.
  *
- * What still holds at 0:
- *   • every entry names who recorded it, with a timestamp, in the audit log
- *   • nothing is ever deleted — a mistake is cancelled by a reversal and both
- *     halves stay on the record
- *   • an officer still cannot verify their own membership payment, which is a
- *     different question (did the money arrive?) and matters more, not less, now
- *     that one signature is enough
+ * Raise it to 2 and three different people are needed. Set it to 0 and recording
+ * posts immediately, with no second pair of eyes at all — the club ran that way
+ * briefly and it is the wrong default for money.
  *
- * Set it back to 1 and the two-person rule returns with no other change: the
- * approval queue, the self-approval refusal and the tests are all intact.
+ * What this rule gives, concretely:
+ *
+ *   • no single person can move the club's money
+ *   • an entry cannot be edited by anyone, its author included — there is no route
+ *     that changes a recorded entry's amount, date or description. A mistake is
+ *     withdrawn before anyone approves it, or reversed afterwards, and the reversal
+ *     needs its own second signature
+ *   • the same applies to every office bearer equally. There is no rank that skips
+ *     the check: a president's entry needs a second signature exactly as a
+ *     treasurer's does
  */
-export const REQUIRED_APPROVALS = 0
+export const REQUIRED_APPROVALS = 1
 
 // --- Membership dues (SRS §7) ----------------------------------------------
 

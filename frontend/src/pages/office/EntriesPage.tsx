@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useSearchParams } from 'react-router'
 
 import { Container } from '@/components/ui/Container'
+import { REQUIRED_APPROVALS } from '@/config/constants'
 import { Field, Input, Select, Textarea } from '@/components/ui/Field'
 import { financeApi, type Transaction } from '@/features/finance/api'
 import { formatDate, formatDateTime, formatPaise } from '@/features/finance/money'
@@ -35,9 +36,9 @@ export function EntriesPage() {
         <div>
           <h1 className="font-display text-2xl text-ink-900 sm:text-3xl">Entries</h1>
           <p className="mt-1 text-sm text-ink-500">
-            An entry counts as soon as it is recorded, and names the officer who recorded it.
-            Nothing is ever deleted — a posted entry is cancelled by a reversal, and both halves
-            stay on the record.
+            Every entry needs <strong>one</strong> approval, from any office bearer except the
+            one who recorded it. Nothing is ever deleted and nothing can be edited — a mistake is
+            withdrawn before anyone approves it, or cancelled by a reversal afterwards.
           </p>
         </div>
 
@@ -125,6 +126,15 @@ function EntryRow({ transaction }: { transaction: Transaction }) {
   const isAuthor = user?.uid === transaction.createdBy
   const sign = transaction.kind === 'expense' ? '−' : transaction.kind === 'income' ? '+' : ''
 
+  /**
+   * How many signatures this entry is still short.
+   *
+   * Shown rather than implied. The club read "needs a second officer's approval" as
+   * "one person has approved and it wants another" — because the officer reading it
+   * had just been refused their own approval. Counting it out is the fix.
+   */
+  const outstanding = Math.max(0, REQUIRED_APPROVALS - transaction.approvals.length)
+
   return (
     <li className="rounded-card border border-ink-200 bg-white p-4 shadow-soft">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -187,7 +197,11 @@ function EntryRow({ transaction }: { transaction: Transaction }) {
           isAuthor ? (
             <>
               <p className="text-xs text-amber-700">
-                You recorded this — another officer must approve it.
+                You recorded this, so you cannot approve or change it.{' '}
+                <strong>
+                  {outstanding} approval{outstanding === 1 ? '' : 's'} outstanding
+                </strong>{' '}
+                — any other office bearer can give it.
               </p>
               <button
                 type="button"
@@ -208,7 +222,7 @@ function EntryRow({ transaction }: { transaction: Transaction }) {
                 className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-medium text-white hover:bg-emerald-700"
               >
                 <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                Approve
+                {outstanding === 1 ? 'Approve and post' : `Approve (${outstanding} needed)`}
               </button>
               <button
                 type="button"
@@ -308,8 +322,8 @@ function NewEntryForm({ onDone }: { onDone: () => void }) {
     >
       <h2 className="font-display text-lg text-ink-900">Record an entry</h2>
       <p className="mt-1 text-xs text-ink-500">
-        It is posted immediately and affects the balances at once. To undo one, cancel it by
-        reversal — nothing is ever deleted.
+        Saved as pending. <strong>One</strong> other office bearer approves it and it posts —
+        not two. You will not be able to approve or change it yourself.
       </p>
 
       <div className="mt-5 grid gap-5 sm:grid-cols-2">
@@ -410,7 +424,7 @@ function NewEntryForm({ onDone }: { onDone: () => void }) {
           disabled={create.isPending}
           className="inline-flex h-10 items-center gap-2 rounded-full bg-brand-800 px-5 text-sm font-medium text-white disabled:opacity-60"
         >
-          {create.isPending ? 'Saving…' : 'Record it'}
+          {create.isPending ? 'Saving…' : 'Save as pending'}
         </button>
         <button
           type="button"

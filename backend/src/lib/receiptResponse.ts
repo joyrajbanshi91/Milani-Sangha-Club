@@ -1,7 +1,8 @@
 import type { Response } from 'express'
 
 import { env } from '../config/env.js'
-import type { Payment } from '../domain/types.js'
+import type { Payment, Transaction } from '../domain/types.js'
+import { logger } from './logger.js'
 import { AppError } from './httpError.js'
 import { renderReceiptPdf } from './pdf/receipt.js'
 
@@ -12,8 +13,18 @@ import { renderReceiptPdf } from './pdf/receipt.js'
  * cannot drift — in particular so that neither can start issuing a receipt for a
  * payment nobody has verified. That check lives here rather than in each caller
  * precisely because it is the one worth never forgetting.
+ *
+ * `findEntry` looks up the ledger entry so the receipt can name the officer who
+ * approved it. Passed in rather than imported to keep this module free of the
+ * container, and allowed to fail: a member is entitled to their receipt even if the
+ * ledger cannot be read at that moment, and the receipt says the approval is
+ * outstanding rather than claiming a signature it could not confirm.
  */
-export async function sendReceipt(res: Response, payment: Payment): Promise<void> {
+export async function sendReceipt(
+  res: Response,
+  payment: Payment,
+  findEntry?: (id: string) => Promise<Transaction | null>
+): Promise<void> {
   if (payment.status !== 'approved') {
     throw new AppError(
       409,
@@ -24,9 +35,23 @@ export async function sendReceipt(res: Response, payment: Payment): Promise<void
     )
   }
 
+  let transaction: Transaction | null = null
+
+  if (findEntry && payment.transactionId) {
+    try {
+      transaction = await findEntry(payment.transactionId)
+    } catch (error) {
+      logger.warn(
+        { err: error, payment: payment.reference, entry: payment.transactionId },
+        'could not read the ledger entry for a receipt; printing it as awaiting approval'
+      )
+    }
+  }
+
   const pdf = await renderReceiptPdf({
     clubName: env.CLUB_NAME,
     payment,
+    transaction,
     generatedAt: new Date().toISOString(),
   })
 
