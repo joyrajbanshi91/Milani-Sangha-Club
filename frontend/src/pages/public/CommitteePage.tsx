@@ -22,29 +22,50 @@ export function CommitteePage() {
           </span>
         ) : null}
 
+        {/*
+          Four across on a wide screen rather than three.
+
+          The committee has eight offices, and a portrait card that filled its own column
+          made a page nobody scrolled to the end of. A circular photograph and a name is a
+          compact thing, so eight of them sit as two tidy rows.
+        */}
         {committee.members.length > 0 ? (
-          <Reveal mode="stagger" as="ul" className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <Reveal mode="stagger" as="ul" className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {committee.members.map((member, index) => {
               const hue = hueByIndex(index)
               return (
                 <li
                   key={`${member.role}-${index}`}
                   className={cn(
-                    'group overflow-hidden rounded-card border bg-white shadow-soft',
+                    'group flex flex-col items-center rounded-card border bg-white p-6 text-center shadow-soft',
                     'transition-all duration-300 hover:-translate-y-1.5 hover:shadow-lift',
                     hue.border
                   )}
                 >
-                  <div className="relative overflow-hidden">
+                  {/*
+                    A round photograph, in a ring of the card's own hue.
+
+                    The ring is a padded circle behind the image rather than a border on
+                    it, so the coloured edge cannot crop a pixel of anybody's face — and
+                    it replaces the accent bar the square card used to carry along its
+                    bottom edge, which had nowhere to sit once the photograph was round.
+                  */}
+                  <div
+                    className={cn(
+                      'rounded-full p-[3px] transition-transform duration-500 ease-out-soft group-hover:scale-105',
+                      hue.bar
+                    )}
+                  >
                     {/*
                       A photograph when the club has supplied one, the monogram until
-                      then. `alt` is empty on purpose: the name is the heading directly
-                      below, and a screen reader announcing "photograph of Anita Sharma"
-                      followed by "Anita Sharma" reads the same person twice.
+                      then, at identical size — so the grid keeps its shape as
+                      photographs arrive one at a time.
 
-                      object-cover with the placeholder's own 4:5 crop, so a portrait and
-                      a monogram card are exactly the same size and the grid does not
-                      jump as photographs are added one at a time.
+                      `alt` is empty on purpose: the name is the heading directly below,
+                      and a screen reader announcing "photograph of Anita Sharma"
+                      followed by "Anita Sharma" reads the same person twice.
+                      `object-cover` crops from the centre, which is why the editing
+                      note asks for a square file with the face in the middle.
                     */}
                     {member.photo ? (
                       <img
@@ -52,45 +73,39 @@ export function CommitteePage() {
                         alt=""
                         loading="lazy"
                         decoding="async"
-                        className="aspect-4/5 w-full object-cover transition-transform duration-700 ease-out-soft group-hover:scale-105"
+                        className="h-28 w-28 rounded-full object-cover ring-2 ring-white sm:h-32 sm:w-32"
                       />
                     ) : (
                       <PlaceholderImage
                         label={member.name}
-                        shape="portrait"
-                        className="rounded-none transition-transform duration-700 ease-out-soft group-hover:scale-105"
+                        shape="circle"
+                        className="h-28 w-28 ring-2 ring-white sm:h-32 sm:w-32"
                       />
                     )}
-                    <span
-                      className={cn('absolute inset-x-0 bottom-0 h-1', hue.bar)}
-                      aria-hidden="true"
-                    />
                   </div>
 
-                  <div className="p-5">
-                    <p
-                      className={cn(
-                        'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-[0.12em]',
-                        hue.chip
-                      )}
+                  <p
+                    className={cn(
+                      'mt-5 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-[0.12em]',
+                      hue.chip
+                    )}
+                  >
+                    {member.role}
+                  </p>
+                  <h2 className="mt-3 font-display text-lg text-ink-900">{member.name}</h2>
+                  {member.since ? (
+                    <p className="mt-1 text-sm text-ink-500">In office since {member.since}</p>
+                  ) : null}
+
+                  {member.email ? (
+                    <a
+                      href={`mailto:${member.email}`}
+                      className="mt-3 inline-flex max-w-full items-center gap-1.5 text-sm text-brand-700 underline decoration-brand-300 underline-offset-2 hover:text-brand-900"
                     >
-                      {member.role}
-                    </p>
-                    <h2 className="mt-3 font-display text-lg text-ink-900">{member.name}</h2>
-                    {member.since ? (
-                      <p className="mt-1 text-sm text-ink-500">In office since {member.since}</p>
-                    ) : null}
-
-                    {member.email ? (
-                      <a
-                        href={`mailto:${member.email}`}
-                        className="mt-3 inline-flex max-w-full items-center gap-1.5 text-sm text-brand-700 underline decoration-brand-300 underline-offset-2 hover:text-brand-900"
-                      >
-                        <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                        <span className="truncate">{member.email}</span>
-                      </a>
-                    ) : null}
-                  </div>
+                      <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      <span className="truncate">{member.email}</span>
+                    </a>
+                  ) : null}
                 </li>
               )
             })}

@@ -56,6 +56,16 @@ describe('a bearer whose photograph and address the club has supplied', () => {
     expect(screen.queryByLabelText(/placeholder image for With A Photo/i)).not.toBeInTheDocument()
   })
 
+  it('shows it as a circle, cropped rather than squashed', () => {
+    renderPage()
+
+    // The club asked for round photographs. Without object-cover a non-square file
+    // would be stretched into the circle, which is worse than cropping it.
+    const photo = document.querySelector('img[src="/committee/with-a-photo.jpg"]')
+    expect(photo?.className).toContain('rounded-full')
+    expect(photo?.className).toContain('object-cover')
+  })
+
   it('offers their address as a mail link', () => {
     renderPage()
 
@@ -70,7 +80,13 @@ describe('a bearer with neither', () => {
   it('keeps the coloured monogram, so the grid does not change shape', () => {
     renderPage()
 
-    expect(screen.getByLabelText(/placeholder image for Without One/i)).toBeInTheDocument()
+    const monogram = screen.getByLabelText(/placeholder image for Without One/i)
+    expect(monogram).toBeInTheDocument()
+    // Round like the photographs beside it, and the same size, so a half-filled
+    // committee still reads as one design rather than as two.
+    expect(monogram.className).toContain('rounded-full')
+    expect(monogram.className).toContain('h-28 w-28')
+
     expect(document.querySelector('img[src=""]')).toBeNull()
   })
 

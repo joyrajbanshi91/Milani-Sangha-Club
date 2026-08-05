@@ -129,32 +129,45 @@ only one at a time, which the checks enforce.
 Section 7. Replace each `name`, set `term` (for example `'2026–2028'`), and add
 or remove entries to match the actual committee.
 
-Each bearer takes four fields:
+The page ships with the club's **eight offices** — President, Secretary, Secretary,
+Cultural Secretary, Treasurer, Cashier, Game Secretary, Game Secretary — each
+waiting for a name, a photograph and an address. Each bearer takes four fields:
 
 ```ts
 {
   name: 'Anita Sharma',
   role: 'Secretary',
   since: '2026',
-  photo: '/committee/anita-sharma.jpg',
+  photo: '/committee/secretary-1.jpg',
   email: 'secretary@yourclub.in',
 },
 ```
 
-**Photographs.** Save the image in `frontend/public/committee/`, then write the
-path from the site root — a file saved as
-`frontend/public/committee/anita-sharma.jpg` is written as
-`photo: '/committee/anita-sharma.jpg'`.
+**Photographs are shown as circles.** Save the image in
+`frontend/public/committee/`, then write the path from the site root — a file saved
+as `frontend/public/committee/secretary-1.jpg` is written as
+`photo: '/committee/secretary-1.jpg'`.
 
-- lower-case file names, hyphens instead of spaces (`anita-sharma.jpg`). A space
-  in a filename breaks the address
-- portrait, roughly **800 × 1000 pixels**, **under 300 KB**. A photograph
-  straight off a phone is 3–6 MB and every visitor downloads all of it. Preview →
-  Tools → Adjust Size on a Mac, or any online resizer
-- the card crops to a 4:5 portrait from the centre, so leave a little space above
-  the head
-- leave `photo: ''` and that card keeps its coloured monogram. Photographs can be
-  added one at a time; the grid does not change shape
+- **crop it square before saving**, about **600 × 600 pixels**, **under 200 KB**,
+  face centred with a little space around the head. The card takes a circle from
+  the centre of the file, so a tall photograph simply loses its top and bottom
+- a photograph straight off a phone is 3–6 MB and every visitor downloads all of
+  it. Preview → Tools → Adjust Size on a Mac, or any online resizer
+- lower-case file names, hyphens instead of spaces. A space in a filename breaks
+  the address
+- suggested names, already written as comments beside each bearer in `site.ts`:
+  `president.jpg`, `secretary-1.jpg`, `secretary-2.jpg`,
+  `cultural-secretary.jpg`, `treasurer.jpg`, `cashier.jpg`,
+  `game-secretary-1.jpg`, `game-secretary-2.jpg`
+- leave `photo: ''` and that card keeps its coloured monogram — round and the same
+  size as the photographs beside it, so a half-finished committee still reads as one
+  design. **Fill in the file and the path together:** a path pointing at a file that
+  is not there shows visitors a broken image
+
+Two bearers share the title **Secretary** and two share **Game Secretary**, as the
+club has them. If visitors would find that confusing, change one of each to
+`'Joint Secretary'` and `'Assistant Game Secretary'` — the wording in `role` is
+exactly what the card prints.
 
 **Email addresses.** Leave `email: ''` and no address is shown, which is how the
 site ships. Fill it in and the card gets a mail button — and the note at the
@@ -299,7 +312,8 @@ Please do that only when it is true. It exists to stop the site going live with
 
 ### What must be replaced before launch
 
-- Committee names (section 7) — currently `'Full name'`
+- Committee names (section 7) — currently `'Full name'` on all eight offices.
+  Photographs and email addresses are optional; the cards look finished without them
 - Testimonial quotes and attributions (section 13) — never publish a quote a
   member did not give you
 - The history timeline (section 6) — currently `'Year'` placeholders
