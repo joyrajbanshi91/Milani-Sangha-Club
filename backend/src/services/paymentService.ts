@@ -17,6 +17,7 @@ import {
 } from '../domain/payments.js'
 import type { Actor, Payment, PaymentDraft, Transaction } from '../domain/types.js'
 import { logger } from '../lib/logger.js'
+import { isSecurityCode, newSecurityCode, normaliseSecurityCode } from '../lib/securityCode.js'
 import type { AuditEntry, FinanceService } from './financeService.js'
 import type { PaymentStore } from './paymentStore.js'
 
@@ -186,6 +187,7 @@ export class PaymentService {
     const created = await this.store.create({
       ...draft,
       status: 'pending_verification',
+      securityCode: await this.allocateSecurityCode(),
       submittedAt: this.now(),
     })
 
@@ -202,6 +204,45 @@ export class PaymentService {
     })
 
     return { ok: true, value: created }
+  }
+
+  /**
+   * A code no receipt has carried before.
+   *
+   * The reference number on a receipt is sequential, so anybody holding one genuine
+   * receipt can write a plausible number on a document the club never issued. The
+   * security code cannot be guessed, which is what makes a receipt checkable.
+   *
+   * The store is asked whether the code is already in use rather than trusting the
+   * arithmetic. With 28^10 possibilities a collision is not a practical concern, but
+   * "unique" is the promise being made here, and a promise about money is worth one
+   * extra read. The database holds a unique index on the column as well, because this
+   * check and the write that follows it are two operations with a gap between them.
+   */
+  private async allocateSecurityCode(): Promise<string> {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const code = newSecurityCode()
+      if (!(await this.store.findBySecurityCode(code))) return code
+
+      logger.warn({ attempt }, 'security code collided; drawing another')
+    }
+
+    // Five collisions in a row is not chance, it is a broken random source. Refusing
+    // is right: a duplicate code would make two receipts indistinguishable.
+    throw new Error('Could not allocate a unique security code for this payment.')
+  }
+
+  /**
+   * Look up a declaration by the code printed on its receipt.
+   *
+   * The officer's answer to "is this receipt real?". A forged receipt can carry a
+   * plausible reference number; it cannot carry a code the club has a record of.
+   */
+  async findByCode(code: string): Promise<Payment | null> {
+    const normalised = normaliseSecurityCode(code)
+    if (!isSecurityCode(normalised)) return null
+
+    return this.store.findBySecurityCode(normalised)
   }
 
   /** Take back one's own declaration, while nobody has acted on it. */

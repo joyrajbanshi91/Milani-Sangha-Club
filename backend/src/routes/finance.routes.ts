@@ -301,6 +301,33 @@ financeRouter.get('/payments', async (req: Request, res: Response) => {
   res.json({ payments: await payments.list({ status: parsedStatus }) })
 })
 
+/**
+ * Is this receipt the club's?
+ *
+ * An officer with a piece of paper in front of them, typing the code off it. The
+ * sequential number on a receipt can be guessed by anybody holding one genuine
+ * receipt; the code cannot, so a document whose code has no record behind it was not
+ * issued by this club.
+ *
+ * Answers `{ payment: null }` rather than 404 for a code nobody recognises: a 404 in a
+ * browser console reads as a broken screen, and this is a legitimate answer to a
+ * legitimate question. Officers only — a member has their own receipts already, and
+ * this endpoint would otherwise let anybody test codes until one hit.
+ */
+financeRouter.get('/payments/verify', async (req: Request, res: Response) => {
+  const code = typeof req.query.code === 'string' ? req.query.code : ''
+  if (code.trim() === '') throw badRequest('Type the verification code from the receipt.')
+
+  const payment = await payments.findByCode(code)
+
+  res.json({
+    payment,
+    message: payment
+      ? `Issued to ${payment.memberName} on ${payment.paidOn}.`
+      : 'No receipt in the club’s records carries that code. Check the code, then treat the document as unverified.',
+  })
+})
+
 const recordSchema = z.object({
   fundId: z.string().min(1, 'Choose which fund the money went into'),
   categoryId: z.string().min(1, 'Choose a category'),

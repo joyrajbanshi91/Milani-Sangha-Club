@@ -241,6 +241,30 @@ export type ReportDetail = 'summary' | 'detailed'
  * the period and the day it was issued, so two downloads of the same month do not
  * arrive as statement.pdf and statement(1).pdf.
  */
+/**
+ * What to call the file when the server's own name cannot be read.
+ *
+ * The name comes from `Content-Disposition`, and a browser hides that header from a
+ * cross-origin fetch unless the API exposes it — so every statement the club
+ * downloaded arrived as the old fallback, `statement.pdf`, with no period on it. The
+ * API exposes the header now, but this is computed from the period the officer chose
+ * as well: a filename is not worth a second failure, and any proxy that strips the
+ * header would put the club back where it started.
+ *
+ * Matches `statementFilename` in backend/src/lib/pdf/filenames.ts.
+ */
+function statementFilename(params: {
+  month?: string
+  from?: string
+  to?: string
+  detail?: ReportDetail
+}): string {
+  const detail = params.detail ?? 'detailed'
+  const period = params.month ?? (params.from && params.to ? `${params.from}_to_${params.to}` : '')
+
+  return period ? `Statement_${period}_${detail}.pdf` : `Statement_${detail}.pdf`
+}
+
 export async function downloadStatementPdf(params: {
   month?: string
   from?: string
@@ -260,6 +284,7 @@ export async function downloadStatementPdf(params: {
 
   saveBlob(
     await response.blob(),
-    response.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] ?? 'statement.pdf'
+    response.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] ??
+      statementFilename(params)
   )
 }

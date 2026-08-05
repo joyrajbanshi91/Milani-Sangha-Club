@@ -66,13 +66,7 @@ reportsRouter.get('/period.pdf', async (req: Request, res: Response) => {
   const report = await finance.report(period, `${actor.name} (${actor.role})`)
   const pdf = await renderFinanceReportPdf(report, { detail })
 
-  const filename = statementFilename({
-    clubName: report.club.name,
-    detail,
-    from: period.from,
-    to: period.to,
-    issuedOn: todayInIndia(),
-  })
+  const filename = statementFilename({ detail, from: period.from, to: period.to })
 
   res.setHeader('Content-Type', 'application/pdf')
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)

@@ -225,6 +225,13 @@ npm run seed:finance -- --dir ../data/demo --write     # chart of accounts
 This creates the database, six tables, their columns and their indexes. It is safe to
 re-run: anything already present is left alone.
 
+**Re-run it after any change to the schema**, which includes upgrading the code. The
+payments table gained a `securityCode` column and a unique index on it when receipts
+started carrying a verification code; until provisioning has run, Appwrite rejects a write
+carrying a column it does not know about, and a member declaring a payment gets an error.
+The dry run above prints exactly what is missing, so it is a safe thing to check on a
+Sunday afternoon.
+
 `npm run appwrite:provision -- --write` from the repository root does the same thing.
 That alias was broken for a while — it lacked a trailing `--`, so npm swallowed
 `--write` as its own flag, printed a warning, ran the dry run and exited 0. It looked

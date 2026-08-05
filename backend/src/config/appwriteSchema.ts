@@ -181,6 +181,8 @@ export const TABLES: Table[] = [
       str('externalReference', TEXT_SIZE.short),
       str('handedTo', TEXT_SIZE.short),
       str('note', TEXT_SIZE.medium),
+      // The unguessable code printed on the receipt. See lib/securityCode.ts.
+      str('securityCode', 16),
       str('submittedAt', 32, true),
       str('reviewedAt', 32),
       str('reviewedBy', TEXT_SIZE.id),
@@ -192,6 +194,17 @@ export const TABLES: Table[] = [
     ],
     indexes: [
       { key: 'unique_reference', type: 'unique', columns: ['reference'] },
+      /**
+       * The security code, unique in the database rather than only in the code.
+       *
+       * `PaymentService` checks for a collision before writing, but a check followed
+       * by a write is two operations with a gap, and two members declaring in the
+       * same moment fall through it. This index closes the gap: the database refuses
+       * the second, so "never issued twice" is a guarantee rather than a hope. Rows
+       * written before the club had codes hold no value, and a unique index permits
+       * any number of those.
+       */
+      { key: 'unique_security_code', type: 'unique', columns: ['securityCode'] },
       // A member reads only their own declarations, so this is the index that
       // every request from the portal uses.
       { key: 'by_member', type: 'key', columns: ['memberUid', 'paidOn'], orders: ['asc', 'desc'] },

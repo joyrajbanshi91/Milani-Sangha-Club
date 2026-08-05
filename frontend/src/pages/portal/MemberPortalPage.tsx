@@ -34,6 +34,7 @@ import {
   PAYMENT_STATUS_LABEL,
   PAYMENT_STATUS_STYLE,
   downloadReceipt,
+  formatSecurityCode,
   memberPaymentsApi,
   type Payment,
 } from '@/features/payments/api'
@@ -345,18 +346,57 @@ function DeclarePayment() {
 
       {method === 'upi' ? (
         <div className="mt-6 grid gap-5 border-t border-ink-100 pt-5 sm:grid-cols-2">
-          <div className="rounded-card border border-ink-200 bg-ink-50 p-5 text-center">
-            <QrCode className="mx-auto h-24 w-24 text-ink-300" aria-hidden="true" />
-            <p className="mt-3 text-xs text-ink-500">
-              The club's UPI QR code appears here once it is set in the club settings.
-            </p>
+          {/*
+            The QR, or an honest note that there is none.
+
+            Never a decorative placeholder that looks scannable: a member who tries to
+            pay a QR that is not there concludes the club's payment page is broken, and
+            the next thing they do is ask an office bearer where to send money — which
+            is the situation this screen exists to avoid.
+          */}
+          <div className="rounded-card border border-ink-200 bg-white p-5 text-center">
+            {club.upi.id && club.upi.qr ? (
+              <>
+                <img
+                  src={club.upi.qr}
+                  alt={`UPI QR code for ${club.upi.payeeName || club.upi.id}`}
+                  className="mx-auto h-44 w-44"
+                />
+                <p className="mt-3 text-xs font-medium text-ink-700">Scan with any UPI app</p>
+                <p className="mt-1 text-xs text-ink-500">
+                  Enter the amount yourself — it depends on how many months you are paying for.
+                </p>
+              </>
+            ) : (
+              <>
+                <QrCode className="mx-auto h-24 w-24 text-ink-300" aria-hidden="true" />
+                <p className="mt-3 text-xs text-ink-500">
+                  The club's UPI QR code appears here once it is set in the club settings.
+                </p>
+              </>
+            )}
           </div>
 
           <div className="space-y-4 text-sm/relaxed text-ink-600">
             <div>
               <p className="text-xs uppercase tracking-wide text-ink-500">Club UPI ID</p>
-              <p className="mt-1 font-mono text-sm text-ink-400">Not yet configured</p>
+              {club.upi.id ? (
+                <>
+                  <p className="mt-1 font-mono text-sm break-all text-ink-900">{club.upi.id}</p>
+                  {club.upi.payeeName ? (
+                    <p className="mt-1 text-xs text-ink-500">
+                      Your app should show <strong>{club.upi.payeeName}</strong>. If it shows any
+                      other name, stop and tell an office bearer.
+                    </p>
+                  ) : null}
+                </>
+              ) : (
+                <p className="mt-1 font-mono text-sm text-ink-400">Not yet configured</p>
+              )}
             </div>
+
+            {club.upi.note ? <p className="text-xs text-ink-500">{club.upi.note}</p> : null}
+
             <p>
               After paying, your UPI app shows a transaction ID — a long number, sometimes called
               the UTR. Enter it below. That is what the treasurer matches against the club's
@@ -700,6 +740,23 @@ function MyPayments() {
                     {payment.handedTo ? ` · given to the ${payment.handedTo.toLowerCase()}` : ''}
                   </p>
 
+                  {/*
+                    The code that makes the receipt checkable.
+
+                    Shown to the member as well as printed on the receipt, because the
+                    commonest thing a member does with a receipt is photograph it and
+                    send it on — and a code they can read off their own screen is how
+                    they answer "is this genuine?" without the office guessing.
+                  */}
+                  {payment.securityCode ? (
+                    <p className="mt-1 text-xs text-ink-500">
+                      Verification code{' '}
+                      <span className="font-mono text-ink-800">
+                        {formatSecurityCode(payment.securityCode)}
+                      </span>
+                    </p>
+                  ) : null}
+
                   <PaymentOutcome payment={payment} />
                 </div>
 
@@ -726,7 +783,10 @@ function MyPayments() {
                     type="button"
                     onClick={() => {
                       setError(null)
-                      downloadReceipt(payment.id).catch((caught: unknown) => {
+                      downloadReceipt(payment.id, 'mine', {
+                        receiptNumber: payment.receiptNumber,
+                        paidOn: payment.paidOn,
+                      }).catch((caught: unknown) => {
                         setError(
                           caught instanceof ApiError
                             ? caught.message

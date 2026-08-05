@@ -74,65 +74,43 @@ describe('what a document is called', () => {
   /**
    * A name somebody can find again in six months.
    *
-   * `receipt.pdf`, `receipt(1).pdf`, `receipt(2).pdf` is the state this replaces: a
-   * member cannot find last April's, and a committee cannot tell two statements of the
-   * same period apart. Every name therefore carries the club, what it is, what it
-   * covers, and a labelled date.
+   * `statement.pdf`, `statement(1).pdf`, `receipt.pdf` is the state this replaces: a
+   * member cannot find last April's receipt, and a committee cannot tell two
+   * statements of the same period apart. Every name therefore leads with what the
+   * document is and then the period it covers, which is also how a downloads folder
+   * sorts them.
    */
-  it('names a receipt with the club, the number and the day it was paid', () => {
+  it('names a statement for the month it covers', () => {
     expect(
-      receiptFilename({
-        clubName: 'New Milani Sangha Club',
-        receiptNumber: 'RCT-2026-000004',
-        paidOn: '2026-06-11',
-      })
-    ).toBe('New-Milani-Sangha-Club-receipt-RCT-2026-000004-paid-2026-06-11.pdf')
-  })
-
-  it('names a whole month as that month, which is how a committee refers to it', () => {
-    expect(
-      statementFilename({
-        clubName: 'New Milani Sangha Club',
-        detail: 'summary',
-        from: '2026-04-01',
-        to: '2026-04-30',
-        issuedOn: '2026-08-05',
-      })
-    ).toBe('New-Milani-Sangha-Club-statement-summary-2026-04-issued-2026-08-05.pdf')
+      statementFilename({ detail: 'summary', from: '2026-04-01', to: '2026-04-30' })
+    ).toBe('Statement_2026-04_summary.pdf')
   })
 
   it('names any other period by its two dates', () => {
     expect(
-      statementFilename({
-        clubName: 'New Milani Sangha Club',
-        detail: 'detailed',
-        from: '2026-04-01',
-        to: '2027-03-31',
-        issuedOn: '2026-08-05',
-      })
-    ).toBe(
-      'New-Milani-Sangha-Club-statement-detailed-2026-04-01-to-2027-03-31-issued-2026-08-05.pdf'
-    )
+      statementFilename({ detail: 'detailed', from: '2026-04-01', to: '2027-03-31' })
+    ).toBe('Statement_2026-04-01_to_2027-03-31_detailed.pdf')
   })
 
   it('distinguishes the two statements for the same period', () => {
     // The whole reason the detail is in the name: these two documents show different
     // totals and used to arrive as statement.pdf and statement(1).pdf.
-    const common = { clubName: 'Club', from: '2026-04-01', to: '2026-04-30', issuedOn: '2026-05-02' }
-    expect(statementFilename({ ...common, detail: 'summary' })).not.toBe(
-      statementFilename({ ...common, detail: 'detailed' })
+    const period = { from: '2026-04-01', to: '2026-04-30' } as const
+    expect(statementFilename({ ...period, detail: 'summary' })).not.toBe(
+      statementFilename({ ...period, detail: 'detailed' })
+    )
+  })
+
+  it('names a receipt for the day the money was paid', () => {
+    expect(receiptFilename({ receiptNumber: 'RCT-2026-000004', paidOn: '2026-06-11' })).toBe(
+      'Receipt_2026-06-11_RCT-2026-000004.pdf'
     )
   })
 
   it('produces a name a filesystem and a browser will both accept', () => {
-    // Spaces, punctuation and accents out; the name still readable.
     expect(slugForFilename("Bristi's Club — Kolkata")).toBe('Bristis-Club-Kolkata')
 
-    const name = receiptFilename({
-      clubName: "Bristi's Club — Kolkata",
-      receiptNumber: 'RCT-2026-000004',
-      paidOn: '2026-06-11',
-    })
+    const name = receiptFilename({ receiptNumber: 'RCT/2026 000004', paidOn: '2026-06-11' })
     expect(name).not.toMatch(/[\s"*/:<>?\\|]/)
   })
 })

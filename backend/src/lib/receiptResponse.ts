@@ -59,7 +59,6 @@ export async function sendReceipt(
   })
 
   const filename = receiptFilename({
-    clubName: env.CLUB_NAME,
     receiptNumber: payment.receiptNumber ?? payment.reference,
     paidOn: payment.paidOn,
   })

@@ -149,11 +149,36 @@ describe('officers can see the finances', () => {
       .set('Authorization', `Bearer ${token}`)
       .expect(200)
 
-    // Club, which report, the period, and the day it was issued — so two downloads
-    // of the same month do not arrive as statement.pdf and statement(1).pdf.
-    expect(detailed.headers['content-disposition']).toMatch(/detailed-2026-04-issued-\d{4}-\d{2}-\d{2}\.pdf/)
-    expect(summary.headers['content-disposition']).toMatch(/summary-2026-04-issued-\d{4}-\d{2}-\d{2}\.pdf/)
-    expect(detailed.headers['content-disposition']).toContain('Milani')
+    // What it is, then the period it covers, then which of the two statements — so a
+    // downloads folder sorts them by date and two downloads of the same month never
+    // arrive as statement.pdf and statement(1).pdf.
+    expect(detailed.headers['content-disposition']).toContain(
+      'filename="Statement_2026-04_detailed.pdf"'
+    )
+    expect(summary.headers['content-disposition']).toContain(
+      'filename="Statement_2026-04_summary.pdf"'
+    )
+  })
+
+  it('exposes the filename to the browser, which is how it reaches the download', async () => {
+    /**
+     * The header a cross-origin fetch cannot read unless the API says it may.
+     *
+     * A statement is fetched rather than linked, because a link cannot carry the
+     * Authorization header — and the name the server chose travels in
+     * Content-Disposition. Where the site and the API are not the same origin, the
+     * browser hides that header, the front end falls back to its own name, and the
+     * club reported that every statement was called `statement.pdf`.
+     */
+    const token = await signIn('treasurer@demo.club')
+
+    const response = await request(app)
+      .get('/api/v1/reports/period.pdf?month=2026-04')
+      .set('Origin', 'http://localhost:5173')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+
+    expect(response.headers['access-control-expose-headers']).toMatch(/Content-Disposition/i)
   })
 
   it('names an arbitrary range by its two dates', async () => {
@@ -164,7 +189,9 @@ describe('officers can see the finances', () => {
       .set('Authorization', `Bearer ${token}`)
       .expect(200)
 
-    expect(response.headers['content-disposition']).toContain('2026-04-05-to-2026-05-20')
+    expect(response.headers['content-disposition']).toContain(
+      'filename="Statement_2026-04-05_to_2026-05-20_detailed.pdf"'
+    )
   })
 
   it('makes the summary shorter than the detailed statement', async () => {

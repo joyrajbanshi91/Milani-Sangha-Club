@@ -29,6 +29,7 @@
     "icons": "python3 scripts/generate_icons.py",
     "icons:from-logo": "bash scripts/icons-from-logo.sh",
     "logo:pdf": "bash scripts/pdf-mark.sh",
+    "upi:qr": "node scripts/upi-qr.mjs",
     "user": "npm --prefix backend run user --",
     "seed:finance": "npm --prefix backend run seed:finance --",
     "dev:lan": "bash scripts/dev.sh --host",

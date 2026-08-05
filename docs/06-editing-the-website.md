@@ -180,6 +180,23 @@ public page is harvested by spammers within days, and an office address can be
 handed to the next bearer at the end of the term without editing the site or
 losing the mail.
 
+### Change where members pay by UPI
+
+Section 1, `club.upi`. Set the UPI ID and the name the payment app will show for it, then
+regenerate the QR code:
+
+```bash
+npm run upi:qr
+```
+
+That writes `frontend/public/brand/upi-qr.svg` from the ID you just set, so the QR and the
+printed ID can never disagree. **A stale QR sends money to the old account**, quietly, so
+run it every time the ID changes and commit the SVG with the change.
+
+Scan the new QR yourself with a payment app before pushing, and check the name it shows.
+That name is what the portal tells members to expect, and it is the only protection they
+have against a swapped code.
+
 ### Set the membership fees
 
 Section 8, `types`. Change `fee: null` to the agreed amount in rupees:

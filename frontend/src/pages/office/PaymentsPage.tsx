@@ -72,6 +72,8 @@ export function PaymentsPage() {
         </p>
       </div>
 
+      <CheckAReceipt />
+
       <div className="flex flex-wrap gap-2">
         {TABS.map((tab) => (
           <button
@@ -392,5 +394,133 @@ function ReviewForm({ payment, onDone }: { payment: Payment; onDone: () => void 
         </button>
       </div>
     </form>
+  )
+}
+
+/**
+ * Is this receipt the club's?
+ *
+ * An officer with a piece of paper in front of them — handed over at the gate, sent as
+ * a photograph, produced in an argument — typing the code off it.
+ *
+ * This is the point of the code. The reference number on a receipt is sequential, so
+ * anybody holding one genuine receipt knows roughly where the club's counter is and can
+ * put a plausible number on a document the club never issued. The code cannot be
+ * guessed, so a receipt whose code has no record behind it was not issued here.
+ *
+ * The answer is deliberately specific: the member, the amount, the date and the months
+ * it covered, so the officer can compare it against the document rather than trusting a
+ * green tick. A code that matches a real payment for a *different* amount is exactly the
+ * fraud worth catching.
+ */
+function CheckAReceipt() {
+  const [code, setCode] = useState('')
+  const [open, setOpen] = useState(false)
+
+  const check = useMutation({
+    mutationFn: (value: string) => officePaymentsApi.verifyCode(value),
+  })
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex h-9 items-center gap-2 self-start rounded-full border border-ink-200 bg-white px-4 text-sm font-medium text-ink-700 hover:bg-ink-50"
+      >
+        <ShieldCheck className="h-4 w-4 text-brand-700" aria-hidden="true" />
+        Check a receipt's verification code
+      </button>
+    )
+  }
+
+  const found = check.data?.payment ?? null
+
+  return (
+    <section className="rounded-card border border-ink-200 bg-white p-5 shadow-soft">
+      <h2 className="font-display text-lg text-ink-900">Check a receipt</h2>
+      <p className="mt-1 text-sm/relaxed text-ink-500">
+        Type the <strong>verification code</strong> printed on the receipt — not the receipt
+        number, which anybody could guess. Hyphens, spaces and capitals do not matter.
+      </p>
+
+      <form
+        className="mt-4 flex flex-wrap items-end gap-3"
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (code.trim()) check.mutate(code.trim())
+        }}
+      >
+        <label className="text-xs font-medium text-ink-600">
+          <span className="mb-1 block">Verification code</span>
+          <Input
+            value={code}
+            onChange={(event) => setCode(event.target.value)}
+            placeholder="4K7P-2WQ9-XB"
+            className="font-mono uppercase"
+            autoComplete="off"
+          />
+        </label>
+
+        <button
+          type="submit"
+          disabled={check.isPending || code.trim() === ''}
+          className="inline-flex h-10 items-center rounded-full bg-brand-800 px-5 text-sm font-medium text-white disabled:opacity-60"
+        >
+          {check.isPending ? 'Checking…' : 'Check'}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false)
+            setCode('')
+            check.reset()
+          }}
+          className="inline-flex h-10 items-center rounded-full border border-ink-200 px-4 text-sm text-ink-700"
+        >
+          Close
+        </button>
+      </form>
+
+      {check.isError ? (
+        <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+          {check.error instanceof ApiError ? check.error.message : 'That code could not be checked.'}
+        </p>
+      ) : null}
+
+      {check.data ? (
+        found ? (
+          <div className="mt-4 rounded-card border border-emerald-300 bg-emerald-50 p-4">
+            <p className="text-sm font-semibold text-emerald-900">
+              This code is in the club's records.
+            </p>
+            <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+              {[
+                ['Member', found.memberName],
+                ['Amount', formatPaise(found.amountPaise)],
+                ['Paid on', formatDate(found.paidOn)],
+                ['Receipt', found.receiptNumber ?? 'Not issued — this payment is not verified'],
+                ['Declaration', found.reference],
+                ['Status', PAYMENT_STATUS_LABEL[found.status]],
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <dt className="text-xs uppercase tracking-wide text-emerald-800">{label}</dt>
+                  <dd className="mt-0.5 text-sm text-emerald-950">{value}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-3 text-xs/relaxed text-emerald-900">
+              Compare every figure against the document. A genuine code beside a different amount
+              or a different member means the paper has been altered.
+            </p>
+          </div>
+        ) : (
+          <p className="mt-4 rounded-card border border-red-300 bg-red-50 p-4 text-sm/relaxed text-red-800">
+            {check.data.message}
+          </p>
+        )
+      ) : null}
+    </section>
   )
 }

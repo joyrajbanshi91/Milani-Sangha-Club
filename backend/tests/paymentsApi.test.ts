@@ -43,7 +43,7 @@ async function signIn(email: string): Promise<string> {
 async function declare(
   token: string,
   overrides: Record<string, unknown> = {}
-): Promise<{ id: string; reference: string; amountPaise: number }> {
+): Promise<{ id: string; reference: string; amountPaise: number; securityCode?: string }> {
   const response = await request(app)
     .post('/api/v1/members/me/payments')
     .set('Authorization', `Bearer ${token}`)
@@ -66,7 +66,7 @@ async function declareMembership(
   periodStart: string,
   periodEnd: string,
   overrides: Record<string, unknown> = {}
-): Promise<{ id: string; reference: string; amountPaise: number }> {
+): Promise<{ id: string; reference: string; amountPaise: number; securityCode?: string }> {
   const months = monthsBetween(periodStart, periodEnd).length
 
   return declare(token, {
@@ -313,6 +313,71 @@ describe('an officer verifying a declaration', () => {
     expect(again.body.error.code).toBe('not_pending')
   })
 
+  /**
+   * The code that makes a receipt checkable.
+   *
+   * The club asked for this: the reference number is sequential, so anybody holding one
+   * genuine receipt can write a plausible number on a document the club never issued.
+   */
+  it('gives every declaration an unguessable code, and never the same one twice', async () => {
+    const member = await signIn('member@demo.club')
+
+    const first = await declare(member, { amount: '661' })
+    const second = await declare(member, { amount: '662' })
+
+    for (const payment of [first, second]) {
+      expect(payment.securityCode).toMatch(/^[0-9A-HJ-NP-TV-Z]{10}$/)
+      // Never a character a person would misread off a paper receipt.
+      expect(payment.securityCode).not.toMatch(/[ILOU]/)
+    }
+
+    expect(first.securityCode).not.toBe(second.securityCode)
+    // And the code is not derivable from the reference beside it.
+    expect(first.securityCode).not.toContain(first.reference.slice(-6))
+  })
+
+  it('lets an officer check a receipt by its code, however it was typed', async () => {
+    const member = await signIn('member@demo.club')
+    const treasurer = await signIn('treasurer@demo.club')
+
+    const payment = await declare(member, { amount: '663' })
+    const code = payment.securityCode as string
+
+    // Hyphens, lower case and the characters people misread all reach the same record.
+    for (const typed of [code, code.toLowerCase(), `${code.slice(0, 4)}-${code.slice(4, 8)}-${code.slice(8)}`]) {
+      const found = await request(app)
+        .get(`/api/v1/finance/payments/verify?code=${encodeURIComponent(typed)}`)
+        .set('Authorization', `Bearer ${treasurer}`)
+        .expect(200)
+
+      expect(found.body.payment.reference).toBe(payment.reference)
+      expect(found.body.payment.memberName).toBeTruthy()
+    }
+  })
+
+  it('says a code it does not recognise is not the club’s, rather than failing', async () => {
+    const treasurer = await signIn('treasurer@demo.club')
+
+    // A forged receipt carries a plausible number and a code from nowhere. The answer
+    // must be a clear "no record", not a 404 that reads as a broken screen.
+    const response = await request(app)
+      .get('/api/v1/finance/payments/verify?code=ZZZZ9999ZZ')
+      .set('Authorization', `Bearer ${treasurer}`)
+      .expect(200)
+
+    expect(response.body.payment).toBeNull()
+    expect(response.body.message).toMatch(/no receipt/i)
+  })
+
+  it('refuses to let a member check codes, so they cannot be tried one by one', async () => {
+    const member = await signIn('member@demo.club')
+
+    await request(app)
+      .get('/api/v1/finance/payments/verify?code=ZZZZ9999ZZ')
+      .set('Authorization', `Bearer ${member}`)
+      .expect(403)
+  })
+
   it('records who accepted it, on the declaration and on the entry', async () => {
     const member = await signIn('member@demo.club')
     const treasurer = await signIn('treasurer@demo.club')
@@ -371,7 +436,11 @@ describe('an officer verifying a declaration', () => {
       .expect(200)
 
     expect(receipt.headers['content-type']).toContain('application/pdf')
-    expect(receipt.headers['content-disposition']).toMatch(/receipt-RCT-2026-\d{6}/)
+    // Named for the day the money was paid and the receipt number, in that order: a
+    // member looking for last April's receipt scans a folder by date, not by number.
+    expect(receipt.headers['content-disposition']).toMatch(
+      /filename="Receipt_\d{4}-\d{2}-\d{2}_RCT-2026-\d{6}\.pdf"/
+    )
     expect(receipt.headers['cache-control']).toContain('no-store')
     expect(receipt.body.subarray(0, 5).toString()).toBe('%PDF-')
 

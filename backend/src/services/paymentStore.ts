@@ -46,6 +46,15 @@ export interface PaymentStore {
   nextReceiptNumber(year: number): Promise<string>
 
   /**
+   * The declaration carrying this security code, or null.
+   *
+   * Two jobs, and they are the same lookup: proving a freshly generated code has
+   * never been used before it is written, and checking a receipt somebody has handed
+   * across the table. See lib/securityCode.ts.
+   */
+  findBySecurityCode(code: string): Promise<Payment | null>
+
+  /**
    * Replace a declaration, but only if it is still in the state the caller saw.
    *
    * The optimistic lock matters more here than it looks: without it, two officers
@@ -111,6 +120,10 @@ export class InMemoryPaymentStore implements PaymentStore {
   nextReceiptNumber(year: number): Promise<string> {
     this.receipts += 1
     return Promise.resolve(formatReceiptNumber(year, this.receipts))
+  }
+
+  findBySecurityCode(code: string): Promise<Payment | null> {
+    return Promise.resolve(this.payments.find((payment) => payment.securityCode === code) ?? null)
   }
 
   update(id: string, next: Payment, expectedStatus: PaymentStatus): Promise<Payment> {
@@ -218,6 +231,17 @@ export class AppwritePaymentStore implements PaymentStore {
   async nextReceiptNumber(year: number): Promise<string> {
     const sequence = await allocateSequence(this.tables, this.db, `counter_receipts_${year}`)
     return formatReceiptNumber(year, sequence)
+  }
+
+  async findBySecurityCode(code: string): Promise<Payment | null> {
+    const { rows } = await this.tables.listRows({
+      databaseId: this.db,
+      tableId: COLLECTIONS.payments,
+      queries: [Query.equal('securityCode', code), Query.limit(1)],
+    })
+
+    const row = rows[0]
+    return row ? toPayment(row) : null
   }
 
   async update(id: string, next: Payment, expectedStatus: PaymentStatus): Promise<Payment> {

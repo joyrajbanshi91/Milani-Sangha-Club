@@ -543,6 +543,89 @@ describe('the officers’ queue', () => {
  * member. A roster built from the payments table would leave out exactly the people
  * who have paid nothing — the rows the meeting is about.
  */
+describe('the member’s own verification code', () => {
+  it('is shown beside their payment, so they can answer “is this genuine?”', async () => {
+    // Printed on the receipt and shown here, because the commonest thing a member does
+    // with a receipt is photograph it and send it on.
+    fetchMock.mockImplementation((url: string) => {
+      if (String(url).includes('/members/me/payments')) {
+        return Promise.resolve(
+          json({ payments: [payment({ securityCode: 'PMV49WED9A' })] })
+        )
+      }
+      return Promise.resolve(portalDefaults()(String(url)) ?? json({}))
+    })
+
+    renderWith(<MemberPortalPage />, MEMBER)
+
+    // Grouped for reading down a telephone, and stored ungrouped.
+    expect(await screen.findByText('PMV4-9WED-9A')).toBeInTheDocument()
+  })
+})
+
+/**
+ * The code that makes a receipt checkable.
+ *
+ * The club raised the problem: every reference this system issues is sequential, so
+ * anybody holding one genuine receipt knows roughly where the counter is and can put a
+ * plausible number on a document the club never issued. The security code cannot be
+ * guessed, and this is the screen where an officer uses it.
+ */
+describe('checking a receipt’s verification code', () => {
+  it('finds the payment behind a genuine code, and shows what to compare', async () => {
+    fetchMock.mockImplementation((url: string) => {
+      if (String(url).includes('/payments/verify')) {
+        return Promise.resolve(
+          json({
+            payment: payment({ securityCode: 'PMV49WED9A', receiptNumber: 'RCT-2026-000004' }),
+            message: 'Issued to Ordinary Member on 2026-06-10.',
+          })
+        )
+      }
+      return Promise.resolve(json({ payments: [] }))
+    })
+
+    renderWith(<PaymentsPage />, TREASURER)
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: /check a receipt.s verification code/i })
+    )
+    await userEvent.type(screen.getByLabelText(/verification code/i), 'pmv4-9wed-9a')
+    await userEvent.click(screen.getByRole('button', { name: /^check$/i }))
+
+    expect(await screen.findByText(/in the club's records/i)).toBeInTheDocument()
+    // The figures to compare against the paper, not merely a green tick: a genuine
+    // code beside a different amount is the forgery worth catching.
+    expect(screen.getByText('₹500.00')).toBeInTheDocument()
+    expect(screen.getByText('RCT-2026-000004')).toBeInTheDocument()
+
+    // Typed with hyphens and in lower case; the server is asked for it as typed and
+    // normalises — the browser must not silently drop what the officer entered.
+    expect(calls().some((call) => call.url.includes('/payments/verify?code='))).toBe(true)
+  })
+
+  it('says plainly when no receipt carries that code', async () => {
+    fetchMock.mockImplementation((url: string) => {
+      if (String(url).includes('/payments/verify')) {
+        return Promise.resolve(
+          json({ payment: null, message: 'No receipt in the club’s records carries that code.' })
+        )
+      }
+      return Promise.resolve(json({ payments: [] }))
+    })
+
+    renderWith(<PaymentsPage />, TREASURER)
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: /check a receipt.s verification code/i })
+    )
+    await userEvent.type(screen.getByLabelText(/verification code/i), 'ZZZZ9999ZZ')
+    await userEvent.click(screen.getByRole('button', { name: /^check$/i }))
+
+    expect(await screen.findByText(/no receipt in the club/i)).toBeInTheDocument()
+  })
+})
+
 describe('the membership register', () => {
   function roster(rows: Array<{ name: string; email: string; paid: string[]; role?: string }>) {
     const members = rows.map((row, index) => ({
