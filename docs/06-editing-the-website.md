@@ -127,8 +127,45 @@ only one at a time, which the checks enforce.
 ### Update the committee after an election
 
 Section 7. Replace each `name`, set `term` (for example `'2026–2028'`), and add
-or remove entries to match the actual committee. The photographs are monogram
-placeholders until member photographs are added in a later phase.
+or remove entries to match the actual committee.
+
+Each bearer takes four fields:
+
+```ts
+{
+  name: 'Anita Sharma',
+  role: 'Secretary',
+  since: '2026',
+  photo: '/committee/anita-sharma.jpg',
+  email: 'secretary@yourclub.in',
+},
+```
+
+**Photographs.** Save the image in `frontend/public/committee/`, then write the
+path from the site root — a file saved as
+`frontend/public/committee/anita-sharma.jpg` is written as
+`photo: '/committee/anita-sharma.jpg'`.
+
+- lower-case file names, hyphens instead of spaces (`anita-sharma.jpg`). A space
+  in a filename breaks the address
+- portrait, roughly **800 × 1000 pixels**, **under 300 KB**. A photograph
+  straight off a phone is 3–6 MB and every visitor downloads all of it. Preview →
+  Tools → Adjust Size on a Mac, or any online resizer
+- the card crops to a 4:5 portrait from the centre, so leave a little space above
+  the head
+- leave `photo: ''` and that card keeps its coloured monogram. Photographs can be
+  added one at a time; the grid does not change shape
+
+**Email addresses.** Leave `email: ''` and no address is shown, which is how the
+site ships. Fill it in and the card gets a mail button — and the note at the
+bottom of the page changes from *write to the club office* to *write to the bearer
+whose office your enquiry concerns*, so the page does not contradict itself.
+
+Prefer an address that belongs to the **office rather than the person** —
+`secretary@yourclub.in` rather than somebody's personal Gmail. An address on a
+public page is harvested by spammers within days, and an office address can be
+handed to the next bearer at the end of the term without editing the site or
+losing the mail.
 
 ### Set the membership fees
 

@@ -354,7 +354,33 @@ export const history = {
 // ===========================================================================
 //  7. EXECUTIVE COMMITTEE PAGE
 //     These are PLACEHOLDERS. Do not publish invented names.
-//     `photo` is not used yet — member photographs arrive in a later phase.
+//
+//  EACH OFFICE BEARER HAS FOUR THINGS YOU CAN FILL IN:
+//
+//    name   Their full name, as they would like it printed.
+//    role   Their office. Change the wording if your club differs —
+//           'Cultural Secretary', 'Sports Secretary', and so on.
+//    since  The year they took office, e.g. '2026'. Leave '' to hide the line.
+//    photo  Their photograph. Save the file in
+//               frontend/public/committee/
+//           and write the path from the site root. A file saved as
+//               frontend/public/committee/anita-sharma.jpg
+//           is written here as
+//               photo: '/committee/anita-sharma.jpg'
+//           Use lower-case names with hyphens and no spaces. A portrait about
+//           800 x 1000 pixels and under 300 KB is right — a photograph straight
+//           off a phone is 3–6 MB and every visitor would download all of it.
+//           Leave '' and the card shows a coloured monogram instead, which is
+//           what every card does today.
+//    email  Optional. Shown as a button on their card. Leave '' and the card
+//           shows no address, and the page asks visitors to write to the club
+//           office instead.
+//
+//  ON PUBLISHING EMAIL ADDRESSES: prefer a club address that belongs to the
+//  office rather than to the person — secretary@yourclub.in rather than
+//  somebody's personal Gmail. An address on a public page is collected by
+//  spammers within days, and an office address can be handed to the next
+//  bearer at the end of the term without editing the site or losing the mail.
 // ===========================================================================
 
 export const committee = {
@@ -364,12 +390,12 @@ export const committee = {
   /** Term of the current committee, e.g. '2026–2028'. Empty string hides it. */
   term: '',
   members: [
-    { name: 'Full name', role: 'President', since: '' },
-    { name: 'Full name', role: 'Vice-President', since: '' },
-    { name: 'Full name', role: 'Secretary', since: '' },
-    { name: 'Full name', role: 'Joint Secretary', since: '' },
-    { name: 'Full name', role: 'Treasurer', since: '' },
-    { name: 'Full name', role: 'Committee member', since: '' },
+    { name: 'Full name', role: 'President', since: '', photo: '', email: '' },
+    { name: 'Full name', role: 'Vice-President', since: '', photo: '', email: '' },
+    { name: 'Full name', role: 'Secretary', since: '', photo: '', email: '' },
+    { name: 'Full name', role: 'Joint Secretary', since: '', photo: '', email: '' },
+    { name: 'Full name', role: 'Treasurer', since: '', photo: '', email: '' },
+    { name: 'Full name', role: 'Committee member', since: '', photo: '', email: '' },
   ],
 }
 

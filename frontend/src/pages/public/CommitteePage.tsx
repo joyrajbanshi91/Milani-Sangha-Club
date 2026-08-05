@@ -36,11 +36,31 @@ export function CommitteePage() {
                   )}
                 >
                   <div className="relative overflow-hidden">
-                    <PlaceholderImage
-                      label={member.name}
-                      shape="portrait"
-                      className="rounded-none transition-transform duration-700 ease-out-soft group-hover:scale-105"
-                    />
+                    {/*
+                      A photograph when the club has supplied one, the monogram until
+                      then. `alt` is empty on purpose: the name is the heading directly
+                      below, and a screen reader announcing "photograph of Anita Sharma"
+                      followed by "Anita Sharma" reads the same person twice.
+
+                      object-cover with the placeholder's own 4:5 crop, so a portrait and
+                      a monogram card are exactly the same size and the grid does not
+                      jump as photographs are added one at a time.
+                    */}
+                    {member.photo ? (
+                      <img
+                        src={member.photo}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        className="aspect-4/5 w-full object-cover transition-transform duration-700 ease-out-soft group-hover:scale-105"
+                      />
+                    ) : (
+                      <PlaceholderImage
+                        label={member.name}
+                        shape="portrait"
+                        className="rounded-none transition-transform duration-700 ease-out-soft group-hover:scale-105"
+                      />
+                    )}
                     <span
                       className={cn('absolute inset-x-0 bottom-0 h-1', hue.bar)}
                       aria-hidden="true"
@@ -60,6 +80,16 @@ export function CommitteePage() {
                     {member.since ? (
                       <p className="mt-1 text-sm text-ink-500">In office since {member.since}</p>
                     ) : null}
+
+                    {member.email ? (
+                      <a
+                        href={`mailto:${member.email}`}
+                        className="mt-3 inline-flex max-w-full items-center gap-1.5 text-sm text-brand-700 underline decoration-brand-300 underline-offset-2 hover:text-brand-900"
+                      >
+                        <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                        <span className="truncate">{member.email}</span>
+                      </a>
+                    ) : null}
                   </div>
                 </li>
               )
@@ -76,9 +106,16 @@ export function CommitteePage() {
       <Section tone="auroraSoft" size="sm">
         <Reveal className="mx-auto max-w-2xl text-center">
           <h2 className="font-display text-2xl text-ink-900">Contacting an office bearer</h2>
+          {/*
+            Two truths, and the page must not tell the wrong one. Asking visitors to
+            write to the office while printing six addresses beside it reads as though
+            nobody checked the page; so this follows whether the club has actually
+            published any.
+          */}
           <p className="mt-3 text-ink-600">
-            Please write to the club office rather than to members directly, so that your enquiry is
-            recorded and answered by whoever is best placed to help.
+            {committee.members.some((member) => member.email)
+              ? 'Write to the bearer whose office your enquiry concerns, or to the club office if you are not sure — either way it reaches the committee.'
+              : 'Please write to the club office rather than to members directly, so that your enquiry is recorded and answered by whoever is best placed to help.'}
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <LinkButton to="/contact">Contact the club</LinkButton>
