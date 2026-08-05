@@ -411,11 +411,11 @@ export const committee = {
    */
   members: [
     // photo: '/committee/president.jpg'
-    { name: 'Full name', role: 'President', since: '', photo: '', email: '' },
+    { name: 'Pankaj Ghosh', role: 'President', since: '2026', photo: '/committee/president.jpg', email: '' },
     // photo: '/committee/secretary-1.jpg'
     { name: 'Gobindo Ghosh', role: 'Secretary', since: '2026', photo: '/committee/secretary-1.jpg', email: '' },
     // photo: '/committee/secretary-2.jpg'
-    { name: 'Full name', role: 'Secretary', since: '', photo: '', email: '' },
+    { name: 'Partha Dey', role: 'Secretary', since: '2026', photo: '/committee/secretary-2.jpg', email: '' },
     // photo: '/committee/cultural-secretary.jpg'
     { name: 'Full name', role: 'Cultural Secretary', since: '', photo: '', email: '' },
     // photo: '/committee/treasurer.jpg'
