@@ -272,4 +272,13 @@ export const MEMBERSHIP_DUES = {
  * club that later moves to a calendar year should change one number.
  */
 export const FINANCIAL_YEAR_START_MONTH = 4
+
+/**
+ * The first year the club keeps its books in this system.
+ *
+ * Every year picker starts here, and none offers anything earlier. Before this the
+ * club's records are on paper and in somebody's cupboard; a dropdown offering 2024-25
+ * would only ever produce an empty register and a confused treasurer.
+ */
+export const FIRST_FINANCIAL_YEAR = '2026-27'
 // #endregion shared-domain

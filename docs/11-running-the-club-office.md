@@ -613,18 +613,35 @@ tell them apart.
 The club's year runs **April to March**. Each year's figures are its own: what it was
 declared to start with, plus its own entries. Nothing from three years ago leaks in.
 
-### The panel that appears once a year
+### Two ways to close a year
 
-**Office → Dashboard.** For eleven months of every twelve there is nothing there. On
-1 April, when the calendar moves into a year the club has not opened yet, a panel
-appears at the top:
+**Whenever the meeting happens: Office → Statements → Financial years.** Choose
+*Summarise a year and start the next*. This is the route to use when the committee has
+just adopted the figures — you do not have to wait to be prompted, and nothing has to be
+run from a terminal.
+
+**Or wait to be asked: Office → Dashboard.** For eleven months of every twelve there is
+nothing there. On 1 April, when the calendar moves into a year the club has not opened
+yet, a panel appears at the top:
 
 > **A new club year has begun — 2027-28**
 > Close 2026-27 by saying what the club is carrying into 2027-28.
 
-It is filled in with what the books say each fund held on 31 March. **Those are a
-suggestion, not the answer.** Count the cash box, read the bank statement, and change
-anything that does not match — that is what a year end is for.
+Either route shows the same thing: **the year summarised**, then the figures to adopt.
+
+| | |
+| --- | --- |
+| 2026-27 opened with | what it started the year holding |
+| Income | everything taken in across the year |
+| Expenditure | everything paid out |
+| Left at 31 March | what the books say is there now |
+
+Print the **detailed statement** for that period if the committee wants the entries
+listed.
+
+The per-fund figures underneath are filled in with what the books say each fund held on
+31 March. **Those are a suggestion, not the answer.** Count the cash box, read the bank
+statement, and change anything that does not match — that is what a year end is for.
 
 If the adopted figure differs from the books, the panel says by how much and asks for a
 note. **Both figures are kept.** The difference is the interesting part, and a system
@@ -669,6 +686,21 @@ Adopted the wrong figures? **Reopen** the year. The one before it becomes editab
 again; correct it and close it once more. Reopening is recorded in the audit trail, as
 is every opening — including the difference between what the books said and what the
 committee adopted.
+
+A year that has **not begun** cannot be opened. Opening 2027-28 closes 2026-27, so doing
+it in the middle of 2026-27 would settle the year the club is living in and refuse every
+entry for the rest of it.
+
+### Which years the pickers offer
+
+Every year list in the system — the membership register, the dashboard, the statements —
+runs from **2026-27**, the year the club started keeping books here, up to the year it is
+in. Never earlier, because there is nothing to show; never later, because a year that has
+not begun has no figures and must not be closable.
+
+To change where the club's records begin, edit `FIRST_FINANCIAL_YEAR` in
+`backend/src/config/constants.ts` **and** the identical block in
+`frontend/src/config/constants.ts`.
 
 ### If a member leaves
 
@@ -750,6 +782,7 @@ npm run appwrite:check
 | Symptom | Cause |
 | --- | --- |
 | "Could not reach the club's server" | The site cannot reach the API. Check `npm run appwrite:check`, and that `CORS_ORIGINS` on the function lists the site's domain |
+| Changing the month on the dashboard showed an error | Fixed. The month box used to be a native date field, which **Safari does not support** — it became a text box, so the first character typed was sent as the month and the API refused it. It is now two dropdowns, club year and month, which cannot produce a value the server rejects. If you still see it, the browser is holding an old copy: reload the page |
 | Sign-in or sign-out does nothing at all | The site's domain is not a registered **Web platform**: Appwrite console → your project → Settings → Platforms. Appwrite refuses browser calls from unlisted origins, silently as far as the app can tell |
 | A reset link goes to "Page not found" | An old build. The `/reset-password` route was added later; redeploy the site |
 | Entries cannot be recorded | No funds or categories. See section 3 |

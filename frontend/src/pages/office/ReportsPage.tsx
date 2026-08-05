@@ -8,6 +8,7 @@ import {
   financeApi,
   type ReportDetail,
 } from '@/features/finance/api'
+import { MonthPeriodPicker } from '@/features/finance/MonthPeriodPicker'
 import { FinancialYears } from '@/features/finance/YearEnd'
 import { formatDate, formatPaise } from '@/features/finance/money'
 import { cn } from '@/lib/cn'
@@ -73,15 +74,7 @@ export function ReportsPage() {
           </div>
 
           {mode === 'month' ? (
-            <label className="text-xs font-medium text-ink-600">
-              <span className="mb-1 block">Month</span>
-              <input
-                type="month"
-                value={month}
-                onChange={(event) => setMonth(event.target.value)}
-                className="h-10 rounded-lg border border-ink-300 px-3 text-sm"
-              />
-            </label>
+            <MonthPeriodPicker month={month} onChange={setMonth} />
           ) : (
             <>
               <label className="text-xs font-medium text-ink-600">

@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthContext, type AuthState } from '@/features/auth/authContext'
 import type { MembershipStatus, Payment } from '@/features/payments/api'
 import { MembersPage } from '@/pages/office/MembersPage'
+import { OfficeDashboardPage } from '@/pages/office/OfficeDashboardPage'
 import { PaymentsPage } from '@/pages/office/PaymentsPage'
 import { MemberPortalPage } from '@/pages/portal/MemberPortalPage'
 
@@ -653,5 +654,125 @@ describe('the membership register', () => {
     renderWith(<MembersPage />, TREASURER)
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/could not be loaded/i)
+  })
+})
+
+/**
+ * The month control on the officer screens.
+ *
+ * `<input type="month">` looked obvious and was the bug: Safari does not support it, so
+ * it renders as a text box, the first character typed becomes the value, and the
+ * request goes out as `?month=2`. The API correctly refuses a malformed month and the
+ * dashboard said "Is the API running?" while the API was running perfectly.
+ *
+ * Two selects cannot produce a value the server will reject. These assert that, and
+ * that the error message stops blaming the server for a refusal.
+ */
+describe('choosing the month on the dashboard', () => {
+  function dashboard(month: string) {
+    return {
+      period: { from: `${month}-01`, to: `${month}-28` },
+      totalFundsPaise: 100_000,
+      fundBalances: [],
+      totals: {
+        incomePaise: 0,
+        expensePaise: 0,
+        netPaise: 0,
+        transferPaise: 0,
+        transactionCount: 0,
+      },
+      incomeByCategory: [],
+      expenseByCategory: [],
+      incomeBySource: [],
+      expenseBySource: [],
+      monthly: [],
+      pending: [],
+      recent: [],
+      overdrawnFunds: [],
+      openingNeededFor: null,
+    }
+  }
+
+  function answer(url: string): Response {
+    if (url.includes('/finance/dashboard')) {
+      const month = /month=([\d-]+)/.exec(url)?.[1] ?? '2026-08'
+      // The real API refuses anything that is not YYYY-MM, so the mock does too — a
+      // test that accepted rubbish could not catch the bug this replaced.
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+        return json({ error: { code: 'bad_request', message: 'month must be in the format YYYY-MM' } }, 400)
+      }
+      return json(dashboard(month))
+    }
+    if (url.includes('/finance/payments')) return json({ payments: [] })
+    return json({})
+  }
+
+  it('offers whole months by name, so a bad value cannot be sent', async () => {
+    fetchMock.mockImplementation((url: string) => Promise.resolve(answer(String(url))))
+
+    renderWith(<OfficeDashboardPage />, TREASURER)
+    await screen.findByText('Club finances')
+
+    // A club year and a month, not a free-text date field.
+    expect(screen.getByLabelText(/club year/i)).toBeInTheDocument()
+    const months = screen.getByLabelText(/^month$/i)
+    expect(months.tagName).toBe('SELECT')
+
+    // Every option is a real month of the club's year.
+    const names = Array.from(months.querySelectorAll('option')).map((node) => node.textContent)
+    expect(names).toHaveLength(12)
+    expect(names[0]).toBe('April 2026')
+    expect(names[11]).toBe('March 2027')
+  })
+
+  it('reloads the figures for the month chosen, without an error', async () => {
+    fetchMock.mockImplementation((url: string) => Promise.resolve(answer(String(url))))
+
+    renderWith(<OfficeDashboardPage />, TREASURER)
+    await screen.findByText('Club finances')
+
+    await userEvent.selectOptions(screen.getByLabelText(/^month$/i), '2026-06')
+
+    await waitFor(() => {
+      expect(
+        calls().some((call) => call.url.includes('month=2026-06'))
+      ).toBe(true)
+    })
+
+    // The figures are there, not the failure message.
+    expect(await screen.findByText('Club finances')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('never offers a year the club has no books for', async () => {
+    fetchMock.mockImplementation((url: string) => Promise.resolve(answer(String(url))))
+
+    renderWith(<OfficeDashboardPage />, TREASURER)
+    await screen.findByText('Club finances')
+
+    const years = Array.from(
+      screen.getByLabelText(/club year/i).querySelectorAll('option')
+    ).map((node) => node.textContent)
+
+    expect(years).toContain('2026-27')
+    expect(years).not.toContain('2024-25')
+    expect(years).not.toContain('2027-28')
+  })
+
+  it('says what the server said, rather than blaming the server', async () => {
+    // The old message sent the club looking for a broken API when the API had simply
+    // refused a bad request.
+    fetchMock.mockImplementation((url: string) => {
+      if (String(url).includes('/finance/dashboard')) {
+        return Promise.resolve(
+          json({ error: { code: 'bad_request', message: 'month must be in the format YYYY-MM' } }, 400)
+        )
+      }
+      return Promise.resolve(json({}))
+    })
+
+    renderWith(<OfficeDashboardPage />, TREASURER)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/month must be in the format/i)
   })
 })

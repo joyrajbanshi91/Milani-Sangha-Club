@@ -113,6 +113,17 @@ export interface CarryForwardSuggestion {
   financialYear: string
   /** The year being closed to produce it. */
   fromYear: string
+  period: { from: string; to: string }
+  /** What that year was started with. */
+  openingTotalPaise: number
+  /** The whole year's movement, so a closing figure is adopted with its context. */
+  totals: {
+    incomePaise: number
+    expensePaise: number
+    netPaise: number
+    transferPaise: number
+    transactionCount: number
+  }
   balances: FundBalance[]
   totalPaise: number
   /** Entries in that year still unapproved, so not in the figures. */

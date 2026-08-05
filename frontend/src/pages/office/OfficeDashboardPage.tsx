@@ -30,15 +30,29 @@ import {
 import { Container } from '@/components/ui/Container'
 import { financeApi, type Rollup } from '@/features/finance/api'
 import { formatMonth, formatPaise, formatRupeesShort } from '@/features/finance/money'
+import { MonthPeriodPicker } from '@/features/finance/MonthPeriodPicker'
+import { financialYears, monthsOfFinancialYear } from '@/features/finance/years'
 import { YearEndPanel } from '@/features/finance/YearEnd'
 import { officePaymentsApi } from '@/features/payments/api'
+import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 
 /** Chart colours, matching the hue palette used across the site. */
 const SERIES = ['#148253', '#f5ad1b', '#0284c7', '#e11d48', '#7c3aed', '#0d9488']
 
+/**
+ * The month to open on.
+ *
+ * Today's, unless the club's books do not reach it yet — in which case the last month
+ * the year picker can offer, so the dashboard never starts on a month that is not in
+ * the list beside it.
+ */
 function currentMonth(): string {
-  return new Date().toISOString().slice(0, 7)
+  const today = new Date().toISOString().slice(0, 7)
+  const years = financialYears()
+  const latest = monthsOfFinancialYear(years[years.length - 1] as string)
+
+  return latest.includes(today) ? today : (latest[0] as string)
 }
 
 export function OfficeDashboardPage() {
@@ -72,10 +86,20 @@ export function OfficeDashboardPage() {
   }
 
   if (error || !data) {
+    /**
+     * The server's own words when it gave any.
+     *
+     * "Is the API running?" was actively misleading: the club hit a 400 from a
+     * malformed month — Safari renders `<input type="month">` as a text box — and went
+     * looking for a broken server. A refusal and an outage are different problems and
+     * should not read the same.
+     */
+    const detail = error instanceof ApiError ? error.message : null
+
     return (
       <Container>
-        <p role="alert" className="rounded-card bg-red-50 p-4 text-sm text-red-700">
-          The figures could not be loaded. Is the API running?
+        <p role="alert" className="rounded-card bg-red-50 p-4 text-sm/relaxed text-red-700">
+          {detail ?? 'The figures could not be loaded. Is the API running?'}
         </p>
       </Container>
     )
@@ -93,15 +117,7 @@ export function OfficeDashboardPage() {
           </p>
         </div>
 
-        <label className="text-xs font-medium text-ink-600">
-          <span className="mb-1 block">Month</span>
-          <input
-            type="month"
-            value={month}
-            onChange={(event) => setMonth(event.target.value)}
-            className="h-10 rounded-lg border border-ink-300 bg-white px-3 text-sm text-ink-900"
-          />
-        </label>
+        <MonthPeriodPicker month={month} onChange={setMonth} />
       </div>
 
       {/*

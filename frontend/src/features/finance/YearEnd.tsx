@@ -5,16 +5,27 @@ import { useState } from 'react'
 import { Field, Input } from '@/components/ui/Field'
 import { financeApi } from '@/features/finance/api'
 import { formatPaise } from '@/features/finance/money'
+import {
+  financialYearOf,
+  nextFinancialYear,
+  openableYears,
+  previousFinancialYear,
+} from '@/features/finance/years'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 
 /**
  * Closing the club's year, and declaring what the next one starts with.
  *
- * Deliberately invisible for eleven months of every twelve. It appears when the
- * calendar has turned into a financial year the club has not yet opened, and only
- * then — the server decides that, not the browser, because a laptop with a wrong
- * clock should not be able to close a club's year.
+ * Reached two ways. On the dashboard it appears by itself when the calendar has turned
+ * into a year the club has not opened — and only then, so it is invisible for eleven
+ * months of every twelve. The server decides that, not the browser: a laptop with a
+ * wrong clock should not be able to close a club's year.
+ *
+ * The other way is deliberate, from Statements → Financial years, because a year end is
+ * a meeting and it happens when the meeting happens. An officer who has just adopted
+ * figures should be able to enter them there and then rather than waiting to be
+ * prompted or asking somebody to run a script.
  *
  * ## Why the figures are typed rather than accepted
  *
@@ -32,7 +43,14 @@ import { cn } from '@/lib/cn'
  * Money that arrives late is not turned away: it is entered in the open year, which
  * is where the club actually received it.
  */
-export function YearEndPanel({ financialYear }: { financialYear: string }) {
+export function YearEndPanel({
+  financialYear,
+  onCancel,
+}: {
+  financialYear: string
+  /** Offered when the treasurer opened this deliberately rather than being prompted. */
+  onCancel?: () => void
+}) {
   const queryClient = useQueryClient()
   const [balances, setBalances] = useState<Record<string, string> | null>(null)
   const [note, setNote] = useState('')
@@ -93,7 +111,14 @@ export function YearEndPanel({ financialYear }: { financialYear: string }) {
         </span>
         <div className="min-w-0">
           <h2 className="font-display text-lg text-ink-900">
-            A new club year has begun — {financialYear}
+            {/*
+              Two ways in, two headings. Prompted on 1 April it is news; chosen from the
+              statements page it is a job the officer came to do, and telling them what
+              they already know reads as though the screen is not listening.
+            */}
+            {onCancel
+              ? `Summarise ${suggestion?.fromYear ?? 'the year'} and start ${financialYear}`
+              : `A new club year has begun — ${financialYear}`}
           </h2>
           <p className="mt-1 text-sm/relaxed text-ink-600">
             {suggestion ? (
@@ -125,6 +150,32 @@ export function YearEndPanel({ financialYear }: { financialYear: string }) {
             })
           }}
         >
+          {/*
+            The year in three figures, before anything is adopted.
+
+            A committee asked to sign off a closing balance needs to see the movement
+            behind it: opened with X, took in Y, spent Z, so W is left. Adopting the
+            last number without the first three is how a wrong figure gets signed.
+          */}
+          <dl className="mb-5 grid gap-4 rounded-card border border-ink-200 bg-ink-50 p-4 sm:grid-cols-4">
+            {[
+              { label: `${suggestion.fromYear} opened with`, value: formatPaise(suggestion.openingTotalPaise) },
+              { label: 'Income', value: formatPaise(suggestion.totals.incomePaise) },
+              { label: 'Expenditure', value: formatPaise(suggestion.totals.expensePaise) },
+              { label: 'Left at 31 March', value: formatPaise(suggestion.totalPaise) },
+            ].map((item) => (
+              <div key={item.label}>
+                <dt className="text-xs uppercase tracking-wide text-ink-500">{item.label}</dt>
+                <dd className="mt-1 font-display text-lg tabular-nums text-ink-900">{item.value}</dd>
+              </div>
+            ))}
+            <p className="text-xs text-ink-500 sm:col-span-4">
+              {suggestion.totals.transactionCount} entr
+              {suggestion.totals.transactionCount === 1 ? 'y' : 'ies'} across {suggestion.fromYear}.
+              Print the detailed statement for that period if the committee wants them listed.
+            </p>
+          </dl>
+
           {suggestion.pendingCount > 0 ? (
             <p className="mb-4 rounded-lg bg-amber-50 p-3 text-xs/relaxed text-amber-900">
               <strong>
@@ -211,17 +262,35 @@ export function YearEndPanel({ financialYear }: { financialYear: string }) {
             from the Statements page if the figures turn out to be wrong.
           </p>
 
-          <button
-            type="submit"
-            disabled={open.isPending}
-            className="mt-4 inline-flex h-10 items-center gap-2 rounded-full bg-brand-800 px-5 text-sm font-medium text-white disabled:opacity-60"
-          >
-            {open.isPending ? 'Opening…' : `Open ${financialYear} and close ${suggestion.fromYear}`}
-          </button>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              type="submit"
+              disabled={open.isPending}
+              className="inline-flex h-10 items-center gap-2 rounded-full bg-brand-800 px-5 text-sm font-medium text-white disabled:opacity-60"
+            >
+              {open.isPending ? 'Opening…' : `Open ${financialYear} and close ${suggestion.fromYear}`}
+            </button>
+
+            {onCancel ? (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="inline-flex h-10 items-center rounded-full border border-ink-200 px-4 text-sm text-ink-700"
+              >
+                Cancel
+              </button>
+            ) : null}
+          </div>
         </form>
       )}
     </section>
   )
+}
+
+/** When the next year could be started: 1 April of the year after this one. */
+function nextStartLabel(): string {
+  const next = nextFinancialYear(financialYearOf(new Date()))
+  return `1 April ${next.slice(0, 4)}`
 }
 
 /**
@@ -234,11 +303,22 @@ export function YearEndPanel({ financialYear }: { financialYear: string }) {
 export function FinancialYears() {
   const queryClient = useQueryClient()
   const [error, setError] = useState<string | null>(null)
+  const [closing, setClosing] = useState<string | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['finance', 'years'],
     queryFn: () => financeApi.years(),
   })
+
+  /**
+   * Years the treasurer could close, now, without waiting to be prompted.
+   *
+   * The dashboard panel appears on its own when the calendar turns, and that is the
+   * ordinary route. This is the other one the club asked for: a year end is a meeting,
+   * it happens when the meeting happens, and the officer who runs it should be able to
+   * do the whole thing here rather than waiting for a prompt or asking for a script.
+   */
+  const openable = openableYears(data?.years.map((year) => year.financialYear) ?? [])
 
   const reopen = useMutation({
     mutationFn: financeApi.reopenYear,
@@ -252,26 +332,59 @@ export function FinancialYears() {
   })
 
   if (isLoading) return null
-  if (!data || data.years.length === 0) {
-    return (
-      <section className="rounded-card border border-ink-200 bg-white p-5 shadow-soft">
-        <h2 className="font-display text-lg text-ink-900">Financial years</h2>
-        <p className="mt-1 text-sm/relaxed text-ink-500">
-          The club has not closed a year yet. When one ends, a panel appears on the dashboard
-          asking what to carry forward — until then the figures run on from the funds' opening
-          balances.
-        </p>
-      </section>
-    )
-  }
 
   return (
     <section className="rounded-card border border-ink-200 bg-white p-5 shadow-soft">
       <h2 className="font-display text-lg text-ink-900">Financial years</h2>
       <p className="mt-1 text-sm/relaxed text-ink-500">
-        What each year was started with, as the committee adopted it. Opening a year closes the
-        one before, so nothing can be dated back into it.
+        The club's year runs April to March. Each year's figures are its own: what it was
+        declared to start with, plus its own entries. Opening a year closes the one before, so
+        nothing can be dated back into it.
       </p>
+
+      {/* Close a year whenever the meeting happens, rather than only when prompted. */}
+      <div className="mt-4 border-t border-ink-100 pt-4">
+        {closing ? (
+          <YearEndPanel financialYear={closing} onCancel={() => setClosing(null)} />
+        ) : openable.length > 0 ? (
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="text-xs font-medium text-ink-600">
+              <span className="mb-1 block">Summarise a year and start the next</span>
+              <select
+                className="h-10 rounded-lg border border-ink-300 bg-white px-3 text-sm text-ink-900"
+                defaultValue=""
+                onChange={(event) => {
+                  if (event.target.value) setClosing(event.target.value)
+                }}
+              >
+                <option value="">Choose the year to start…</option>
+                {openable.map((year) => (
+                  <option key={year} value={year}>
+                    Start {year} (closing {previousFinancialYear(year)})
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <p className="max-w-md text-xs/relaxed text-ink-500">
+              You will see {previousFinancialYear(openable[0] as string)} summarised — what it
+              opened with, income, expenditure and what is left — and can adopt the figures the
+              committee agreed before starting the new year.
+            </p>
+          </div>
+        ) : (
+          <p className="text-xs/relaxed text-ink-500">
+            Every year that has begun is already open. The next one can be started after{' '}
+            {nextStartLabel()}.
+          </p>
+        )}
+      </div>
+
+      {data && data.years.length === 0 ? (
+        <p className="mt-4 text-sm/relaxed text-ink-500">
+          No year has been closed yet, so the figures run on from the funds' opening balances.
+        </p>
+      ) : null}
 
       {error ? (
         <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
@@ -280,7 +393,7 @@ export function FinancialYears() {
       ) : null}
 
       <ul className="mt-4 divide-y divide-ink-100">
-        {[...data.years]
+        {[...(data?.years ?? [])]
           .sort((a, b) => b.financialYear.localeCompare(a.financialYear))
           .map((year) => {
             const adopted = Object.values(year.balances).reduce((sum, amount) => sum + amount, 0)
