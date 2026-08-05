@@ -121,7 +121,7 @@ export const club = {
      * (and the change deployed) whenever the club's secretary changes. A club address
      * would need neither.
      */
-    email: 'joy.rajbanshi91@gmail.com',
+    email: 'govindaghosh12@gmail.com',
     /** Free text — shown on the contact page. */
     officeHours: 'Monday to Saturday, 5 p.m. to 8 p.m.',
   },
