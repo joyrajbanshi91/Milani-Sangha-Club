@@ -1,7 +1,8 @@
 import { Router, type Request, type Response } from 'express'
 
 import { isIsoDate, isIsoMonth, todayInIndia } from '../domain/dates.js'
-import { lastDayOfMonth, monthRange } from '../domain/report.js'
+import { monthRange } from '../domain/report.js'
+import { statementFilename } from '../lib/pdf/filenames.js'
 import { renderFinanceReportPdf, type ReportDetail } from '../lib/pdf/financeReport.js'
 import { badRequest, unauthorised } from '../lib/httpError.js'
 import { requireAuth, requireFinanceOfficer } from '../middleware/auth.js'
@@ -53,47 +54,6 @@ reportsRouter.get('/period', async (req: Request, res: Response) => {
  */
 function resolveDetail(req: Request): ReportDetail {
   return req.query.detail === 'summary' ? 'summary' : 'detailed'
-}
-
-/**
- * A filename somebody can find again in six months.
- *
- * `statement-2026-04-01-to-2026-04-30.pdf` was ambiguous in the way that matters: two
- * downloads of the same period, one before a correction and one after, arrived as
- * `statement(1).pdf` in a downloads folder with nothing to tell them apart, and
- * neither said which of the two reports it was.
- *
- * So the name carries the club, which report, the period it covers, and the day it
- * was issued:
- *
- *   Milani-Sangha-Club-summary-2026-04-2026-08-05.pdf
- *   Milani-Sangha-Club-detailed-2026-04-01-to-2026-04-30-issued-2026-08-05.pdf
- *
- * A period that is exactly one calendar month is named as that month, because that
- * is how a committee refers to it.
- */
-export function statementFilename(input: {
-  clubName: string
-  detail: ReportDetail
-  from: string
-  to: string
-  issuedOn: string
-}): string {
-  const slug = (value: string) =>
-    value
-      .normalize('NFKD')
-      .replace(/[^\w\s-]/g, '')
-      .trim()
-      .replace(/\s+/g, '-')
-
-  const wholeMonth =
-    input.from.slice(0, 7) === input.to.slice(0, 7) &&
-    input.from.endsWith('-01') &&
-    input.to === lastDayOfMonth(input.to)
-
-  const period = wholeMonth ? input.from.slice(0, 7) : `${input.from}-to-${input.to}`
-
-  return `${slug(input.clubName)}-${input.detail}-${period}-issued-${input.issuedOn}.pdf`
 }
 
 reportsRouter.get('/period.pdf', async (req: Request, res: Response) => {

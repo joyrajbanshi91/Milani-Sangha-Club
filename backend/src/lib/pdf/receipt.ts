@@ -1,8 +1,26 @@
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib'
+import { PDFDocument, StandardFonts, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib'
 
-import { formatPaise } from '../../domain/money.js'
 import { financialYearLabel, periodLabel } from '../../domain/payments.js'
 import type { Payment, Transaction } from '../../domain/types.js'
+import {
+  amountInWords,
+  BRAND,
+  drawClubMark,
+  embedClubMark,
+  formatDocumentDate as formatDate,
+  INK,
+  letterheadLines,
+  money,
+  MUTED,
+  ON_BRAND,
+  ON_BRAND_ACCENT,
+  ON_BRAND_MUTED,
+  PAPER,
+  PENDING,
+  RULE,
+  safe,
+  WASH,
+} from './brand.js'
 
 /**
  * A member's receipt.
@@ -42,36 +60,8 @@ import type { Payment, Transaction } from '../../domain/types.js'
 const A5 = { width: 595.28, height: 420.94 }
 const MARGIN = 36
 
-const INK = rgb(0.11, 0.09, 0.08)
-const MUTED = rgb(0.45, 0.42, 0.38)
-const BRAND = rgb(0.06, 0.24, 0.18)
-const RULE = rgb(0.85, 0.83, 0.79)
-const PAPER = rgb(0.99, 0.98, 0.96)
-const PENDING = rgb(0.72, 0.45, 0.05)
-
-/** WinAnsi cannot encode ₹, em dashes or Bengali. Same rule as the statement. */
-function safe(text: string): string {
-  return text
-    .replace(/₹/g, 'Rs.')
-    .replace(/[—–]/g, '-')
-    .replace(/[’‘]/g, "'")
-    .replace(/[“”]/g, '"')
-    .replace(/…/g, '...')
-    .replace(/[^\x20-\x7E]/g, '?')
-}
-
-function money(paise: number): string {
-  return safe(formatPaise(paise, { withSymbol: false }))
-}
-
-function formatDate(iso: string): string {
-  return new Date(`${iso.slice(0, 10)}T00:00:00Z`).toLocaleDateString('en-IN', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
-}
+/** The green band at the top. Deep enough for the logo and three letterhead lines. */
+const BAND = 86
 
 const METHOD_LABEL = { upi: 'UPI', cash: 'Cash', bank: 'Bank transfer / cheque' } as const
 const PURPOSE_LABEL = {
@@ -83,6 +73,9 @@ const PURPOSE_LABEL = {
 
 export interface ReceiptInput {
   clubName: string
+  /** Printed under the club's name. Omitted when the club has not stated one. */
+  clubAddress?: string | undefined
+  clubRegistrationNumber?: string | undefined
   payment: Payment
   /**
    * The ledger entry this payment produced, if it can still be read.
@@ -108,10 +101,12 @@ export async function renderReceiptPdf(input: ReceiptInput): Promise<Uint8Array>
   const regular = await pdf.embedFont(StandardFonts.Helvetica)
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold)
 
+  const mark = await embedClubMark(pdf)
+
   const page = pdf.addPage([A5.width, A5.height])
   page.drawRectangle({ x: 0, y: 0, width: A5.width, height: A5.height, color: PAPER })
 
-  drawHeader(page, clubName, payment, bold, regular)
+  drawHeader(page, input, mark, bold, regular)
   const afterBody = drawBody(page, payment, bold, regular)
   drawSignatures(page, payment, input.transaction ?? null, afterBody, bold, regular)
   drawFooter(page, input, regular)
@@ -119,54 +114,81 @@ export async function renderReceiptPdf(input: ReceiptInput): Promise<Uint8Array>
   return pdf.save()
 }
 
+/**
+ * The letterhead: logo, club, address, and what this document is.
+ *
+ * The logo sits inside the green band rather than above it, because a receipt is
+ * often the only piece of club stationery a member ever holds and it should look like
+ * stationery. The receipt number is the largest thing on the right — it is what
+ * anybody quotes when they ring up about a payment.
+ */
 function drawHeader(
   page: PDFPage,
-  clubName: string,
-  payment: Payment,
+  input: ReceiptInput,
+  mark: PDFImage | null,
   bold: PDFFont,
   regular: PDFFont
 ): void {
-  page.drawRectangle({ x: 0, y: A5.height - 72, width: A5.width, height: 72, color: BRAND })
+  const { clubName, payment } = input
 
-  page.drawText(safe(clubName), {
+  page.drawRectangle({ x: 0, y: A5.height - BAND, width: A5.width, height: BAND, color: BRAND })
+
+  const markSize = 44
+  drawClubMark(page, {
+    mark,
+    clubName,
     x: MARGIN,
-    y: A5.height - 36,
-    size: 15,
+    y: A5.height - BAND + (BAND - markSize) / 2,
+    size: markSize,
     font: bold,
-    color: rgb(1, 1, 1),
   })
-  page.drawText(safe('Receipt'), {
-    x: MARGIN,
-    y: A5.height - 55,
-    size: 10,
-    font: regular,
-    color: rgb(0.85, 0.93, 0.89),
+
+  const textX = MARGIN + markSize + 14
+  let y = A5.height - 34
+
+  page.drawText(safe(clubName), { x: textX, y, size: 14, font: bold, color: ON_BRAND })
+  y -= 14
+
+  for (const line of letterheadLines({
+    address: input.clubAddress,
+    registrationNumber: input.clubRegistrationNumber,
+  })) {
+    page.drawText(safe(line), { x: textX, y, size: 7.5, font: regular, color: ON_BRAND_MUTED })
+    y -= 10
+  }
+
+  page.drawText(safe('RECEIPT'), {
+    x: textX,
+    y: A5.height - BAND + 13,
+    size: 9,
+    font: bold,
+    color: ON_BRAND_ACCENT,
   })
 
   const number = safe(payment.receiptNumber ?? payment.reference)
   const numberWidth = bold.widthOfTextAtSize(number, 13)
   page.drawText(number, {
     x: A5.width - MARGIN - numberWidth,
-    y: A5.height - 38,
+    y: A5.height - 36,
     size: 13,
     font: bold,
-    color: rgb(0.96, 0.8, 0.35),
+    color: ON_BRAND_ACCENT,
   })
 
-  const dated = safe(formatDate(payment.reviewedAt ?? payment.submittedAt))
+  const dated = safe(`Issued ${formatDate(payment.reviewedAt ?? payment.submittedAt)}`)
   const datedWidth = regular.widthOfTextAtSize(dated, 8)
   page.drawText(dated, {
     x: A5.width - MARGIN - datedWidth,
-    y: A5.height - 54,
+    y: A5.height - 51,
     size: 8,
     font: regular,
-    color: rgb(0.85, 0.93, 0.89),
+    color: ON_BRAND_MUTED,
   })
 }
 
 /** Returns the y position below the body, for the signature block. */
 function drawBody(page: PDFPage, payment: Payment, bold: PDFFont, regular: PDFFont): number {
-  let y = A5.height - 72 - 30
+  let y = A5.height - BAND - 26
 
   page.drawText(safe('Received with thanks from'), {
     x: MARGIN,
@@ -178,25 +200,70 @@ function drawBody(page: PDFPage, payment: Payment, bold: PDFFont, regular: PDFFo
   y -= 17
   page.drawText(safe(payment.memberName), { x: MARGIN, y, size: 14, font: bold, color: INK })
 
-  // The amount, given the prominence it has on a paper receipt.
+  /**
+   * The amount, in a panel of its own.
+   *
+   * On a paper receipt the figure is what the eye goes to, and a number floating in
+   * white space beside a name is easy to read as part of the sentence above it. The
+   * panel makes it a field, which is what it is.
+   */
+  const panel = { width: 186, height: 42 }
+  const panelX = A5.width - MARGIN - panel.width
+  const panelY = y - 12
+
+  page.drawRectangle({
+    x: panelX,
+    y: panelY,
+    width: panel.width,
+    height: panel.height,
+    color: WASH,
+    borderColor: RULE,
+    borderWidth: 0.75,
+  })
+
+  page.drawText(safe('Amount received'), {
+    x: panelX + 10,
+    y: panelY + panel.height - 14,
+    size: 7,
+    font: regular,
+    color: MUTED,
+  })
+
   const amount = `Rs. ${money(payment.amountPaise)}`
-  const amountWidth = bold.widthOfTextAtSize(amount, 20)
+  const amountWidth = bold.widthOfTextAtSize(amount, 19)
   page.drawText(amount, {
-    x: A5.width - MARGIN - amountWidth,
-    y: y - 3,
-    size: 20,
+    x: panelX + panel.width - 10 - amountWidth,
+    y: panelY + 10,
+    size: 19,
     font: bold,
     color: BRAND,
   })
 
-  y -= 24
+  y -= 34
   page.drawLine({
     start: { x: MARGIN, y },
     end: { x: A5.width - MARGIN, y },
     thickness: 0.75,
     color: RULE,
   })
-  y -= 22
+  y -= 18
+
+  /**
+   * The amount in words.
+   *
+   * The oldest anti-tampering device in bookkeeping: a digit can be added to a
+   * figure, a sentence cannot. Every paper receipt a club member has ever been handed
+   * carries this line, and a treasurer notices its absence immediately.
+   */
+  page.drawText(safe('In words'), { x: MARGIN, y, size: 8.5, font: regular, color: MUTED })
+  page.drawText(safe(amountInWords(payment.amountPaise)), {
+    x: MARGIN + 130,
+    y,
+    size: 9,
+    font: bold,
+    color: BRAND,
+  })
+  y -= 20
 
   const period = periodLabel(payment)
   const financialYear = financialYearLabel(payment)

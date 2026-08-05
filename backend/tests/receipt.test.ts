@@ -49,6 +49,70 @@ async function render(overrides: Partial<Payment> = {}): Promise<Uint8Array> {
   })
 }
 
+describe('the letterhead', () => {
+  it('carries the club logo, so the receipt looks like club stationery', async () => {
+    const bytes = await render()
+
+    /**
+     * An embedded image object in the file.
+     *
+     * The logo is compiled into the API as base64 precisely so it cannot go missing on
+     * a deployment that does not carry loose files — and a check that only looked at
+     * the drawn text would not notice if it had.
+     */
+    expect(new TextDecoder('latin1').decode(bytes)).toContain('/Subtype /Image')
+  })
+
+  it('prints the address and registration number when the club has stated them', async () => {
+    const drawn = (
+      await textBoxes(() =>
+        renderReceiptPdf({
+          clubName: 'Milani Sangha Club',
+          clubAddress: 'Barrackpore, Kolkata 700122',
+          clubRegistrationNumber: '50219',
+          payment: payment(),
+          generatedAt: GENERATED,
+        })
+      )
+    ).map((box) => box.text)
+
+    expect(drawn).toContain('Barrackpore, Kolkata 700122')
+    expect(drawn).toContain('Registration no. 50219')
+  })
+
+  it('prints the club name alone when it has not', async () => {
+    // An invented address on a document a member keeps is worse than no address.
+    const drawn = (await textBoxes(() => render())).map((box) => box.text)
+
+    expect(drawn).toContain('Milani Sangha Club')
+    expect(drawn.some((text) => /Registration no\./.test(text))).toBe(false)
+  })
+
+  it('says on its face that it is a receipt', async () => {
+    const drawn = (await textBoxes(() => render())).map((box) => box.text)
+    expect(drawn).toContain('RECEIPT')
+  })
+})
+
+describe('the amount', () => {
+  it('is printed in words as well as figures', async () => {
+    // The oldest anti-tampering device in bookkeeping: a digit can be added to a
+    // figure, a sentence cannot.
+    const drawn = (await textBoxes(() => render())).map((box) => box.text)
+
+    expect(drawn).toContain('Rs. 600.00')
+    expect(drawn).toContain('In words')
+    expect(drawn).toContain('Rupees six hundred only')
+  })
+
+  it('states paise in words when the amount has them', async () => {
+    const drawn = (await textBoxes(() => render({ amountPaise: 18_450 }))).map((box) => box.text)
+
+    expect(drawn).toContain('Rs. 184.50')
+    expect(drawn).toContain('Rupees one hundred and eighty-four and fifty paise only')
+  })
+})
+
 describe('the receipt', () => {
   it('is a valid single-page PDF titled with its number', async () => {
     const bytes = await render()

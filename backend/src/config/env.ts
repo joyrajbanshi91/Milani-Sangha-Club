@@ -58,6 +58,21 @@ const envSchema = z.object({
 
   CLUB_NAME: z.string().default('Milani Sangha Club'),
   CLUB_UPI_ID: z.string().optional(),
+
+  /**
+   * The letterhead on the receipts and the statements.
+   *
+   * Both are printed by the API, which cannot read the website's content file — so
+   * the club's address is stated here for the documents that leave the building.
+   * Optional on purpose: unset, the documents print the club's name alone, which is
+   * true, rather than an address somebody invented.
+   *
+   * Keep them in step with section 1 of frontend/src/content/site.ts by hand. Two
+   * homes for one fact is a real cost, and the alternative — a service that must
+   * fetch the website to print a receipt — is a worse one.
+   */
+  CLUB_ADDRESS: z.string().optional(),
+  CLUB_REGISTRATION_NUMBER: z.string().optional(),
 })
 
 export type Env = z.infer<typeof envSchema>

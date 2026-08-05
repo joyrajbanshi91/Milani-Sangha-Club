@@ -4,6 +4,7 @@ import { env } from '../config/env.js'
 import type { Payment, Transaction } from '../domain/types.js'
 import { logger } from './logger.js'
 import { AppError } from './httpError.js'
+import { receiptFilename } from './pdf/filenames.js'
 import { renderReceiptPdf } from './pdf/receipt.js'
 
 /**
@@ -50,12 +51,18 @@ export async function sendReceipt(
 
   const pdf = await renderReceiptPdf({
     clubName: env.CLUB_NAME,
+    clubAddress: env.CLUB_ADDRESS,
+    clubRegistrationNumber: env.CLUB_REGISTRATION_NUMBER,
     payment,
     transaction,
     generatedAt: new Date().toISOString(),
   })
 
-  const filename = `receipt-${payment.receiptNumber ?? payment.reference}-${payment.paidOn}.pdf`
+  const filename = receiptFilename({
+    clubName: env.CLUB_NAME,
+    receiptNumber: payment.receiptNumber ?? payment.reference,
+    paidOn: payment.paidOn,
+  })
 
   res.setHeader('Content-Type', 'application/pdf')
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)

@@ -35,6 +35,19 @@ import { logger } from '../lib/logger.js'
 import type { FinanceStore } from './store.js'
 
 /**
+ * Who the club is, for the documents that leave the building.
+ *
+ * The name alone was enough while the statement was a page of figures. It now carries
+ * a letterhead, and the address belongs beside the name rather than as a second string
+ * argument nobody can tell apart from it at the call site.
+ */
+export interface ClubIdentity {
+  name: string
+  address?: string | undefined
+  registrationNumber?: string | undefined
+}
+
+/**
  * Finance operations.
  *
  * Every write follows the same three steps: ask the domain whether it is allowed,
@@ -45,7 +58,7 @@ import type { FinanceStore } from './store.js'
 export class FinanceService {
   constructor(
     private readonly store: FinanceStore,
-    private readonly clubName: string,
+    private readonly club: ClubIdentity,
     private readonly audit: (entry: AuditEntry) => Promise<void>
   ) {}
 
@@ -100,7 +113,7 @@ export class FinanceService {
     ])
 
     return buildPeriodReport({
-      clubName: this.clubName,
+      club: this.club,
       from: period.from,
       to: period.to,
       funds,

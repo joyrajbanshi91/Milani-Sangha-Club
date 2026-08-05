@@ -60,7 +60,15 @@ export function getContainer(): Container {
     logger.info(record, 'audit')
   }
 
-  const finance = new FinanceService(store, env.CLUB_NAME, audit)
+  const finance = new FinanceService(
+    store,
+    {
+      name: env.CLUB_NAME,
+      address: env.CLUB_ADDRESS,
+      registrationNumber: env.CLUB_REGISTRATION_NUMBER,
+    },
+    audit
+  )
 
   container = {
     auth,
