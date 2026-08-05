@@ -421,11 +421,11 @@ export const committee = {
     // photo: '/committee/treasurer.jpg'
     { name: 'Sukanta Bose', role: 'Treasurer', since: '2026', photo: '/committee/treasurer.jpg', email: '' },
     // photo: '/committee/cashier.jpg'
-    { name: 'Full name', role: 'Cashier', since: '', photo: '', email: '' },
+    { name: 'Sanjay Karmakar', role: 'Cashier', since: '2026', photo: '/committee/cashier.jpg', email: '' },
     // photo: '/committee/game-secretary-1.jpg'
-    { name: 'Full name', role: 'Game Secretary', since: '2026', photo: '/committee/game-secretary-1.jpg', email: '' },
+    { name: 'Kousik Paul', role: 'Game Secretary', since: '2026', photo: '/committee/game-secretary-1.jpg', email: '' },
     // photo: '/committee/game-secretary-2.jpg'
-    { name: 'Full name', role: 'Joint Game Secretary', since: '2026', photo: '/committee/game-secretary-2.jpg', email: '' },
+    { name: 'Sayantan Karmakar', role: 'Joint Game Secretary', since: '2026', photo: '/committee/game-secretary-2.jpg', email: '' },
   ],
 }
 
