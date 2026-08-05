@@ -6,6 +6,7 @@ import { Link } from 'react-router'
 import { Container } from '@/components/ui/Container'
 import { Input, Select } from '@/components/ui/Field'
 import { formatPaise } from '@/features/finance/money'
+import { financialYearOf, financialYears } from '@/features/finance/years'
 import { MonthGrid } from '@/features/payments/MonthGrid'
 import { officePaymentsApi, type MemberRegisterRow } from '@/features/payments/api'
 import { cn } from '@/lib/cn'
@@ -23,21 +24,6 @@ import { cn } from '@/lib/cn'
  * are the entire point; a list built from the payments table would omit exactly the
  * members who need chasing.
  */
-
-/** '2026-27' for a date, so the year picker can offer sensible options. */
-function financialYearOf(date: Date): string {
-  const year = date.getUTCFullYear()
-  const start = date.getUTCMonth() + 1 >= 4 ? year : year - 1
-  return `${start}-${String((start + 1) % 100).padStart(2, '0')}`
-}
-
-function yearOptions(): string[] {
-  const current = financialYearOf(new Date())
-  const start = Number(current.slice(0, 4))
-  return [start + 1, start, start - 1, start - 2].map(
-    (year) => `${year}-${String((year + 1) % 100).padStart(2, '0')}`
-  )
-}
 
 type Filter = 'all' | 'owing' | 'paid'
 
@@ -76,8 +62,13 @@ export function MembersPage() {
 
         <label className="text-xs font-medium text-ink-600">
           <span className="mb-1 block">Membership year</span>
+          {/*
+            From the year the club started, forward — never earlier, and never a year
+            that has not begun. It used to offer next year and two years before the
+            club existed, both of which could only ever show an empty register.
+          */}
           <Select value={year} onChange={(event) => setYear(event.target.value)} className="h-10">
-            {yearOptions().map((option) => (
+            {[...financialYears()].reverse().map((option) => (
               <option key={option} value={option}>
                 {option}
               </option>

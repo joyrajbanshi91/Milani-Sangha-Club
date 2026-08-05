@@ -1,5 +1,13 @@
 import { FINANCIAL_YEAR_START_MONTH } from '../config/constants.js'
-import { fundBalances, postedOnly, totalFundsPaise, type FundBalance } from './ledger.js'
+import {
+  fundBalances,
+  openingTotalPaise,
+  periodTotals,
+  postedOnly,
+  totalFundsPaise,
+  type FundBalance,
+  type PeriodTotals,
+} from './ledger.js'
 import { financialYearOf } from './membership.js'
 import type { Fund, Transaction, YearOpening } from './types.js'
 
@@ -129,9 +137,18 @@ export interface CarryForwardSuggestion {
   financialYear: string
   /** The year being closed to produce it. */
   fromYear: string
+  /** 1 April to 31 March of `fromYear`. */
+  period: { from: string; to: string }
+
+  /** What that year was started with — its own carry-forward, or the fund openings. */
+  openingTotalPaise: number
+  /** Income, expenditure and the net for the whole year being closed. */
+  totals: PeriodTotals
+
   /** What the ledger says, per fund, on the last day of `fromYear`. */
   balances: FundBalance[]
   totalPaise: number
+
   /** Entries still unapproved in the year being closed — they are not in the figures. */
   pendingCount: number
 }
@@ -160,6 +177,14 @@ export function suggestCarryForward(input: {
   return {
     financialYear,
     fromYear,
+    period: { from, to },
+
+    // The year in three figures: what it opened with, what moved, what is left. This
+    // is the summary a committee adopts, and adopting a closing balance without seeing
+    // the movement behind it is how a wrong figure gets signed off.
+    openingTotalPaise: openingTotalPaise(funds, transactions, from, baseline ?? undefined),
+    totals: periodTotals(transactions, from, to),
+
     balances,
     totalPaise: totalFundsPaise(balances),
     pendingCount: transactions.filter(
