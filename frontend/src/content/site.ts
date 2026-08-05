@@ -180,7 +180,7 @@ export const club = {
    * src="..." value out of the iframe code and paste it here.
    */
   map: {
-    directionsUrl: '',
+    directionsUrl: 'https://maps.app.goo.gl/GSRZhyDNCkR2JDWK7',
     embedUrl: '',
   },
 }
@@ -633,25 +633,59 @@ export const news: ReadonlyArray<NewsItem> = [
 ]
 
 // ===========================================================================
-//  11. GALLERY  —  album list
-//      Photographs and video are uploaded through the admin portal in a later
-//      phase. For now each album shows a placeholder cover.
+//  11. GALLERY  —  albums, and where their photographs live
+//
+//  THE PHOTOGRAPHS ARE NOT LISTED HERE. Each album has a folder named after its
+//  slug, and whatever is in that folder appears on the page:
+//
+//      frontend/src/assets/gallery/health-camp/01-registration.jpg
+//      frontend/src/assets/gallery/health-camp/02-blood-pressure-check.jpg
+//
+//  Copy the files in, and they are on the website. There is no list to keep in
+//  step and no count to update — a list that can disagree with the folder
+//  eventually does, and then the page shows a broken image.
+//
+//    • ORDER comes from the filename. Prefix them 01-, 02-, 03-. The first one
+//      becomes the album's cover.
+//    • NAME them for what they show — '03-prize-giving.jpg', not 'IMG_4471.JPG'.
+//      The name becomes the description a screen reader and a search engine read.
+//      A camera name is ignored and the album's title used instead.
+//    • SHRINK them first:  npm run gallery:resize
+//      A photograph off a phone is 3–6 MB; the page shows it at a fraction of
+//      that. The script does the whole gallery and is safe to re-run.
+//    • .jpg, .png, .webp or .avif. An iPhone .HEIC will not show in most
+//      browsers — set the phone to "Most Compatible" or export as JPEG.
+//
+//  TO ADD A NEW ALBUM: add an entry below with a new slug, then create a folder
+//  of exactly that name in frontend/src/assets/gallery/ and put the photographs
+//  in it. Each folder has a README with these notes beside it.
+//
+//  An album whose folder is empty keeps a coloured placeholder and says the
+//  photographs are to follow, so a half-filled gallery still looks deliberate.
 // ===========================================================================
 
 export interface AlbumItem {
+  /** Also the folder name under frontend/src/assets/gallery/. Keep them identical. */
   slug: string
   title: string
   /** ISO date, 'YYYY-MM-DD'. */
   date: string
-  itemCount: number
+  /**
+   * No longer used, and kept only so an older copy of this file still compiles.
+   *
+   * The count on each card is how many photographs are in the album's folder, which
+   * cannot be wrong. A number typed here could be, and was.
+   */
+  itemCount?: number
   description: string
 }
 
 export const gallery: ReadonlyArray<AlbumItem> = [
-  { slug: 'cultural-evening', title: 'Cultural evening', date: '2025-11-08', itemCount: 0, description: 'Performances by members and the prize distribution.' },
-  { slug: 'tournament', title: 'Inter-club tournament', date: '2025-10-12', itemCount: 0, description: 'Match play, the final, and the presentation.' },
-  { slug: 'health-camp', title: 'Health check-up camp', date: '2025-12-07', itemCount: 0, description: 'Screening camp run with a local hospital.' },
-  { slug: 'founders-day', title: 'Founders’ day', date: '2025-08-15', itemCount: 0, description: 'Flag hoisting, prize giving and the community lunch.' },
+  // Each slug has a folder of the same name in frontend/src/assets/gallery/.
+  { slug: 'cultural-evening', title: 'Cultural evening', date: '2025-11-08', description: 'Performances by members and the prize distribution.' },
+  { slug: 'tournament', title: 'Inter-club tournament', date: '2025-10-12', description: 'Match play, the final, and the presentation.' },
+  { slug: 'health-camp', title: 'Health check-up camp', date: '2025-12-07', description: 'Screening camp run with a local hospital.' },
+  { slug: 'founders-day', title: 'Founders’ day', date: '2025-08-15', description: 'Flag hoisting, prize giving and the community lunch.' },
 ]
 
 // ===========================================================================

@@ -30,6 +30,7 @@
     "icons:from-logo": "bash scripts/icons-from-logo.sh",
     "logo:pdf": "bash scripts/pdf-mark.sh",
     "upi:qr": "node scripts/upi-qr.mjs",
+    "gallery:resize": "bash scripts/gallery-resize.sh",
     "user": "npm --prefix backend run user --",
     "seed:finance": "npm --prefix backend run seed:finance --",
     "dev:lan": "bash scripts/dev.sh --host",

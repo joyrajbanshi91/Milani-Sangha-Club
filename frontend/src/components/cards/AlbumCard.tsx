@@ -2,27 +2,47 @@ import { Images, Maximize2 } from 'lucide-react'
 
 import { PlaceholderImage } from '@/components/ui/PlaceholderImage'
 import type { AlbumItem } from '@/content/site'
+import { describe, type Photo } from '@/features/gallery/photos'
 import { cn } from '@/lib/cn'
 import { formatDate } from '@/lib/format'
 import { hueFor } from '@/lib/hues'
 
 interface AlbumCardProps {
   album: AlbumItem
+  /**
+   * The album's photographs, found in its folder.
+   *
+   * The first one is the cover, and the count on the card comes from how many there
+   * are — not from a number typed into site.ts, which could disagree with the folder
+   * and eventually would.
+   */
+  photos?: readonly Photo[]
   /** When given, the whole card becomes a button that opens the viewer. */
   onOpen?: () => void
 }
 
-export function AlbumCard({ album, onOpen }: AlbumCardProps) {
+export function AlbumCard({ album, photos = [], onOpen }: AlbumCardProps) {
   const hue = hueFor(album.title)
+  const cover = photos[0]
 
   const body = (
     <>
       <div className="relative overflow-hidden">
-        <PlaceholderImage
-          label={album.title}
-          shape="wide"
-          className="rounded-none transition-transform duration-700 ease-out-soft group-hover:scale-110"
-        />
+        {cover ? (
+          <img
+            src={cover.src}
+            alt={describe(cover) || album.title}
+            loading="lazy"
+            decoding="async"
+            className="aspect-16/10 w-full object-cover transition-transform duration-700 ease-out-soft group-hover:scale-110"
+          />
+        ) : (
+          <PlaceholderImage
+            label={album.title}
+            shape="wide"
+            className="rounded-none transition-transform duration-700 ease-out-soft group-hover:scale-110"
+          />
+        )}
         {/* Darkening veil plus an expand hint, so it is obvious the card opens. */}
         <span
           className="absolute inset-0 bg-gradient-to-t from-ink-900/60 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100"
@@ -51,7 +71,9 @@ export function AlbumCard({ album, onOpen }: AlbumCardProps) {
             )}
           >
             <Images className="h-3.5 w-3.5" aria-hidden="true" />
-            {album.itemCount > 0 ? `${album.itemCount} items` : 'Photographs to follow'}
+            {photos.length > 0
+              ? `${photos.length} photograph${photos.length === 1 ? '' : 's'}`
+              : 'Photographs to follow'}
           </span>
         </div>
       </div>

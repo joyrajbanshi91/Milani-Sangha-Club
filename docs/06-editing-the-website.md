@@ -197,6 +197,62 @@ Scan the new QR yourself with a payment app before pushing, and check the name i
 That name is what the portal tells members to expect, and it is the only protection they
 have against a swapped code.
 
+### Add photographs to the gallery
+
+Each album has a folder named after its slug. **Copy the photographs in and they are on
+the website** — there is no list to update:
+
+```
+frontend/src/assets/gallery/health-camp/01-registration.jpg
+frontend/src/assets/gallery/health-camp/02-blood-pressure-check.jpg
+frontend/src/assets/gallery/health-camp/03-prize-giving.jpg
+```
+
+The folders that exist today are `cultural-evening`, `tournament`, `health-camp` and
+`founders-day`, and each has a README beside it repeating these notes.
+
+- **Order comes from the filename.** Prefix them `01-`, `02-`, `03-`; the first becomes
+  the album's cover on the gallery page. The count on the card is however many are in the
+  folder.
+- **Name them for what they show** — `03-prize-giving.jpg`, not `IMG_4471.JPG`. The name
+  becomes the description a screen reader and a search engine read. A camera name is
+  ignored and the album's title used instead, so nothing breaks either way.
+- **Shrink them before committing**, or the page will crawl on a phone:
+
+  ```bash
+  npm run gallery:resize              # the whole gallery
+  npm run gallery:resize health-camp  # one album
+  ```
+
+  It resizes anything wider than 1600px, re-saves JPEGs at quality 80, keeps the
+  originals in `frontend/.gallery-originals/` (git-ignored), and is safe to re-run. A
+  photograph off a phone is 3–6 MB and the page shows it at a fraction of that size.
+- **`.jpg`, `.png`, `.webp` or `.avif`.** An iPhone `.HEIC` will not display in most
+  browsers — set the phone to *Most Compatible*, or export as JPEG first.
+
+Then:
+
+```bash
+npm run gallery:resize
+git add frontend/src/assets/gallery
+git commit -m "Photographs from the health check-up camp"
+git push origin main
+```
+
+**To add a whole new album**, two steps — the folder name is the link between them:
+
+1. Add an entry to `gallery` in section 11 of `site.ts` with a new `slug`, title, date and
+   description.
+2. Create a folder of **exactly that slug** in `frontend/src/assets/gallery/` and put the
+   photographs in it.
+
+An album whose folder is empty keeps a coloured placeholder and says the photographs are
+to follow, so a gallery being filled one event at a time never looks broken.
+
+> **Before you publish somebody's photograph**, be sure they are happy to be on a public
+> page — especially photographs of children. It is easier to ask first than to explain
+> afterwards, and a photograph pushed to a public repository stays in its history.
+
 ### Set the membership fees
 
 Section 8, `types`. Change `fee: null` to the agreed amount in rupees:
