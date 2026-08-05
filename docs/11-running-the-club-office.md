@@ -1037,12 +1037,85 @@ scheduler, which a public repository rules out.
 ## 11. Back up before you rely on it
 
 ```bash
-npm run backup                                   # writes backups/<timestamp>.json
+bash scripts/backup-to-drive.sh                  # the one to run: Drive + a readable copy
+npm run backup                                   # or locally: backups/<timestamp>.json
 npm run restore -- --file backups/<file>.json    # checks it; --write to restore
-bash scripts/backup-to-drive.sh                  # copy into Google Drive
+npm run export:book -- --file backups/<file>.json   # a spreadsheet from any backup
 ```
 
 Appwrite's free plan takes no backups of its own. **Check every backup you take** —
 `restore` without `--write` validates the file in seconds. An untested backup is a
 guess, and a club's membership and payment history is not reconstructible from anywhere
 else. Detail in [10-appwrite.md § Backups](10-appwrite.md#backups).
+
+### Into Google Drive
+
+```bash
+bash scripts/backup-to-drive.sh
+```
+
+Install **Google Drive for Desktop** and sign in; that is the whole setup. Drive syncs an
+ordinary folder, so a backup reaches Drive by being written into one — no API key, no
+service account, no OAuth token to expire unnoticed. The script finds
+`~/Library/CloudStorage/GoogleDrive-<your-email>/My Drive` by itself and writes into
+**Milani Sangha Club backups**.
+
+Somewhere else instead — an external disk, a different synced folder:
+
+```bash
+BACKUP_DIR="/Volumes/Backup/club" bash scripts/backup-to-drive.sh
+KEEP=90 bash scripts/backup-to-drive.sh          # keep 90 copies instead of 30
+```
+
+It keeps the newest 30 and deletes the rest — **by count, not by age**, deliberately:
+pruning by age empties the folder if backups stop running, which is exactly when the old
+ones become precious.
+
+**Two files arrive for each backup:**
+
+| File | What it is for |
+| --- | --- |
+| `2026-08-05T17-40-39-795Z.json` | Putting the data **back** into Appwrite. Not readable by a person |
+| `2026-08-05T17-40-39-795Z-books.xlsx` | **Reading** the club's books with no server and no sign-in |
+
+### Reading the books when the site is down
+
+This is the question worth having an answer to before it happens, and the answer must
+not be "restore the database and redeploy the application" — nobody does that on the
+evening before an AGM.
+
+Open the **spreadsheet**. Any backup can produce one:
+
+```bash
+npm run export:book -- --file backups/2026-08-05T17-40-39-795Z.json
+```
+
+It writes `<backup>-books.xlsx` beside the backup, and Excel, Numbers, LibreOffice and
+Google Sheets all open it offline:
+
+| Sheet | |
+| --- | --- |
+| **Summary** | Each fund's opening balance, what came in, what went out, what is left, and the total held |
+| **Entries** | Every ledger entry, with its fund, category, who recorded it and who approved it |
+| **Member payments** | Every declaration: member, amount, months, receipt number and verification code |
+| **Funds**, **Categories**, **Accounts** | The chart of accounts and who has an account |
+
+The summary is computed by **the same code as the printed statement**, so the two cannot
+disagree. Amounts are in rupees, not paise, so a column adds up in the spreadsheet.
+
+Three habits worth keeping, in order of how much they help:
+
+1. **`bash scripts/backup-to-drive.sh` on a schedule** — cron or launchd, weekly. Both
+   files land in Drive, so any committee member with the folder shared to them can read
+   the books from a phone.
+2. **Download the year's PDF statement after each committee meeting** (Office → Statements
+   → the club year → both PDFs) and keep it in the same Drive folder. A signed statement
+   is the club's record; a spreadsheet is a working copy.
+3. **Validate one backup a month**: `npm run restore -- --file <the newest>`. It writes
+   nothing and takes seconds.
+
+What none of this gives you is the *application* offline: the member portal and the
+officer screens need the API, and the API needs Appwrite. The website's pages are cached
+by the browser and will still open, but the figures come from the server. Reading the
+books offline is the spreadsheet and the PDFs — which is what a club actually needs when
+the internet is out.

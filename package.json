@@ -35,6 +35,7 @@
     "dev:lan": "bash scripts/dev.sh --host",
     "backup": "npm --prefix backend run backup --",
     "restore": "npm --prefix backend run restore --",
+    "export:book": "npm --prefix backend run export:book --",
     "appwrite:check": "npm --prefix backend run appwrite:check",
     "reset:ledger": "npm --prefix backend run reset:ledger --",
     "appwrite:provision": "npm --prefix backend run provision:appwrite --",
