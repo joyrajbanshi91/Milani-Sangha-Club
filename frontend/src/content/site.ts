@@ -413,7 +413,7 @@ export const committee = {
     // photo: '/committee/president.jpg'
     { name: 'Pankaj Ghosh', role: 'President', since: '2026', photo: '/committee/president.jpg', email: '' },
     // photo: '/committee/secretary-1.jpg'
-    { name: 'Gobindo Ghosh', role: 'Secretary', since: '2026', photo: '/committee/secretary-1.jpg', email: '' },
+    { name: 'Govindo Ghosh', role: 'Secretary', since: '2026', photo: '/committee/secretary-1.jpg', email: '' },
     // photo: '/committee/secretary-2.jpg'
     { name: 'Partha Dey', role: 'Secretary', since: '2026', photo: '/committee/secretary-2.jpg', email: '' },
     // photo: '/committee/cultural-secretary.jpg'
