@@ -2,7 +2,7 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf
 
 import { formatPaise } from '../../domain/money.js'
 import { financialYearLabel, periodLabel } from '../../domain/payments.js'
-import type { Payment } from '../../domain/types.js'
+import type { Payment, Transaction } from '../../domain/types.js'
 
 /**
  * A member's receipt.
@@ -18,12 +18,19 @@ import type { Payment } from '../../domain/types.js'
  * for. So the period is on the face of the receipt, in words, along with the
  * financial year it belongs to.
  *
- * Two signatures. The **cashier** is the officer who checked the money against the
- * club's records; the **approving officer** is whoever entered it in the books. The
- * club runs with one officer able to do both, so those are often the same person and
- * the receipt says so plainly rather than pretending to a second pair of eyes it did
- * not have. Both are printed as recorded facts *and* left as ruled lines, because a
- * paper receipt in India gets signed by hand and a printed name is not a signature.
+ * Two signatures, and they are two different people. The **cashier** is the officer
+ * who checked the money against the club's records and recorded it. The **approving
+ * officer** is the second bearer who approved that ledger entry — the club's
+ * two-person rule, on the face of the document.
+ *
+ * The approver is read from the ledger entry at the moment the receipt is printed,
+ * not stored on the payment, because it does not exist yet when the receipt number is
+ * allocated. Until somebody approves, the receipt says so rather than inventing a
+ * name or quietly repeating the cashier's: a receipt claiming two signatures it did
+ * not have is worse than one that admits it is waiting.
+ *
+ * Both are printed as recorded facts *and* left as ruled lines, because a paper
+ * receipt in India gets signed by hand and a printed name is not a signature.
  *
  * ## Not a tax receipt
  *
@@ -40,6 +47,7 @@ const MUTED = rgb(0.45, 0.42, 0.38)
 const BRAND = rgb(0.06, 0.24, 0.18)
 const RULE = rgb(0.85, 0.83, 0.79)
 const PAPER = rgb(0.99, 0.98, 0.96)
+const PENDING = rgb(0.72, 0.45, 0.05)
 
 /** WinAnsi cannot encode ₹, em dashes or Bengali. Same rule as the statement. */
 function safe(text: string): string {
@@ -76,6 +84,14 @@ const PURPOSE_LABEL = {
 export interface ReceiptInput {
   clubName: string
   payment: Payment
+  /**
+   * The ledger entry this payment produced, if it can still be read.
+   *
+   * Used only for the approving officer's name. Optional because a receipt must still
+   * print when the entry has been reversed, or when the ledger cannot be reached —
+   * the member is entitled to their receipt either way.
+   */
+  transaction?: Pick<Transaction, 'status' | 'approvals'> | null
   /** ISO timestamp of printing, shown in the footer so a reprint is identifiable. */
   generatedAt: string
 }
@@ -97,7 +113,7 @@ export async function renderReceiptPdf(input: ReceiptInput): Promise<Uint8Array>
 
   drawHeader(page, clubName, payment, bold, regular)
   const afterBody = drawBody(page, payment, bold, regular)
-  drawSignatures(page, payment, afterBody, bold, regular)
+  drawSignatures(page, payment, input.transaction ?? null, afterBody, bold, regular)
   drawFooter(page, input, regular)
 
   return pdf.save()
@@ -215,9 +231,24 @@ function drawBody(page: PDFPage, payment: Payment, bold: PDFFont, regular: PDFFo
   return y - 6
 }
 
+/**
+ * Who approved the ledger entry, as of this printing.
+ *
+ * Returns null while nobody has, which the receipt states rather than papering over.
+ * Reads the first signature: the club needs one, and if it ever needs more, naming
+ * the first is still true and the ruled line takes the rest by hand.
+ */
+function approverName(
+  transaction: Pick<Transaction, 'status' | 'approvals'> | null
+): string | null {
+  const approval = transaction?.approvals?.[0]
+  return approval?.name ?? null
+}
+
 function drawSignatures(
   page: PDFPage,
   payment: Payment,
+  transaction: Pick<Transaction, 'status' | 'approvals'> | null,
   top: number,
   bold: PDFFont,
   regular: PDFFont
@@ -231,19 +262,13 @@ function drawSignatures(
     color: RULE,
   })
 
-  /**
-   * Both roles are named even when one person filled them.
-   *
-   * The club runs with a single officer able to record and post an entry, so the
-   * cashier and the approving officer are usually the same name. Printing it twice
-   * is the honest thing: a receipt that showed two different names would be claiming
-   * a second check that nobody made.
-   */
-  const officer = payment.reviewedByName ?? ''
+  const approver = approverName(transaction)
 
-  const columns: Array<{ role: string; name: string }> = [
-    { role: 'Cashier / Treasurer', name: officer },
-    { role: 'Approved by', name: officer },
+  const columns: Array<{ role: string; name: string; pending?: boolean }> = [
+    { role: 'Cashier / Treasurer', name: payment.reviewedByName ?? '' },
+    approver
+      ? { role: 'Approved by', name: approver }
+      : { role: 'Approved by', name: 'Awaiting a second office bearer', pending: true },
   ]
 
   const width = (A5.width - MARGIN * 2) / 2
@@ -261,7 +286,15 @@ function drawSignatures(
     page.drawText(safe(column.role), { x, y: y - 12, size: 8, font: bold, color: INK })
 
     if (column.name) {
-      page.drawText(safe(column.name), { x, y: y - 23, size: 7.5, font: regular, color: MUTED })
+      page.drawText(safe(column.name), {
+        x,
+        y: y - 23,
+        size: 7.5,
+        font: regular,
+        // The waiting note is set apart from a real name, so a glance at a stack of
+        // receipts shows which are complete.
+        color: column.pending ? PENDING : MUTED,
+      })
     }
   })
 }

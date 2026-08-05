@@ -13,7 +13,8 @@ import { isIsoDate, isIsoMonth, todayInIndia } from '../domain/dates.js'
 import { financialYearOf } from '../domain/membership.js'
 import { rupeesToPaise } from '../domain/money.js'
 import { monthRange } from '../domain/report.js'
-import type { Actor } from '../domain/types.js'
+import { approvalsOutstanding } from '../domain/approval.js'
+import type { Actor, Transaction } from '../domain/types.js'
 import { AppError, badRequest, forbidden, notFound, unauthorised } from '../lib/httpError.js'
 import { sendReceipt } from '../lib/receiptResponse.js'
 import { requireAuth, requireFinanceOfficer } from '../middleware/auth.js'
@@ -215,7 +216,7 @@ financeRouter.post('/transactions', async (req: Request, res: Response) => {
 
   res.status(201).json({
     transaction: result.value,
-    message: 'Recorded. It needs a second officer’s approval before it affects any balance.',
+    message: approvalMessage(result.value),
   })
 })
 
@@ -234,7 +235,7 @@ financeRouter.post('/transactions/:id/approve', async (req: Request, res: Respon
     message:
       result.value.status === 'posted'
         ? 'Approved and posted. The balances now include it.'
-        : 'Approved. It still needs another signature.',
+        : approvalMessage(result.value),
   })
 })
 
@@ -271,7 +272,9 @@ financeRouter.post('/transactions/:id/reverse', async (req: Request, res: Respon
   res.status(201).json({
     transaction: result.value,
     message:
-      'A reversal has been recorded. Once a second officer approves it, the original entry is cancelled.',
+      result.value.status === 'posted'
+        ? 'Reversed. The original entry is cancelled and both halves stay on the record.'
+        : `A reversal has been recorded. ${approvalMessage(result.value)} The original is cancelled once it is.`,
   })
 })
 
@@ -314,8 +317,9 @@ financeRouter.post('/payments/:id/record', async (req: Request, res: Response) =
     payment: result.value.payment,
     transaction: result.value.transaction,
     message:
-      `Verified and entered as ${result.value.transaction.reference}. It needs a second officer’s ` +
-      'approval before it affects any balance.',
+      `Verified and entered as ${result.value.transaction.reference}, and receipt ` +
+      `${result.value.payment.receiptNumber ?? ''} issued. ` +
+      approvalMessage(result.value.transaction),
   })
 })
 
@@ -334,7 +338,7 @@ financeRouter.get('/payments/:id/receipt.pdf', async (req: Request, res: Respons
   const payment = await payments.get(param(req, 'id'))
   if (!payment) throw notFound('That payment could not be found.')
 
-  await sendReceipt(res, payment)
+  await sendReceipt(res, payment, (id) => store.getTransaction(id))
 })
 
 // ---------------------------------------------------------------------------
@@ -378,6 +382,25 @@ financeRouter.get('/members', async (req: Request, res: Response) => {
     },
   })
 })
+
+/**
+ * How many more signatures an entry needs, in words.
+ *
+ * Always states the number. "It needs a second officer's approval" was read by the
+ * club as "somebody has approved it and it still wants another", because the officer
+ * who recorded it had just been refused their own approval. One signature, from
+ * anyone but the author, is the whole rule — so the message counts it out.
+ */
+function approvalMessage(transaction: Transaction): string {
+  const outstanding = approvalsOutstanding(transaction)
+
+  if (outstanding === 0) return 'Posted. The balances now include it.'
+
+  return (
+    `Recorded. It needs ${outstanding} more approval${outstanding === 1 ? '' : 's'} — ` +
+    'from any office bearer except you — before it affects any balance.'
+  )
+}
 
 /** Map a domain refusal onto the right HTTP status. */
 function toHttpError(result: { code: string; reason: string }): AppError {

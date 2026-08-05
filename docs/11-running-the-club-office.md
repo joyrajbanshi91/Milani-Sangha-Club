@@ -152,18 +152,20 @@ npm run user -- disable --email person@example.com
 Disabling keeps the record and the audit trail. Deleting an account that has recorded
 finance entries would leave those entries pointing at nobody.
 
-### You still want at least two officers
+### You need at least two officers
 
-`REQUIRED_APPROVALS` is now **0**, so one officer can record an entry and it is posted
-immediately — the club asked for that, and §4 sets out what it costs.
+Two rules both need a second person, so with a single officer account the club is stuck
+in two ways — and in each case nothing is broken, there is simply nobody else to ask:
 
-Two officers are still worth having, for one rule that has not changed: **an officer
-cannot verify their own membership payment.** With a single active officer, that
-officer's own subscription can never be verified, no receipt is issued for it, and their
-months never show as paid. Nothing is broken; there is simply nobody else to check it.
+- **Nothing can be posted.** An entry needs one approval from somebody other than the
+  officer who recorded it. With one account, every entry sits pending for ever.
+- **That officer's own subscription can never be verified**, so no receipt is issued for
+  it and their months never show as paid.
 
-Each officer should be a real person with their own password. Sharing one account
-destroys the only remaining record of who did what.
+Three officer accounts is the comfortable arrangement — president, secretary and
+treasurer — so one being away never holds the club up. Each must be a real person with
+their own password: sharing one account defeats the rule entirely and destroys the record
+of who did what.
 
 ---
 
@@ -298,48 +300,79 @@ hands over a set of books on paper.
 
 ---
 
-## 4. Recording money — one officer
+## 4. Recording money — two people, never three
 
-1. An officer records an entry in **Office → Entries**. It is **posted immediately**:
-   it gets a gapless reference number and the balances move.
-2. Nothing is ever deleted. A mistake is **reversed** — the original entry stays, marked
-   `reversed`, and a matching opposite entry is added, so the record explains itself
-   years later.
+1. An officer records an entry in **Office → Entries**. It is `pending` and has moved
+   no balance.
+2. **One** other office bearer approves it. It becomes `posted`, gets a gapless
+   reference number, and the balances move.
+3. Nothing is ever deleted and nothing can be edited. A mistake is **withdrawn** before
+   anyone approves it, or **reversed** afterwards — the original stays, marked
+   `reversed`, with a matching opposite entry beside it.
 
-### ⚠️ This used to take two people
+### One approval. Not two.
 
-`REQUIRED_APPROVALS` was `1`, meaning one approval **in addition to** whoever recorded
-the entry — so two different people had to sign before any money moved. The club asked
-for one, and it is now `0`.
+This caused confusion and it is worth being exact about, because the club read it the
+other way round.
 
-Be clear about what changed, because the software no longer prevents it: **a single
-officer can now enter whatever they like into the club's books.** At `1`, they could not
-— an officer could record but never approve their own entry.
+**`REQUIRED_APPROVALS` is 1, counted *in addition to* whoever recorded the entry.** So
+two people are involved in total: the recorder and one other. There is no third.
 
-What still protects the club:
+What happened before: an officer records an entry, clicks **Approve** on their own
+entry, is refused — and reads that refusal as "somebody has already approved this and it
+still wants another". It does not. It wants one signature, from anyone except the
+author.
 
-- every entry names **who recorded it**, with a timestamp, in the audit log
-- **nothing can be deleted.** Cancelling a posted entry creates a reversal, and both
-  halves stay on the record for anyone reading the statement afterwards
-- an officer **still cannot verify their own membership payment** — a different
-  question, and one that matters more now that a single signature is enough
-- the detailed statement lists every entry with the officer who made it
+Every screen and message now counts it out rather than leaving it to be inferred:
 
-If the committee wants the two-person rule back, it is one line — see below. Nothing
-else has to change: the approval queue, the self-approval refusal and their tests are
-all still in place and still tested.
+- recording says *"needs 1 more approval — from any office bearer except you"*
+- a pending entry shows *"1 approval outstanding"*
+- the approve button reads **Approve and post**, because that is what the click does
+- approving says *"Approved and posted. The balances now include it."*
+
+### You cannot change your own record
+
+There is **no way to edit a recorded entry** — not for its author, not for anybody else,
+whatever their role. No screen offers it and no route accepts it; a test asserts that
+`PUT`, `PATCH` and `DELETE` on an entry all return 404.
+
+What you can do instead:
+
+| Situation | What to do |
+| --- | --- |
+| You made a mistake and nobody has approved it | **Withdraw** it. It becomes `discarded` and never touched a balance |
+| Somebody has already approved it | It is posted. **Cancel by reversal** — which itself needs one other bearer's approval |
+| Somebody else's entry is wrong | **Reject** it with a reason, if it is still pending |
+
+This applies to every office bearer equally. There is no rank that skips the check: a
+president's entry needs a second signature exactly as a treasurer's does, and a
+president cannot edit a treasurer's entry any more than the treasurer can.
+
+### Verifying a member's payment is not a way round it
+
+When an officer verifies a member's declared payment, the ledger entry that creates is
+an **ordinary pending entry attributed to them** — so it needs one other bearer's
+approval like anything else, and they cannot give it themselves.
+
+The member's receipt is issued straight away, because they handed over money and are
+entitled to something. Until the entry is approved, the receipt's **Approved by** line
+says *"Awaiting a second office bearer"* rather than repeating the cashier's name. Once
+approved, it prints the approver. Re-download it and the line fills in.
 
 ### Who can record
 
-| Role | Can record and post | Can verify a member's payment |
-| --- | --- | --- |
-| `treasurer` (the cashier) | yes | yes — but never their own |
-| `secretary` | yes | yes — but never their own |
-| `president` | yes | yes — but never their own |
-| `administrator` | yes | yes — but never their own |
-| `member`, `volunteer`, `visitor` | no | no |
+| Role | Can record | Can approve someone else's | Can verify a member's payment |
+| --- | --- | --- | --- |
+| `treasurer` (the cashier) | yes | yes | yes — but never their own |
+| `secretary` | yes | yes | yes — but never their own |
+| `president` | yes | yes | yes — but never their own |
+| `administrator` | yes | yes | yes — but never their own |
+| `member`, `volunteer`, `visitor` | no | no | no |
 
-So to let someone record entries:
+Approving is not a separate permission: **any bearer can approve any entry except one
+they recorded themselves.** You control who can approve by controlling roles.
+
+So to let someone record and approve entries:
 
 ```bash
 npm run user -- role --email person@example.org --role secretary
@@ -353,28 +386,26 @@ npm run user -- role --email person@example.org --role member
 
 Effective on their **next request** — no sign-out needed.
 
-### Putting the two-person rule back, or tightening it further
+### Changing how many people are needed
 
 Two knobs, both in `backend/src/config/constants.ts`, and both a code change plus a
 deploy rather than a setting in the app:
 
 - **`REQUIRED_APPROVALS`** — approvals needed **in addition to** whoever recorded the
-  entry. `0` today: one officer, posted immediately. `1` means two different people must
-  sign; `2` means three.
+  entry. `1` today, so two people in total. `2` would need three different people. `0`
+  means recording posts immediately with no second pair of eyes at all — the wrong
+  default for money, and not recommended.
 - **`FINANCE_ROLES`** — which roles may see the accounts and record entries. Remove
   `administrator` if the system's maintainer should not be able to move club money; that
   is a defensible choice and costs nothing.
 
 ```ts
 export const FINANCE_ROLES: readonly Role[] = ['treasurer', 'secretary', 'president', 'administrator']
-export const REQUIRED_APPROVALS = 0
+export const REQUIRED_APPROVALS = 1
 ```
 
-Changing `REQUIRED_APPROVALS` to `1` needs nothing else. Entries start `pending`, the
-recording officer cannot approve their own, and **Office → Entries** shows the queue —
-all of it already written and tested. Remember that with only one officer account,
-nothing could ever be posted; three real people with their own passwords is the sensible
-arrangement.
+Whatever you set, the screens count it out for you — "needs 2 more approvals" — so
+nobody has to remember the number.
 
 These are deliberately not editable in the interface. A rule that decides how many people
 must agree before the club's money moves should not be changeable by one person who is
@@ -495,11 +526,16 @@ people waiting.
 
 Three things at once:
 
-- an **ordinary ledger entry**, exactly as if you had typed it into Office → Entries —
-  dated the day the **member** paid, not the day you got round to it, attributed to you,
-  and posted immediately
+- an **ordinary pending ledger entry**, exactly as if you had typed it into
+  Office → Entries — dated the day the **member** paid, not the day you got round to it,
+  attributed to you, and needing **one** approval from another bearer before it reaches
+  a balance
 - a **receipt number**, which is what makes the member's download button appear
 - the **months are marked paid** in the register, if it was a membership payment
+
+The months and the receipt do not wait for the ledger approval. The member handed over
+money and an officer confirmed it arrived — that is what the register records. The
+pending entry is a bookkeeping step, and the receipt says so until it is approved.
 
 ### An officer cannot verify their own payment
 
@@ -507,9 +543,9 @@ A treasurer pays their subscription like everybody else. When they declare it, t
 **Verify** button is not offered to them and the API refuses it — another officer has to
 confirm it.
 
-This is not bureaucracy for its own sake, and it matters more now that a single officer
-can post an entry. The question being answered at this step is "did this money actually
-arrive?", and nobody can answer that about themselves.
+This is a different question from the approval on the ledger entry. That one asks
+whether the bookkeeping is right; this one asks whether the money actually arrived, and
+nobody can answer that about themselves.
 
 **If your club has only one active officer, nobody can verify that officer's own
 subscription.** That is the rule working, not a fault. Give a second person the
@@ -579,8 +615,11 @@ Sign in at <https://newmilanisanghaclub.appwrite.network/login>.
 | Step | Expect |
 | --- | --- |
 | Choose **Office bearers**, sign in as the treasurer | Lands on `/office`; **no** amber "Sample data" bar |
-| Office → Entries → record an income entry | **Posted straight away**; the dashboard figures move |
-| Cancel it by reversal | The original shows `reversed`, a matching opposite entry appears, and the total returns to where it was |
+| Office → Entries → record an income entry | Saved as **pending**, and the message says *needs 1 more approval*; the dashboard figures do **not** move |
+| Try to approve it yourself | Refused — you recorded it. The row says *1 approval outstanding* and that any other bearer can give it |
+| Try to edit it | There is no edit anywhere. Withdraw it instead, or reverse it once posted |
+| As the secretary: approve it | Posts on that **one** signature — no third person is asked for — and the figures move |
+| Cancel it by reversal | A pending reversal appears; once one other bearer approves it, the original shows `reversed` and the total returns to where it was |
 | Sign out | Returns to the sign-in page, and going back to `/office` asks you to sign in |
 | Statements → download **both** PDFs | Two files; the summary has no entry list, the detailed one does, and both names carry the period and today's date |
 | Sign-in page → Reset password | Email arrives; its link opens the new-password page |
@@ -597,9 +636,11 @@ Then the membership flow, which crosses both areas:
 | Try to declare the same month again | Refused, naming the month and the reference already claiming it |
 | Try "the rest of the year" | Priced at ₹550 for the remaining 11 months |
 | As the treasurer: Office → Members' payments | Listed, with the UPI transaction ID to match against |
-| Verify it, choosing a fund and category | Entered as `TXN-…`, posted; a receipt number `RCT-…` is issued |
+| Verify it, choosing a fund and category | Entered as `TXN-…` **pending**, needing 1 approval; a receipt number `RCT-…` is issued at once |
 | Office → Membership register | That member shows 1 of 12, one green box, and the rest red or grey |
-| Back as the member | The month is green; **Download receipt** appears and gives a PDF naming the month and the officer |
+| Back as the member: **Download receipt** | A PDF naming the month and the cashier, with *Awaiting a second office bearer* under **Approved by** |
+| As the secretary: approve the entry | Posts; the club's figures move |
+| Download the receipt again | **Approved by** now names the secretary |
 | As the treasurer: declare a payment of your own | Office → Members' payments offers no **Verify** button for it, and says another officer must |
 
 The amber **Sample data** bar appearing anywhere means the API has lost its database
