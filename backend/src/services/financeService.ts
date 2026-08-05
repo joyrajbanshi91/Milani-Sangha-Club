@@ -22,7 +22,9 @@ import {
   baselineFor,
   isDateInClosedYear,
   needsOpening,
+  previousYear,
   suggestCarryForward,
+  yearStart,
   type CarryForwardSuggestion,
 } from '../domain/financialYear.js'
 import { todayInIndia } from '../domain/dates.js'
@@ -351,6 +353,28 @@ export class FinanceService {
   ): Promise<Outcome<YearOpening>> {
     if (!isFinanceOfficer(actor.role)) {
       return { ok: false, code: 'not_officer', reason: 'You are not permitted to close a year.' }
+    }
+
+    /**
+     * A year cannot be opened before it has begun.
+     *
+     * Opening 2027-28 closes 2026-27. Doing that in the middle of 2026-27 would
+     * settle the year the club is living in: every entry dated from then until the
+     * following April would be refused, and the officer who clicked it would have
+     * frozen the books with no obvious way back. The year-end panel only offers this
+     * once the calendar has turned, but nothing stopped the request being made
+     * directly, and a rule this consequential should not rest on the interface.
+     */
+    const today = todayInIndia()
+    if (yearStart(financialYear) > today) {
+      return {
+        ok: false,
+        code: 'year_not_started',
+        reason:
+          `${financialYear} has not begun yet — it starts on ${yearStart(financialYear)}. Opening it ` +
+          `now would close ${previousYear(financialYear)}, which is the year the club is in, and ` +
+          'nothing could be recorded for the rest of it.',
+      }
     }
 
     const funds = await this.store.listFunds()
