@@ -18,9 +18,9 @@ it against the club's records before any receipt exists.**
 | **In cash** | The member hands the cash to an office bearer, then records the amount, the date and **which officer took it** |
 
 Cash is the case worth being careful about: there is no bank record to check
-against, so the officer who received it must also enter it into the books, which
-needs a second officer's approval like any other entry. The portal tells the member
-to ask for an acknowledgement at the time.
+against. The member's declaration names which bearer took it, so the person accepting
+it in the books is confirming what a named colleague received. The portal tells the
+member to ask for an acknowledgement at the time.
 
 ---
 
@@ -67,14 +67,21 @@ rounding it to `11.00`.
 
 No single person can move the club's money:
 
-1. An officer **records** an entry. It is `pending` and affects **no** balance.
-2. A **different** officer **approves** it. Only then is it `posted` and counted.
+1. An officer **records** an entry. It is `pending` and affects **no** balance. Every
+   bearer sees it, and any one of them can act.
+2. A **different** officer **approves** it. Only then is it `posted` and counted. One
+   approval, never two.
 3. The person who recorded it **cannot** approve it. The server refuses — it is not
    a hidden button, it is a rejected request.
 4. Approvals must come from distinct people. Approving twice does nothing.
 
-To require three signatures instead of two, change `REQUIRED_APPROVALS` in the
-shared constants.
+A **member's declared payment** is the same rule with the member in step 1: they put the
+money forward, no bearer may accept a payment of their own, so the bearer who confirms it
+arrived is already the second person and the entry **posts on their acceptance**. Two
+people either way; never the same person twice.
+
+To require three signatures instead of two for officers' own entries, change
+`REQUIRED_APPROVALS` in the shared constants.
 
 ### Nothing is ever deleted
 

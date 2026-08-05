@@ -23,9 +23,12 @@ import type { Actor, Payment, PaymentDraft, TransactionDraft } from './types.js'
  *     their subscription must have another officer confirm it, because the whole
  *     value of the step is that a second person checked whether the money is
  *     really there. Recording your own claim is not a check.
- *   • Accepting produces a *pending* ledger entry, so the existing two-person rule
- *     applies unchanged. A single officer can therefore never move a member's
- *     declaration all the way into a balance.
+ *   • **One officer accepting is enough**, and the declaration posts to the books on
+ *     their check. Two people have already handled it — the member who put the money
+ *     forward and the bearer who confirmed it arrived — and the rule above means those
+ *     can never be the same person. Asking a third was a signature nobody could
+ *     justify, and it left members holding receipts for money that was not yet in the
+ *     balances.
  *
  * Every function is pure: it returns the next state or an explanation. That is
  * what lets these rules be tested without a database, and why the same refusal

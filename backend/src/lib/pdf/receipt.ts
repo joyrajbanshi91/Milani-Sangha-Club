@@ -264,12 +264,27 @@ function drawSignatures(
 
   const approver = approverName(transaction)
 
-  const columns: Array<{ role: string; name: string; pending?: boolean }> = [
-    { role: 'Cashier / Treasurer', name: payment.reviewedByName ?? '' },
-    approver
-      ? { role: 'Approved by', name: approver }
-      : { role: 'Approved by', name: 'Awaiting a second office bearer', pending: true },
-  ]
+  /**
+   * One signature or two, depending on who actually signed.
+   *
+   * A verified declaration posts on the accepting officer's own check — the member put
+   * the money forward, so that officer is the second pair of eyes and there is no third
+   * name to print. Two columns naming the same person twice reads like a form filled in
+   * wrong, so this collapses to a single line.
+   *
+   * Two columns remain for anything that took a separate approval, and for a receipt
+   * printed while the entry is still pending — including every receipt issued before the
+   * club moved to one acceptance, which is read from the ledger and stays truthful.
+   */
+  const columns: Array<{ role: string; name: string; pending?: boolean }> =
+    approver && approver === payment.reviewedByName
+      ? [{ role: 'Verified and entered by', name: approver }]
+      : [
+          { role: 'Cashier / Treasurer', name: payment.reviewedByName ?? '' },
+          approver
+            ? { role: 'Approved by', name: approver }
+            : { role: 'Approved by', name: 'Awaiting a second office bearer', pending: true },
+        ]
 
   const width = (A5.width - MARGIN * 2) / 2
 

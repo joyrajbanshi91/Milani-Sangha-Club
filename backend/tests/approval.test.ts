@@ -5,6 +5,7 @@ import {
   approvalsOutstanding,
   buildReversal,
   canApprove,
+  checkedEntryState,
   discard,
   isFinanceOfficer,
   newEntryState,
@@ -44,11 +45,11 @@ describe('who counts as a finance officer', () => {
 })
 
 /**
- * What one officer gets, which is how the club runs today.
+ * What the number itself does, at each setting.
  *
- * `REQUIRED_APPROVALS` is 0, so recording is posting. The block after this one keeps
- * the two-person machinery under test with an explicit `required: 1`, because that
- * is what makes turning it back on a one-line change rather than a rewrite.
+ * The club runs `REQUIRED_APPROVALS` at 1 — one officer records, one other accepts.
+ * These pass the requirement explicitly so both settings stay under test and changing
+ * the club's mind remains a one-line change rather than a rewrite.
  */
 describe('recording with no further approval required', () => {
   it('posts the entry immediately', () => {
@@ -94,11 +95,11 @@ describe('recording with no further approval required', () => {
 })
 
 /**
- * The two-person rule, kept under test at `required: 1`.
+ * The two-person rule at `required: 1`, which is how the club runs.
  *
- * The club runs at 0 today. These pass an explicit requirement so the machinery is
- * exercised regardless — set `REQUIRED_APPROVALS` back to 1 and this is the
- * behaviour that returns, unchanged and already proven.
+ * Two people and never a third: whoever puts an entry forward cannot accept it, and
+ * exactly one other bearer does. The requirement is passed explicitly so these keep
+ * proving the machinery even if the club's number ever changes.
  */
 describe('the two-person rule', () => {
   it('refuses to let the author approve their own entry', () => {
@@ -179,6 +180,43 @@ describe('the two-person rule', () => {
     expect(canApprove(entry, TREASURER, 1).ok).toBe(false)
     expect(canApprove(entry, SECRETARY, 1).ok).toBe(true)
     expect(canApprove(entry, MEMBER, 1).ok).toBe(false)
+  })
+})
+
+/**
+ * The one entry a single officer posts: a member's declaration they accepted.
+ *
+ * The maker is the member. `canReview` in domain/payments.ts refuses an officer their
+ * own declaration, and a declaration can only ever be submitted for oneself — so by the
+ * time this state is reached, the person accepting the money is provably not the person
+ * who put it forward. That is the check the two-person rule asks for, and asking a third
+ * bearer on top left members holding receipts for money outside the balances.
+ */
+describe('an entry posted on the accepting officer’s own check', () => {
+  it('posts immediately, with that officer named as the approval', () => {
+    const state = checkedEntryState(TREASURER, NOW)
+
+    expect(state.status).toBe('posted')
+    expect(state.postedAt).toBe(NOW)
+    expect(state.approvals).toEqual([
+      { uid: TREASURER.uid, name: TREASURER.name, role: TREASURER.role, at: NOW },
+    ])
+  })
+
+  it('leaves nothing for anybody else to approve', () => {
+    // Whoever opens it next is told it is settled, rather than being invited to add a
+    // signature that would change nothing.
+    const entry = makeTransaction({ ...checkedEntryState(TREASURER, NOW) })
+
+    expect(approvalsOutstanding(entry, 1)).toBe(0)
+
+    const result = canApprove(entry, SECRETARY, 1)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.code).toBe('not_pending')
+  })
+
+  it('satisfies the requirement without a second signature', () => {
+    expect(approvalsOutstanding(checkedEntryState(SECRETARY, NOW), 1)).toBe(0)
   })
 })
 

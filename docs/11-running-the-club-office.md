@@ -157,8 +157,10 @@ finance entries would leave those entries pointing at nobody.
 Two rules both need a second person, so with a single officer account the club is stuck
 in two ways — and in each case nothing is broken, there is simply nobody else to ask:
 
-- **Nothing can be posted.** An entry needs one approval from somebody other than the
-  officer who recorded it. With one account, every entry sits pending for ever.
+- **Nothing an officer records can be posted.** An entry needs one approval from somebody
+  other than the officer who recorded it. With one account, every entry sits pending for
+  ever. (A *member's* declared payment is fine — the member is the other person, so a lone
+  officer can still accept members' money.)
 - **That officer's own subscription can never be verified**, so no receipt is issued for
   it and their months never show as paid.
 
@@ -303,12 +305,17 @@ hands over a set of books on paper.
 ## 4. Recording money — two people, never three
 
 1. An officer records an entry in **Office → Entries**. It is `pending` and has moved
-   no balance.
+   no balance. **Every bearer sees it** — on their dashboard and in the entries list —
+   and any one of them can act on it.
 2. **One** other office bearer approves it. It becomes `posted`, gets a gapless
    reference number, and the balances move.
 3. Nothing is ever deleted and nothing can be edited. A mistake is **withdrawn** before
    anyone approves it, or **reversed** afterwards — the original stays, marked
    `reversed`, with a matching opposite entry beside it.
+
+The same shape holds for a **member's payment**, with the member in the first step: they
+declare it, every bearer sees the declaration, and one bearer accepting puts it in the
+books. Two people either way, and in neither case can they be the same person.
 
 ### One approval. Not two.
 
@@ -348,16 +355,21 @@ This applies to every office bearer equally. There is no rank that skips the che
 president's entry needs a second signature exactly as a treasurer's does, and a
 president cannot edit a treasurer's entry any more than the treasurer can.
 
-### Verifying a member's payment is not a way round it
+### A member's payment: one bearer accepting is enough
 
-When an officer verifies a member's declared payment, the ledger entry that creates is
-an **ordinary pending entry attributed to them** — so it needs one other bearer's
-approval like anything else, and they cannot give it themselves.
+A member's declared payment is the one thing this number does not govern, and the reason
+is that **the member is the maker.** They put the money forward. The bearer who checks it
+against the club's records is therefore already the second person — and can never be the
+same person, because no officer is offered the **Verify** button on a payment of their
+own.
 
-The member's receipt is issued straight away, because they handed over money and are
-entitled to something. Until the entry is approved, the receipt's **Approved by** line
-says *"Awaiting a second office bearer"* rather than repeating the cashier's name. Once
-approved, it prints the approver. Re-download it and the line fills in.
+So accepting a declaration **posts it to the books there and then**, on that bearer's
+check, and the receipt names them. Asking a third bearer on top was a signature nobody
+could justify: it left a member holding a receipt marked *awaiting a second office bearer*
+for money the club's figures did not yet include.
+
+An entry an officer **types in themselves** is the opposite case — maker and checker
+would be the same person — so it still needs one other bearer, exactly as before.
 
 ### Who can record
 
@@ -494,12 +506,15 @@ member's list, and the receipt number (`RCT-2026-000001`) with it. The receipt c
 - the member, the amount, and **which months it covers**, in words
 - how they paid and the reference matched against
 - the declaration and the ledger entry it produced, so it can be traced
-- two signature lines — **Cashier / Treasurer** and **Approved by** — both naming the
-  officer who verified it
+- one signature line — **Verified and entered by** — naming the bearer who accepted it,
+  left ruled for a hand signature, which is what a paper receipt needs
 
-Both lines name the same officer, because one officer records and posts. That is
-deliberate: two different names would claim a second check nobody made. The lines are
-left ruled for a hand signature, which is what a paper receipt needs.
+One line, because one bearer accepted it and the entry posted on their check. Printing
+two — *Cashier* and *Approved by* with the same name in both — would claim a second check
+nobody made. Where an entry genuinely did take a separate approval, the receipt prints
+both names; and a receipt printed while its entry is still pending says *Awaiting a second
+office bearer* rather than filling the line in. Both are read from the ledger at the
+moment of printing, so receipts issued under the old two-signature rule stay truthful.
 
 An officer can reprint any member's receipt from **Office → Members' payments** — the
 commonest request an office ever gets.
@@ -526,16 +541,17 @@ people waiting.
 
 Three things at once:
 
-- an **ordinary pending ledger entry**, exactly as if you had typed it into
-  Office → Entries — dated the day the **member** paid, not the day you got round to it,
-  attributed to you, and needing **one** approval from another bearer before it reaches
-  a balance
-- a **receipt number**, which is what makes the member's download button appear
+- a **posted ledger entry** — dated the day the **member** paid, not the day you got round
+  to it, and carrying your name as the bearer who accepted it. It is in the club's
+  balances immediately: your check is the second pair of eyes, because the member put the
+  money forward and you are not them
+- a **receipt number**, which is what makes the member's download button appear, and which
+  names you
 - the **months are marked paid** in the register, if it was a membership payment
 
-The months and the receipt do not wait for the ledger approval. The member handed over
-money and an officer confirmed it arrived — that is what the register records. The
-pending entry is a bookkeeping step, and the receipt says so until it is approved.
+Nothing waits on anybody else. If you accept a payment that did not actually arrive, the
+correction is a **reversal** — which does need one other bearer, like any entry an officer
+writes.
 
 ### An officer cannot verify their own payment
 
@@ -543,9 +559,9 @@ A treasurer pays their subscription like everybody else. When they declare it, t
 **Verify** button is not offered to them and the API refuses it — another officer has to
 confirm it.
 
-This is a different question from the approval on the ledger entry. That one asks
-whether the bookkeeping is right; this one asks whether the money actually arrived, and
-nobody can answer that about themselves.
+This is the check that matters, and it is why one bearer is enough: the question a
+declaration asks is *did this money actually arrive*, and nobody can answer that about
+their own payment.
 
 **If your club has only one active officer, nobody can verify that officer's own
 subscription.** That is the rule working, not a fault. Give a second person the
@@ -787,11 +803,10 @@ Then the membership flow, which crosses both areas:
 | Try to declare the same month again | Refused, naming the month and the reference already claiming it |
 | Try "the rest of the year" | Priced at ₹550 for the remaining 11 months |
 | As the treasurer: Office → Members' payments | Listed, with the UPI transaction ID to match against |
-| Verify it, choosing a fund and category | Entered as `TXN-…` **pending**, needing 1 approval; a receipt number `RCT-…` is issued at once |
+| Verify it, choosing a fund and category | Entered as `TXN-…` **posted** — the club's figures move at once, with no second approval to give; a receipt number `RCT-…` is issued |
 | Office → Membership register | That member shows 1 of 12, one green box, and the rest red or grey |
-| Back as the member: **Download receipt** | A PDF naming the month and the cashier, with *Awaiting a second office bearer* under **Approved by** |
-| As the secretary: approve the entry | Posts; the club's figures move |
-| Download the receipt again | **Approved by** now names the secretary |
+| Back as the member: **Download receipt** | A PDF naming the month, with one signature line — *Verified and entered by* — carrying the treasurer's name |
+| Try to approve that entry as the secretary | Refused: there is nothing left to approve |
 | As the treasurer: declare a payment of your own | Office → Members' payments offers no **Verify** button for it, and says another officer must |
 
 And the year end, which you can try at any time without waiting for April:

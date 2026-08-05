@@ -34,12 +34,17 @@ import type { PaymentStore } from './paymentStore.js'
  *      declaration is still queued, and recording it again would produce a
  *      duplicate the officer can see and reverse.
  *
- *   2. **The entry is pending, never posted.** It is created through
- *      `FinanceService.createEntry` — the same path the officer's own manual form
- *      uses — so the two-person rule applies untouched. Recording a member's
- *      payment gives it one signature, the recording officer's; a second officer
- *      still has to approve it before any balance moves. Nothing here is allowed to
- *      be a shortcut into the accounts.
+ *   2. **The verifying officer is the check, so the entry posts.** It is created
+ *      through `FinanceService.createEntry` — the same path the officer's own manual
+ *      form uses — but with `checkedByActor`, because here the maker is the *member*.
+ *      They put the money forward, `canReview` refuses an officer their own
+ *      declaration, and so the person accepting it is provably not the person who
+ *      submitted it. One bearer accepting is the rule the club asked for.
+ *
+ *      This is not a shortcut into the accounts. An officer cannot reach it with an
+ *      entry of their own: a declaration can only ever be submitted for oneself
+ *      (`memberUid` comes from the verified token), so there is no route by which an
+ *      officer both puts money forward and accepts it.
  */
 export class PaymentService {
   constructor(
@@ -269,7 +274,11 @@ export class PaymentService {
     })
     const entry = await this.finance.createEntry(
       choice.note ? { ...draft, description: `${draft.description} — ${choice.note}` } : draft,
-      actor
+      actor,
+      // The member put this money forward and this officer is accepting it — two
+      // people, and `canReview` above has already refused an officer their own
+      // declaration. So it posts here rather than waiting on a third.
+      { checkedByActor: true }
     )
 
     // A rejected draft is the officer's fund or category being wrong, so the

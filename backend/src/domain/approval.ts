@@ -5,20 +5,30 @@ import type { Actor, Approval, Transaction, TransactionDraft } from './types.js'
 /**
  * Maker–checker rules for financial entries.
  *
- * How many people must agree is a single number, `REQUIRED_APPROVALS`, counted *in
- * addition to* whoever recorded the entry. The club currently runs it at **0**, so
- * one officer records and the entry is posted there and then. Everything below still
- * holds and is what makes raising it back to 1 a one-line change:
+ * **Two people, and never a third.** How many must agree is a single number,
+ * `REQUIRED_APPROVALS`, counted *in addition to* whoever put the entry forward. The
+ * club runs it at 1: one officer records, exactly one other accepts, and it is in the
+ * books.
  *
- *   • The officer who records an entry can never approve it. Not "should not" —
- *     `approve` refuses.
+ *   • Whoever put an entry forward can never accept it. Not "should not" — `approve`
+ *     refuses, and so does `reject`; taking back your own entry is `discard`.
  *   • Approvals must come from distinct people. Approving twice does nothing.
  *   • Only an entry that has gathered enough approvals is 'posted', and only a
- *     posted entry affects any balance. At 0 required, "enough" is none, which is
- *     why `newEntryState` posts immediately rather than leaving a pending entry
- *     nobody will ever be asked to approve.
+ *     posted entry affects any balance.
  *   • A posted entry is never edited or deleted. It is cancelled by an equal and
  *     opposite reversal, and the original stays in the ledger marked 'reversed'.
+ *
+ * ## The one place a single officer is enough
+ *
+ * A member's declared payment. The member is the maker: they put the money forward,
+ * and `canReview` in domain/payments.ts refuses an officer their own declaration — so
+ * by the time an officer verifies one, two different people are already involved and
+ * the person who submitted it is provably not the person accepting it. That
+ * verification is the check, and `checkedEntryState` posts the entry on it.
+ *
+ * Asking another bearer on top was a third pair of eyes on money the club had already
+ * counted, and it left members holding a receipt that read *awaiting a second office
+ * bearer* while their payment sat outside the balances.
  *
  * Every function here is pure: it returns the next state or an explanation, and
  * touches nothing. That is what makes these rules testable.
@@ -60,6 +70,33 @@ export function newEntryState(
   return required <= 0
     ? { status: 'posted', approvals: [], createdAt: now, postedAt: now }
     : { status: 'pending', approvals: [], createdAt: now }
+}
+
+/**
+ * The state an entry starts in when the officer writing it is the *checker*.
+ *
+ * Used for one thing: a member's declared payment, entered by the officer who verified
+ * it. The maker is the member, the checker is the officer, and they cannot be the same
+ * person — `canReview` refuses an officer their own declaration. So the entry is posted
+ * with that officer's signature on it rather than queued for somebody else, and the
+ * member's money reaches the books the moment a bearer accepts it.
+ *
+ * Deliberately not the default and not reachable from any route where an officer writes
+ * an entry of their own: `FinanceService.createEntry` takes it as an explicit option,
+ * and only the payment-verification path passes it. An officer typing an entry by hand
+ * is both maker and checker of their own work, which is exactly what the two-person rule
+ * exists to prevent.
+ */
+export function checkedEntryState(
+  actor: Actor,
+  now: string
+): Pick<Transaction, 'status' | 'approvals' | 'createdAt'> & { postedAt: string } {
+  return {
+    status: 'posted',
+    approvals: [{ uid: actor.uid, name: actor.name, role: actor.role, at: now }],
+    createdAt: now,
+    postedAt: now,
+  }
 }
 
 /**
