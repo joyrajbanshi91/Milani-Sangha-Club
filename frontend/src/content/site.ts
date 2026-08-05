@@ -112,7 +112,16 @@ export const club = {
     /** Leave any of these as an empty string to hide that row. */
     phone: '',
     whatsapp: '',
-    email: '',
+    /**
+     * Where enquiries go. Setting this also switches the contact form on.
+     *
+     * A personal address for now, which works and is what the club has. Two things to
+     * know about it: a published address is collected by spammers within days, and this
+     * one belongs to a person rather than to an office — so it has to be edited here
+     * (and the change deployed) whenever the club's secretary changes. A club address
+     * would need neither.
+     */
+    email: 'govindaghosh12@gmail.com',
     /** Free text — shown on the contact page. */
     officeHours: 'Monday to Saturday, 5 p.m. to 8 p.m.',
   },
