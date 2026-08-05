@@ -107,6 +107,43 @@ describe('the receipt', () => {
     expect(drawn).not.toContain('Awaiting a second office bearer')
   })
 
+  it('prints one signature when the bearer who accepted it is the one who checked it', async () => {
+    /**
+     * The ordinary member payment now.
+     *
+     * One bearer accepts a declaration and it posts on their check, so there is no
+     * second name to print. Two columns carrying the same name twice reads like a form
+     * filled in wrong, and "Approved by: Debabrata Roy" beside "Cashier: Debabrata Roy"
+     * would suggest a second person looked when nobody did.
+     */
+    const drawn = (
+      await textBoxes(() =>
+        renderReceiptPdf({
+          clubName: 'Milani Sangha Club',
+          payment: payment(),
+          transaction: {
+            status: 'posted',
+            approvals: [
+              {
+                uid: 'u-tre',
+                name: 'Debabrata Roy',
+                role: 'treasurer',
+                at: '2026-04-07T09:00:00.000Z',
+              },
+            ],
+          },
+          generatedAt: GENERATED,
+        })
+      )
+    ).map((box) => box.text)
+
+    expect(drawn).toContain('Verified and entered by')
+    expect(drawn.filter((text) => text === 'Debabrata Roy')).toHaveLength(1)
+    expect(drawn).not.toContain('Cashier / Treasurer')
+    expect(drawn).not.toContain('Approved by')
+    expect(drawn).not.toContain('Awaiting a second office bearer')
+  })
+
   it('says the approval is outstanding rather than repeating the cashier', async () => {
     // A receipt claiming two signatures it did not have is worse than one that admits
     // it is waiting. The member still gets their receipt; it just tells the truth.

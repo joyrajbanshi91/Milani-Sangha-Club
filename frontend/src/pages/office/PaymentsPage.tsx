@@ -63,11 +63,12 @@ export function PaymentsPage() {
       <div>
         <h1 className="font-display text-2xl text-ink-900 sm:text-3xl">Members' payments</h1>
         <p className="mt-1 text-sm/relaxed text-ink-500">
-          What members say they have paid. Check each one against the club's records — the UPI
-          statement, the cash box, the cheque — before you enter it in the books. Recording one
-          creates an ordinary ledger entry dated the day the member paid, and issues their
-          receipt. That entry then needs <strong>one</strong> approval from another office bearer,
-          like any other.
+          What members say they have paid. Every bearer sees this queue, and{' '}
+          <strong>any one of you</strong> can accept a payment. Check it against the club's records
+          first — the UPI statement, the cash box, the cheque. Accepting it enters the money in the
+          books straight away, dated the day the member paid, and issues their receipt. No second
+          bearer is needed: the member put the money forward, you are the check, and{' '}
+          <strong>nobody can accept their own payment</strong>.
         </p>
       </div>
 
@@ -307,8 +308,8 @@ function ReviewForm({ payment, onDone }: { payment: Payment; onDone: () => void 
     >
       <p className="text-xs/relaxed text-ink-600">
         Confirm the money reached the club, then say where it landed. The entry is dated{' '}
-        {formatDate(payment.paidOn)} — the day the member paid. The member's receipt is issued
-        at once; the entry itself needs one approval from another bearer, and you cannot give it.
+        {formatDate(payment.paidOn)} — the day the member paid. Your acceptance is the check, so it
+        goes into the club's balances at once and the member's receipt is issued naming you.
       </p>
 
       {activeFunds.length === 0 || incomeCategories.length === 0 ? (

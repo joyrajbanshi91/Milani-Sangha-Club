@@ -244,6 +244,12 @@ export const FINANCE_ROLES: readonly Role[] = [
  *   • the same applies to every office bearer equally. There is no rank that skips
  *     the check: a president's entry needs a second signature exactly as a
  *     treasurer's does
+ *
+ * **A member's declared payment is the one thing this number does not govern.** There
+ * the maker is the member, who put the money forward and cannot accept it — no officer
+ * may accept a declaration of their own. So the bearer who confirms it against the
+ * club's records is already the second person, and the entry posts on their check. See
+ * `checkedEntryState` in domain/approval.ts.
  */
 export const REQUIRED_APPROVALS = 1
 

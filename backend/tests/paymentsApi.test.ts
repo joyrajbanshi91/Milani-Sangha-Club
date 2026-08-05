@@ -16,9 +16,11 @@ import { duesForMonths, monthsBetween } from '../src/domain/membership.js'
  *     nothing in the register until an officer has checked it against the club's
  *     records, and an officer cannot check their own.
  *
- * Verifying a payment creates an ordinary pending entry, so the two-person rule
- * applies to it exactly as to one typed in by hand: the verifying officer cannot
- * approve it, and one other bearer — never two — posts it.
+ * A declaration goes to every bearer, and **one of them accepting is enough**: the
+ * entry posts on that officer's check, because the member is the maker and no officer
+ * may accept a declaration of their own. An entry an officer types in by hand is a
+ * different case and still needs one other bearer — there, maker and checker would
+ * otherwise be the same person.
  *
  * The demo store is shared across this file, so each test uses distinct amounts —
  * the duplicate guard is real and would otherwise refuse the second submission.
@@ -253,10 +255,9 @@ describe('an officer verifying a declaration', () => {
     expect([...submitted].sort()).toEqual(submitted)
   })
 
-  it('enters it in the books as pending, and issues the receipt at that moment', async () => {
+  it('enters it in the books on one bearer’s acceptance, and issues the receipt', async () => {
     const member = await signIn('member@demo.club')
     const treasurer = await signIn('treasurer@demo.club')
-    const secretary = await signIn('secretary@demo.club')
 
     const payment = await declare(member, { amount: '651', paidOn: '2026-06-11' })
     const choice = await chartOfAccounts(treasurer)
@@ -282,44 +283,39 @@ describe('an officer verifying a declaration', () => {
     expect(recorded.body.payment.receiptNumber).toMatch(/^RCT-2026-\d{6}$/)
 
     /**
-     * The entry is an ordinary one: pending, needing exactly one other bearer.
+     * One bearer accepting is enough, and the entry posts on their check.
      *
-     * Verifying a member's payment is not a way round the two-person rule. The
-     * message counts the outstanding signature so the officer is not left guessing
-     * how many more people are involved.
+     * The maker here is the *member*: they put the money forward, and an officer can
+     * never accept a declaration of their own. So two different people have handled it
+     * before it reaches a balance, and asking a third was a signature nobody could
+     * justify — it left the member holding a receipt for money the club's figures did
+     * not yet include.
      */
-    expect(recorded.body.transaction.status).toBe('pending')
-    expect(recorded.body.message).toMatch(/needs 1 more approval/i)
+    expect(recorded.body.transaction.status).toBe('posted')
+    expect(recorded.body.message).toMatch(/posted/i)
 
-    const during = await request(app)
-      .get('/api/v1/finance/dashboard?from=2026-06-01&to=2026-06-30')
-      .set('Authorization', `Bearer ${treasurer}`)
-    expect(during.body.totals.incomePaise).toBe(before.body.totals.incomePaise)
+    // The accepting officer is named on the entry, so the books say who checked it.
+    expect(recorded.body.transaction.approvals).toHaveLength(1)
+    expect(recorded.body.transaction.approvals[0].name).toBeTruthy()
 
-    // The verifying officer cannot approve their own entry, as for any other.
-    const self = await request(app)
-      .post(`/api/v1/finance/transactions/${recorded.body.transaction.id}/approve`)
-      .set('Authorization', `Bearer ${treasurer}`)
-      .send({})
-      .expect(409)
-    expect(self.body.error.code).toBe('self_approval')
-
-    await request(app)
-      .post(`/api/v1/finance/transactions/${recorded.body.transaction.id}/approve`)
-      .set('Authorization', `Bearer ${secretary}`)
-      .send({})
-      .expect(200)
-
+    // And the money is in the club's figures immediately — no second step.
     const after = await request(app)
       .get('/api/v1/finance/dashboard?from=2026-06-01&to=2026-06-30')
       .set('Authorization', `Bearer ${treasurer}`)
     expect(after.body.totals.incomePaise).toBe(before.body.totals.incomePaise + 65_100)
+
+    // Nothing is left for anyone to approve.
+    const again = await request(app)
+      .post(`/api/v1/finance/transactions/${recorded.body.transaction.id}/approve`)
+      .set('Authorization', `Bearer ${treasurer}`)
+      .send({})
+      .expect(409)
+    expect(again.body.error.code).toBe('not_pending')
   })
 
-  it('names the approving officer on the receipt once somebody has approved', async () => {
+  it('records who accepted it, on the declaration and on the entry', async () => {
     const member = await signIn('member@demo.club')
     const treasurer = await signIn('treasurer@demo.club')
-    const secretary = await signIn('secretary@demo.club')
 
     const payment = await declare(member, { amount: '657' })
     const recorded = await request(app)
@@ -328,29 +324,25 @@ describe('an officer verifying a declaration', () => {
       .send(await chartOfAccounts(treasurer))
       .expect(201)
 
-    // A receipt is available at once — the member handed over money and is entitled
-    // to something — but it must not claim a signature nobody has given yet.
-    const early = await request(app)
+    /**
+     * One name, in two places, and they agree.
+     *
+     * The bearer who checked the money against the club's records is on the
+     * declaration as its reviewer and on the ledger entry as its approval — so the
+     * receipt can name them, and the books can show who accepted the money without
+     * anyone reading the audit log. receipt.test.ts asserts the printed wording.
+     */
+    const accepted = recorded.body.payment.reviewedByName as string
+    expect(accepted).toBeTruthy()
+    expect(recorded.body.transaction.approvals[0].name).toBe(accepted)
+    expect(recorded.body.transaction.approvals[0].uid).toBe(recorded.body.payment.reviewedBy)
+
+    // The receipt is available at once, because nothing further is waited on.
+    const receipt = await request(app)
       .get(`/api/v1/members/me/payments/${payment.id}/receipt.pdf`)
       .set('Authorization', `Bearer ${member}`)
       .expect(200)
-    expect(early.body.subarray(0, 5).toString()).toBe('%PDF-')
-
-    await request(app)
-      .post(`/api/v1/finance/transactions/${recorded.body.transaction.id}/approve`)
-      .set('Authorization', `Bearer ${secretary}`)
-      .send({})
-      .expect(200)
-
-    const complete = await request(app)
-      .get(`/api/v1/members/me/payments/${payment.id}/receipt.pdf`)
-      .set('Authorization', `Bearer ${member}`)
-      .expect(200)
-
-    // The approved receipt is a different document — it now carries a name where it
-    // previously carried the waiting note. Byte length is the observable difference
-    // here; receipt.test.ts asserts the actual text.
-    expect(complete.body.byteLength).not.toBe(early.body.byteLength)
+    expect(receipt.body.subarray(0, 5).toString()).toBe('%PDF-')
   })
 
   it('gives the member a receipt PDF, and nobody else theirs', async () => {

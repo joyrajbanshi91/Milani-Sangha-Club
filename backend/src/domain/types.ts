@@ -153,9 +153,9 @@ export interface Actor {
  *
  * Deliberately *not* a ledger entry. It is one member's claim, sitting outside the
  * accounts until an officer checks it against the club's records — the UPI
- * statement, the cash box, the cheque. Approving it creates a normal `Transaction`
- * in the 'pending' state, so the money still needs a second officer before it
- * reaches a balance. That is why this is a separate shape rather than a
+ * statement, the cash box, the cheque. Accepting it creates a normal `Transaction`,
+ * posted on that officer's check — the member is the maker, and no officer may accept
+ * a declaration of their own. That is why this is a separate shape rather than a
  * `Transaction` with an extra status: a member can write one, and nothing a member
  * can write may ever be part of the ledger.
  */

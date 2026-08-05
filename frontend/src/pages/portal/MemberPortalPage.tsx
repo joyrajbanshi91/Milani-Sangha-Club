@@ -615,10 +615,10 @@ function DeclarePayment() {
       <p className="mt-4 flex gap-2 rounded-lg bg-brand-50 p-3 text-xs/relaxed text-brand-900">
         <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
         <span>
-          A receipt is only ever issued after an office bearer has confirmed your payment against
-          the club's records. Nobody can mark a payment as received without that check — and the
-          receipt is issued at that moment, and the entry it creates is approved by a second
-          office bearer before it counts towards the club's balances.
+          Your declaration goes to every office bearer, and any one of them can confirm it against
+          the club's records — the UPI statement, the cash box, the cheque. A receipt is only ever
+          issued after that check, it names the bearer who made it, and no bearer can confirm a
+          payment of their own.
         </span>
       </p>
     </section>

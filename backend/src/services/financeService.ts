@@ -2,6 +2,7 @@ import { REQUIRED_APPROVALS } from '../config/constants.js'
 import {
   approve as approveEntry,
   buildReversal,
+  checkedEntryState,
   discard as discardEntry,
   isFinanceOfficer,
   newEntryState,
@@ -115,8 +116,20 @@ export class FinanceService {
   // Writing
   // -------------------------------------------------------------------------
 
-  /** Record a new entry. It is pending until a different officer approves it. */
-  async createEntry(draft: TransactionDraft, actor: Actor): Promise<Outcome<Transaction>> {
+  /**
+   * Record a new entry. It is pending until a different officer approves it.
+   *
+   * `checkedByActor` is the single exception, and it is not available over HTTP: it is
+   * passed only by `PaymentService.record`, where the maker is the member who declared
+   * the payment and `actor` is the officer who checked it against the club's records.
+   * There the verification *is* the second pair of eyes, so the entry posts on it. See
+   * `checkedEntryState`.
+   */
+  async createEntry(
+    draft: TransactionDraft,
+    actor: Actor,
+    options: { checkedByActor?: boolean } = {}
+  ): Promise<Outcome<Transaction>> {
     if (!isFinanceOfficer(actor.role)) {
       return { ok: false, code: 'not_officer', reason: 'You are not permitted to record entries.' }
     }
@@ -155,12 +168,17 @@ export class FinanceService {
       }
     }
 
-    const created = await this.store.createTransaction({ ...draft, ...newEntryState(this.now()) })
+    const state = options.checkedByActor
+      ? checkedEntryState(actor, this.now())
+      : newEntryState(this.now())
+
+    const created = await this.store.createTransaction({ ...draft, ...state })
 
     await this.audit({
-      // Named for what actually happened. At 0 required approvals the entry is in
-      // the balances the moment it is written, and an audit trail that called that
-      // "created" would leave nothing recording when the money started counting.
+      // Named for what actually happened. An entry that posts as it is written — a
+      // verified member payment — is in the balances immediately, and an audit trail
+      // that called that "created" would leave nothing recording when the money
+      // started counting.
       action: created.status === 'posted' ? 'finance.entry.posted' : 'finance.entry.created',
       actor,
       targetId: created.id,
@@ -169,6 +187,9 @@ export class FinanceService {
         kind: created.kind,
         amountPaise: created.amountPaise,
         posted: created.status === 'posted',
+        // True only for a member's declaration: the officer accepting it is the
+        // check, because the member who put the money forward cannot be.
+        ...(options.checkedByActor ? { checkedOnEntry: true } : {}),
       },
     })
 
