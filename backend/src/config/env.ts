@@ -56,7 +56,7 @@ const envSchema = z.object({
   SMTP_PASSWORD: z.string().optional(),
   MAIL_FROM: z.string().optional(),
 
-  CLUB_NAME: z.string().default('Milani Sangha Club'),
+  CLUB_NAME: z.string().default('New Barrackpore Milani Sangha Club'),
   CLUB_UPI_ID: z.string().optional(),
 
   /**

@@ -27,7 +27,7 @@ const envSchema = z.object({
   VITE_APPWRITE_PROJECT_ID: z.string().default(''),
 
   VITE_API_BASE_URL: z.string().min(1).default('/api/v1'),
-  VITE_CLUB_NAME: z.string().min(1).default('Milani Sangha Club'),
+  VITE_CLUB_NAME: z.string().min(1).default('New Barrackpore Milani Sangha Club'),
   VITE_CLUB_UPI_ID: z.string().optional(),
   VITE_SUPPORT_EMAIL: z.email().optional().or(z.literal('')),
 })

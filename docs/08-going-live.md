@@ -110,7 +110,7 @@ Then in `backend/.env`:
 ```ini
 GOOGLE_APPLICATION_CREDENTIALS=/Users/joy/.config/milani/service-account.json
 FIREBASE_PROJECT_ID=milani-sangha-test
-CLUB_NAME=New Milani Sangha Club
+CLUB_NAME=New Barrackpore Milani Sangha Club
 ```
 
 > This key bypasses every security rule. Treat it like the club's bank password:

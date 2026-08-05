@@ -35,9 +35,9 @@ export default defineConfig(({ mode }) => {
         includeAssets: ['favicon.svg', 'robots.txt', 'icons/apple-touch-icon-180.png'],
         manifest: {
           id: '/',
-          name: 'Milani Sangha Club',
+          name: 'New Barrackpore Milani Sangha Club',
           short_name: 'Milani Sangha',
-          description: 'Membership, payments, events and notices for Milani Sangha Club.',
+          description: 'Membership, payments, events and notices for New Barrackpore Milani Sangha Club.',
           lang: 'en-IN',
           start_url: '/',
           scope: '/',
@@ -118,7 +118,7 @@ export default defineConfig(({ mode }) => {
       // should be what notices.
       env: {
         VITE_API_BASE_URL: '/api/v1',
-        VITE_CLUB_NAME: 'Milani Sangha Club',
+        VITE_CLUB_NAME: 'New Barrackpore Milani Sangha Club',
       },
       include: ['src/**/*.{test,spec}.{ts,tsx}'],
       coverage: {

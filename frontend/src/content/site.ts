@@ -38,7 +38,7 @@ export const contentStatus: 'placeholder' | 'reviewed' = 'placeholder'
 
 export const club = {
   /** Full legal name of the club. */
-  name: 'New Milani Sangha Club',
+  name: 'New Barrackpore Milani Sangha Club',
   /** Short form for tight spaces such as the mobile header. */
   shortName: 'Milani Sangha',
   /** One line under the name in the hero. Keep it under about 90 characters. */
@@ -99,7 +99,7 @@ export const club = {
 
   /** Two or three sentences. Appears in the footer and on the About page. */
   summary:
-    'Milani Sangha Club is a member-run community club. We organise sporting fixtures, cultural events and service activities through the year, and we welcome new members from the neighbourhood and beyond.',
+    'New Barrackpore Milani Sangha Club is a member-run community club. We organise sporting fixtures, cultural events and service activities through the year, and we welcome new members from the neighbourhood and beyond.',
 
   contact: {
     /** Street address, one line per array entry. */
