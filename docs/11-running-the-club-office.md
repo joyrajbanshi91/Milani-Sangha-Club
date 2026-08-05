@@ -613,9 +613,36 @@ tell them apart.
 The club's year runs **April to March**. Each year's figures are its own: what it was
 declared to start with, plus its own entries. Nothing from three years ago leaks in.
 
+### Seeing a whole year, or one month of it
+
+**Office → Dashboard** opens on **the whole club year** — the question a committee
+meeting actually asks. Two dropdowns:
+
+| | |
+| --- | --- |
+| **Club year** | 2026-27, and every year since the club started keeping books here |
+| **Showing** | *The whole year*, or any single month of it |
+
+Choose *The whole year* and every figure on the page covers 1 April to 31 March: income,
+expenditure, the surplus or deficit, the bar chart month by month, and the fund table —
+whose **Total** row now adds up across as well as down, so the year reads left to right
+as *opened with, took in, paid out, holds*.
+
+Choose an earlier year and you are reading a **closed** year. Nothing was archived away.
+The heading says which twelve months you are looking at, and the first figure changes
+from *Total held now* to *Held at the end*, with the date — because what the club held on
+31 March 2027 is not what it holds today, and a committee reading last year's page should
+not be told otherwise.
+
+The period is in the address bar (`/office?year=2026-27`), so a year's figures can be
+bookmarked, sent to another office bearer, or reloaded without losing your place.
+
+**Office → Statements** takes the same choice — a whole club year, a month, or any two
+dates — so the annual statement is one dropdown rather than a date range typed twice.
+
 ### Two ways to close a year
 
-**Whenever the meeting happens: Office → Statements → Financial years.** Choose
+**Whenever the meeting happens: Office → Club years.** Choose
 *Summarise a year and start the next*. This is the route to use when the committee has
 just adopted the figures — you do not have to wait to be prompted, and nothing has to be
 run from a terminal.
@@ -679,8 +706,11 @@ So the arrears carry forward into the open year, which is where the cash is.
 
 ### Reopening a year
 
-**Office → Statements → Financial years** lists every year the club has opened, what it
-was started with, who adopted it and how it compared to the books.
+**Office → Club years** lists every year the club has, newest first: what it was started
+with fund by fund, who adopted it, how it compared to the books, the note they left, and
+whether it is closed. Every year has a **See the whole year** link straight to its
+figures. A closed year stays readable to every office bearer for good — closing settles a
+year, it does not hide it.
 
 Adopted the wrong figures? **Reopen** the year. The one before it becomes editable
 again; correct it and close it once more. Reopening is recorded in the audit trail, as
@@ -690,6 +720,12 @@ committee adopted.
 A year that has **not begun** cannot be opened. Opening 2027-28 closes 2026-27, so doing
 it in the middle of 2026-27 would settle the year the club is living in and refuse every
 entry for the rest of it.
+
+Which is why, for most of the year, **Office → Club years** shows the next year's opening
+balance rather than a button: the date it can be started, the figure that would carry into
+it, and that figure fund by fund, on the books as they stand today. The treasurer can
+check through the year that the carry-forward building up looks right, and on 1 April the
+same page is where the committee's adopted figures are entered.
 
 ### Which years the pickers offer
 
@@ -762,11 +798,12 @@ And the year end, which you can try at any time without waiting for April:
 
 | Step | Expect |
 | --- | --- |
-| Office → Statements → Financial years | Nothing closed yet |
+| Office → Club years | Every year the club has, and — until 1 April — what would carry into the next one |
+| Office → Dashboard, **Showing → The whole year** | The whole of 1 April to 31 March in every figure, and `?year=` in the address bar |
 | Post an entry, then open next year from the dashboard panel | It is only offered once the calendar has passed 31 March; until then, check the panel is absent |
 | After opening a year, try to record an entry dated in the closed one | Refused, naming the year and saying to date it when the money arrived |
 | Record a member's payment whose paid-date is in the closed year | Entered on 1 April of the open year, described as *arrears*, with the member's months still credited to the year they paid for |
-| Statements → Financial years → Reopen | The year before becomes editable again |
+| Club years → Reopen | The year before becomes editable again |
 
 The amber **Sample data** bar appearing anywhere means the API has lost its database
 credentials and is serving the demo ledger. Check with:
@@ -782,7 +819,7 @@ npm run appwrite:check
 | Symptom | Cause |
 | --- | --- |
 | "Could not reach the club's server" | The site cannot reach the API. Check `npm run appwrite:check`, and that `CORS_ORIGINS` on the function lists the site's domain |
-| Changing the month on the dashboard showed an error | Fixed. The month box used to be a native date field, which **Safari does not support** — it became a text box, so the first character typed was sent as the month and the API refused it. It is now two dropdowns, club year and month, which cannot produce a value the server rejects. If you still see it, the browser is holding an old copy: reload the page |
+| Changing the month on the dashboard showed an error | Fixed. The month box used to be a native date field, which **Safari does not support** — it became a text box, so the first character typed was sent as the month and the API refused it. It is now two dropdowns, **Club year** and **Showing**, which cannot produce a value the server rejects. If you still see it, the browser is holding an old copy: reload the page |
 | Sign-in or sign-out does nothing at all | The site's domain is not a registered **Web platform**: Appwrite console → your project → Settings → Platforms. Appwrite refuses browser calls from unlisted origins, silently as far as the app can tell |
 | A reset link goes to "Page not found" | An old build. The `/reset-password` route was added later; redeploy the site |
 | Entries cannot be recorded | No funds or categories. See section 3 |

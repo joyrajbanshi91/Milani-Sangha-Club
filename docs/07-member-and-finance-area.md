@@ -102,8 +102,15 @@ option disappears.
 
 ## The dashboard
 
-- **Total held** across every fund, and each fund's opening, in, out and balance
-- **Income, expenditure and the surplus or deficit** for the chosen month
+Opens on **the whole club year**, and *Showing* narrows it to a single month. The **Club
+year** dropdown reaches every year the club has kept, closed years included, and the
+chosen period is held in the address bar (`/office?year=2026-27`) so it can be bookmarked
+and shared.
+
+- **Total held** across every fund, and each fund's opening, in, out and balance — with a
+  total row that adds up across as well as down. For a period that has ended, this reads
+  *Held at the end*, with the date, rather than *Total held now*
+- **Income, expenditure and the surplus or deficit** for the chosen year or month
 - **Income and expenditure by category**, with shares
 - **Collections by source** — the "where did the money come from" view, as a chart
   and a list
@@ -156,8 +163,10 @@ anyone can reach is their own.
 
 ## Statements
 
-**Office → Reports.** Choose a whole month or any date range, view it on screen,
-and download it as a PDF.
+**Office → Statements.** Choose a whole club year, a month of it, or any date range;
+view it on screen, and download it as a PDF. A club year and a month come from the same
+pair of dropdowns as the dashboard, so an annual statement takes one choice rather than
+two dates typed by hand.
 
 The PDF contains the summary, every fund's movement, income and expenditure by
 category, collections by source, payments by recipient, the full list of entries,
@@ -173,6 +182,31 @@ Two checks appear on the face of the statement rather than being buried:
   If it does not, the difference is printed with a likely cause.
 - **Pending entries and overdrawn funds** are called out, so nobody signs a
   statement without knowing what is missing from it.
+
+---
+
+## Club years
+
+**Office → Club years.** Where a year is started with the opening balance the committee
+adopted, and where every year the club has kept can be read back.
+
+- **Starting the next year** — the year-end form, whenever the meeting happens. It
+  summarises the year being closed (opened with, income, expenditure, what is left),
+  fills the per-fund figures in from the books as a *suggestion*, and asks for a note
+  when the adopted figures differ. Both figures are kept: the difference is the evidence
+  that a count happened.
+- **Before 1 April** the same page shows what *would* carry into the next year, fund by
+  fund, and the date it can be adopted. A year that has not begun cannot be opened —
+  opening 2027-28 closes 2026-27, and doing that mid-year would freeze the books the club
+  is still writing in.
+- **Every year the club has**, newest first: what it opened with, who adopted it, how it
+  compared to the books, their note, whether it is closed, and a link to its figures in
+  full. Closing a year settles it; it does not hide it, and every office bearer can read
+  a closed year for good.
+
+It has its own place in the navigation because a treasurer goes looking for it. As a panel
+at the foot of the statements page it could not be found, and for eleven months of every
+twelve all it said was that there was nothing to do.
 
 ---
 

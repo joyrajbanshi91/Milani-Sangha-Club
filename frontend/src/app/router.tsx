@@ -153,6 +153,15 @@ export const router = createBrowserRouter([
           Component: (await import('@/pages/office/ReportsPage')).ReportsPage,
         }),
       },
+      {
+        // Starting a new club year with the opening balance the committee adopted, and
+        // every year the club has kept. Its own route because a treasurer goes looking
+        // for it; as a panel under the statements it could not be found.
+        path: 'years',
+        lazy: async () => ({
+          Component: (await import('@/pages/office/YearsPage')).YearsPage,
+        }),
+      },
       // Catches /office/import, which existed before the import screen was
       // removed, so an old bookmark lands on the dashboard rather than an error.
       { path: '*', element: <Navigate to="/office" replace /> },
