@@ -1,6 +1,7 @@
 import { Router } from 'express'
 
 import { authRouter } from './auth.routes.js'
+import { contactRouter } from './contact.routes.js'
 import { financeRouter } from './finance.routes.js'
 import { healthRouter } from './health.routes.js'
 import { membersRouter } from './members.routes.js'
@@ -27,6 +28,13 @@ export const apiRouter = Router()
 
 apiRouter.use('/health', healthRouter)
 apiRouter.use('/auth', authRouter)
+/**
+ * The public contact form — the only route here anybody at all may call.
+ *
+ * Rate-limited and honeypotted inside the router, and it sends to an address from the
+ * environment rather than from the request. See contact.routes.ts.
+ */
+apiRouter.use('/contact', contactRouter)
 // Scoped to the caller's own record; any signed-in member may use it.
 apiRouter.use('/members', membersRouter)
 // Both of these are gated by requireAuth + requireFinanceOfficer inside the

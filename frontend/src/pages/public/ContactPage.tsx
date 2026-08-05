@@ -9,6 +9,8 @@ import { Field, Input, Select, Textarea } from '@/components/ui/Field'
 import { Reveal } from '@/components/ui/Reveal'
 import { Section } from '@/components/ui/Section'
 import { club, contact } from '@/content/site'
+import { contactApi } from '@/features/contact/api'
+import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { fieldBorder } from '@/lib/formStyles'
 import { hueByIndex } from '@/lib/hues'
@@ -29,11 +31,13 @@ type EnquiryForm = z.infer<typeof enquirySchema>
 
 export function ContactPage() {
   const [sent, setSent] = useState(false)
+  const [problem, setProblem] = useState<string | null>(null)
   const clubEmail = club.contact.email
 
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<EnquiryForm>({
     resolver: zodResolver(enquirySchema),
@@ -41,34 +45,42 @@ export function ContactPage() {
   })
 
   /**
-   * Hands the message to the visitor's own email application.
+   * Sends the enquiry to the club's server, which emails it on.
    *
-   * Deliberately not a silent POST: there is no enquiry endpoint yet, and a form
-   * that appears to send while dropping the message is worse than no form. This
-   * way the visitor keeps a copy in their sent items and can see it went. The
-   * help-desk phase replaces this with a tracked ticket.
+   * It used to build a `mailto:` link and hand the message to the visitor's own email
+   * application. That looks like a reasonable trade — no credentials, and the sender
+   * keeps a copy in their sent items — and it fails on any machine with no mail client
+   * set up, which is most of them now. The club found exactly that: pressing the button
+   * switched to another window and nothing happened. A form that silently does nothing
+   * is worse than no form, because the visitor believes they have written to the club.
+   *
+   * The failure path matters as much as the happy one. If the server cannot send — no
+   * mail configured, or the mail host refusing — the message must not evaporate: the
+   * error says so in plain words and the club's address is offered so the visitor can
+   * write it themselves. Never "something went wrong".
    */
-  const onSubmit = (values: EnquiryForm) => {
-    if (!clubEmail) return
+  const onSubmit = async (values: EnquiryForm) => {
+    setProblem(null)
 
-    const body = [
-      values.message,
-      '',
-      '—',
-      `Name: ${values.name}`,
-      `Email: ${values.email}`,
-      values.phone ? `Phone: ${values.phone}` : null,
-      `Sent from the ${club.name} website`,
-    ]
-      .filter((line) => line !== null)
-      .join('\n')
+    try {
+      await contactApi.send({
+        name: values.name,
+        email: values.email,
+        subject: values.subject,
+        message: values.message,
+        ...(values.phone?.trim() ? { phone: values.phone.trim() } : {}),
+      })
 
-    const url = `mailto:${clubEmail}?subject=${encodeURIComponent(
-      `[Website] ${values.subject}`
-    )}&body=${encodeURIComponent(body)}`
-
-    window.location.assign(url)
-    setSent(true)
+      setSent(true)
+      reset()
+    } catch (error) {
+      setProblem(
+        error instanceof ApiError
+          ? error.message
+          : 'Your message could not be sent just now, and nothing has reached the club. ' +
+              'Please write to the address on this page instead.'
+      )
+    }
   }
 
   return (
@@ -147,13 +159,37 @@ export function ContactPage() {
             ) : null}
 
             {sent ? (
-              <p className="mt-4 rounded-lg border border-brand-200 bg-brand-50 p-4 text-sm/relaxed text-brand-900">
-                Your email application should have opened with the message ready to send. If nothing
-                happened, write to{' '}
-                <a href={`mailto:${clubEmail}`} className="font-medium underline">
-                  {clubEmail}
-                </a>{' '}
-                directly.
+              <p
+                role="status"
+                className="mt-4 rounded-lg border border-brand-200 bg-brand-50 p-4 text-sm/relaxed text-brand-900"
+              >
+                <strong>Thank you — your message has been sent to the club.</strong> Somebody will
+                reply to the address you gave. Nothing further is needed from you.
+              </p>
+            ) : null}
+
+            {/*
+              A failure has to leave the visitor holding something.
+
+              They have typed a message and pressed a button; if the server could not
+              send it, the one thing they must not be given is a shrug. The server's own
+              words say what happened and that nothing reached the club, and the address
+              is repeated here so the enquiry is not lost.
+            */}
+            {problem ? (
+              <p
+                role="alert"
+                className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm/relaxed text-red-800"
+              >
+                {problem}
+                {clubEmail ? (
+                  <>
+                    {' '}
+                    <a href={`mailto:${clubEmail}`} className="font-medium underline">
+                      {clubEmail}
+                    </a>
+                  </>
+                ) : null}
               </p>
             ) : null}
 
@@ -243,7 +279,7 @@ export function ContactPage() {
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-brand-700 to-brand-500 px-6 text-sm font-medium text-white shadow-glow transition-transform duration-300 hover:scale-[1.03] disabled:pointer-events-none disabled:opacity-50 disabled:hover:scale-100"
               >
                 <Send className="h-4 w-4" aria-hidden="true" />
-                Send enquiry
+                {isSubmitting ? 'Sending…' : 'Send enquiry'}
               </button>
 
               {contact.formNote ? (

@@ -142,13 +142,18 @@ work against Appwrite uses a real project — or, more usually, the demo store.
 Sensitive endpoints (login, OTP, payment submission) additionally get a fixed
 10-per-15-minutes limiter from Phase 3.
 
-### Email — Phase 13
+### Email — the contact form
 
 | Variable | Notes |
 | --- | --- |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE` | `587` with `SMTP_SECURE=false` (STARTTLS) suits most providers |
-| `SMTP_USER`, `SMTP_PASSWORD` | For Google Workspace use an app password, never the account password |
-| `MAIL_FROM` | e.g. `Milani Sangha Club <no-reply@example.org>` |
+| `SMTP_USER`, `SMTP_PASSWORD` | For Gmail or Google Workspace use an **app password** from <https://myaccount.google.com/apppasswords>, never the account password. It needs 2-Step Verification on that account |
+| `MAIL_FROM` | e.g. `New Barrackpore Milani Sangha Club <the club’s own address>`. Must be the club's own address: sending as the visitor's would fail Gmail's SPF check and land in spam |
+| `CONTACT_TO` | Where the website's contact form sends enquiries. Unset, they go to `SMTP_USER`. Keep it the same as `club.contact.email` in `frontend/src/content/site.ts`. Deliberately not part of the form — a form carrying its own recipient is an open mail relay |
+
+Without the SMTP values the contact form does not break: it tells visitors the club's
+website cannot send email and to write to the address on the page. Setup walkthrough in
+[11-running-the-club-office.md § 12](11-running-the-club-office.md).
 
 ### Club identity
 
