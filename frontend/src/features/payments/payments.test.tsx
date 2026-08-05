@@ -658,17 +658,21 @@ describe('the membership register', () => {
 })
 
 /**
- * The month control on the officer screens.
+ * The period control on the officer screens.
+ *
+ * Two bugs and one omission are covered here.
  *
  * `<input type="month">` looked obvious and was the bug: Safari does not support it, so
  * it renders as a text box, the first character typed becomes the value, and the
  * request goes out as `?month=2`. The API correctly refuses a malformed month and the
- * dashboard said "Is the API running?" while the API was running perfectly.
+ * dashboard said "Is the API running?" while the API was running perfectly. Two selects
+ * cannot produce a value the server will reject.
  *
- * Two selects cannot produce a value the server will reject. These assert that, and
- * that the error message stops blaming the server for a refusal.
+ * The omission was that a month was *all* the dashboard could show. A committee asking
+ * how the year went had to open twelve screens and add up on paper, so the whole club
+ * year is now what it opens on, with a month a click away.
  */
-describe('choosing the month on the dashboard', () => {
+describe('choosing the period on the dashboard', () => {
   function dashboard(month: string) {
     return {
       period: { from: `${month}-01`, to: `${month}-28` },
@@ -695,6 +699,9 @@ describe('choosing the month on the dashboard', () => {
 
   function answer(url: string): Response {
     if (url.includes('/finance/dashboard')) {
+      // A whole year goes as a date range, which is all a year is.
+      if (url.includes('from=')) return json(dashboard('2026-08'))
+
       const month = /month=([\d-]+)/.exec(url)?.[1] ?? '2026-08'
       // The real API refuses anything that is not YYYY-MM, so the mock does too — a
       // test that accepted rubbish could not catch the bug this replaced.
@@ -707,22 +714,42 @@ describe('choosing the month on the dashboard', () => {
     return json({})
   }
 
-  it('offers whole months by name, so a bad value cannot be sent', async () => {
+  it('opens on the whole club year, so the year’s figures need no adding up', async () => {
     fetchMock.mockImplementation((url: string) => Promise.resolve(answer(String(url))))
 
     renderWith(<OfficeDashboardPage />, TREASURER)
     await screen.findByText('Club finances')
 
-    // A club year and a month, not a free-text date field.
-    expect(screen.getByLabelText(/club year/i)).toBeInTheDocument()
-    const months = screen.getByLabelText(/^month$/i)
-    expect(months.tagName).toBe('SELECT')
+    // 1 April to 31 March, asked for as a range.
+    await waitFor(() => {
+      expect(
+        calls().some(
+          (call) =>
+            call.url.includes('/finance/dashboard') &&
+            call.url.includes('from=2026-04-01') &&
+            call.url.includes('to=2027-03-31')
+        )
+      ).toBe(true)
+    })
+  })
 
-    // Every option is a real month of the club's year.
-    const names = Array.from(months.querySelectorAll('option')).map((node) => node.textContent)
-    expect(names).toHaveLength(12)
-    expect(names[0]).toBe('April 2026')
-    expect(names[11]).toBe('March 2027')
+  it('offers the whole year and whole months by name, so a bad value cannot be sent', async () => {
+    fetchMock.mockImplementation((url: string) => Promise.resolve(answer(String(url))))
+
+    renderWith(<OfficeDashboardPage />, TREASURER)
+    await screen.findByText('Club finances')
+
+    // A club year and what to show of it, not a free-text date field.
+    expect(screen.getByLabelText(/club year/i)).toBeInTheDocument()
+    const showing = screen.getByLabelText(/^showing$/i)
+    expect(showing.tagName).toBe('SELECT')
+
+    // The whole year first, then every real month of it.
+    const names = Array.from(showing.querySelectorAll('option')).map((node) => node.textContent)
+    expect(names).toHaveLength(13)
+    expect(names[0]).toBe('The whole year (2026-27)')
+    expect(names[1]).toBe('April 2026')
+    expect(names[12]).toBe('March 2027')
   })
 
   it('reloads the figures for the month chosen, without an error', async () => {
@@ -731,7 +758,7 @@ describe('choosing the month on the dashboard', () => {
     renderWith(<OfficeDashboardPage />, TREASURER)
     await screen.findByText('Club finances')
 
-    await userEvent.selectOptions(screen.getByLabelText(/^month$/i), '2026-06')
+    await userEvent.selectOptions(screen.getByLabelText(/^showing$/i), '2026-06')
 
     await waitFor(() => {
       expect(
@@ -742,6 +769,19 @@ describe('choosing the month on the dashboard', () => {
     // The figures are there, not the failure message.
     expect(await screen.findByText('Club finances')).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('goes back to the whole year, and says which twelve months that is', async () => {
+    fetchMock.mockImplementation((url: string) => Promise.resolve(answer(String(url))))
+
+    renderWith(<OfficeDashboardPage />, TREASURER)
+    await screen.findByText('Club finances')
+
+    await userEvent.selectOptions(screen.getByLabelText(/^showing$/i), '2026-06')
+    await userEvent.selectOptions(screen.getByLabelText(/^showing$/i), 'year')
+
+    // The club's year is not the calendar's, so the months it covers are spelled out.
+    expect(await screen.findByText(/April 2026 – March 2027/)).toBeInTheDocument()
   })
 
   it('never offers a year the club has no books for', async () => {

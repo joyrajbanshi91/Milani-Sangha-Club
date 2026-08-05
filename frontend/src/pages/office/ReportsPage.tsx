@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, Download, FileText, ListOrdered, Loader2 } from 'lucide-react'
 import { useState } from 'react'
+import { Link } from 'react-router'
 
 import { Container } from '@/components/ui/Container'
 import {
@@ -8,23 +9,31 @@ import {
   financeApi,
   type ReportDetail,
 } from '@/features/finance/api'
-import { MonthPeriodPicker } from '@/features/finance/MonthPeriodPicker'
-import { FinancialYears } from '@/features/finance/YearEnd'
+import { defaultPeriod, periodParams, type FinancePeriod } from '@/features/finance/period'
+import { PeriodPicker } from '@/features/finance/PeriodPicker'
 import { formatDate, formatPaise } from '@/features/finance/money'
 import { cn } from '@/lib/cn'
 
-type Mode = 'month' | 'range'
+/**
+ * Which period a statement covers.
+ *
+ * **period** is the club's own calendar — a whole year, or a month of it — and covers
+ * nearly every statement a committee asks for, the annual one included. **range** stays
+ * for the occasional arbitrary window: a festival week, or the days between two bank
+ * statements.
+ */
+type Mode = 'period' | 'range'
 
 export function ReportsPage() {
-  const [mode, setMode] = useState<Mode>('month')
-  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7))
+  const [mode, setMode] = useState<Mode>('period')
+  const [period, setPeriod] = useState<FinancePeriod>(() => defaultPeriod())
   const [from, setFrom] = useState(`${new Date().getFullYear()}-04-01`)
   const [to, setTo] = useState(new Date().toISOString().slice(0, 10))
   /** Which of the two is being generated, so only that button says "Generating…". */
   const [downloading, setDownloading] = useState<ReportDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const params = mode === 'month' ? { month } : { from, to }
+  const params = mode === 'period' ? periodParams(period) : { from, to }
 
   const { data, isLoading } = useQuery({
     queryKey: ['finance', 'report', params],
@@ -48,33 +57,38 @@ export function ReportsPage() {
       <div>
         <h1 className="font-display text-2xl text-ink-900 sm:text-3xl">Statements</h1>
         <p className="mt-1 text-sm/relaxed text-ink-500">
-          A statement for a month or any period, on screen and as a PDF for the committee. Both
-          come from the same figures, and the file is named with the period and the day it was
-          issued so it can be found again.
+          A statement for a whole club year, a month, or any period between two dates — on screen
+          and as a PDF for the committee. Both come from the same figures, and the file is named
+          with the period and the day it was issued so it can be found again. Opening balances and
+          year ends live on{' '}
+          <Link to="/office/years" className="text-brand-700 underline hover:text-brand-800">
+            Club years
+          </Link>
+          .
         </p>
       </div>
 
       <div className="rounded-card border border-ink-200 bg-white p-5 shadow-soft">
         <div className="flex flex-wrap items-end gap-4">
           <div className="inline-flex rounded-full border border-ink-200 bg-ink-50 p-1">
-            {(['month', 'range'] as Mode[]).map((option) => (
+            {(['period', 'range'] as Mode[]).map((option) => (
               <button
                 key={option}
                 type="button"
                 aria-pressed={mode === option}
                 onClick={() => setMode(option)}
                 className={cn(
-                  'rounded-full px-4 py-1.5 text-sm font-medium capitalize transition-colors',
+                  'rounded-full px-4 py-1.5 text-sm font-medium transition-colors',
                   mode === option ? 'bg-white text-brand-800 shadow-soft' : 'text-ink-500'
                 )}
               >
-                {option === 'month' ? 'Whole month' : 'Date range'}
+                {option === 'period' ? 'Club year or month' : 'Date range'}
               </button>
             ))}
           </div>
 
-          {mode === 'month' ? (
-            <MonthPeriodPicker month={month} onChange={setMonth} />
+          {mode === 'period' ? (
+            <PeriodPicker period={period} onChange={setPeriod} />
           ) : (
             <>
               <label className="text-xs font-medium text-ink-600">
@@ -259,7 +273,6 @@ export function ReportsPage() {
           </div>
         </>
       ) : null}
-      <FinancialYears />
     </Container>
   )
 }

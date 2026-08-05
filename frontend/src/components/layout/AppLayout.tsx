@@ -29,6 +29,7 @@ export function AppLayout() {
     { to: '/office/payments', label: "Members' payments", show: officer },
     { to: '/office/members', label: 'Membership register', show: officer },
     { to: '/office/reports', label: 'Statements', show: officer },
+    { to: '/office/years', label: 'Club years', show: officer },
   ].filter((link) => link.show)
 
   return (

@@ -11,8 +11,8 @@ import {
   Users,
   Wallet,
 } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
-import { Link } from 'react-router'
+import { type ReactNode } from 'react'
+import { Link, useSearchParams } from 'react-router'
 import {
   Bar,
   BarChart,
@@ -28,10 +28,17 @@ import {
 } from 'recharts'
 
 import { Container } from '@/components/ui/Container'
-import { financeApi, type Rollup } from '@/features/finance/api'
-import { formatMonth, formatPaise, formatRupeesShort } from '@/features/finance/money'
-import { MonthPeriodPicker } from '@/features/finance/MonthPeriodPicker'
-import { financialYears, monthsOfFinancialYear } from '@/features/finance/years'
+import { financeApi, type FundBalance, type Rollup } from '@/features/finance/api'
+import { formatDate, formatMonth, formatPaise, formatRupeesShort } from '@/features/finance/money'
+import {
+  periodCoversToday,
+  periodLabel,
+  periodParams,
+  periodRange,
+  readPeriod,
+  writePeriod,
+} from '@/features/finance/period'
+import { PeriodPicker } from '@/features/finance/PeriodPicker'
 import { YearEndPanel } from '@/features/finance/YearEnd'
 import { officePaymentsApi } from '@/features/payments/api'
 import { ApiError } from '@/lib/api'
@@ -40,27 +47,27 @@ import { cn } from '@/lib/cn'
 /** Chart colours, matching the hue palette used across the site. */
 const SERIES = ['#148253', '#f5ad1b', '#0284c7', '#e11d48', '#7c3aed', '#0d9488']
 
-/**
- * The month to open on.
- *
- * Today's, unless the club's books do not reach it yet — in which case the last month
- * the year picker can offer, so the dashboard never starts on a month that is not in
- * the list beside it.
- */
-function currentMonth(): string {
-  const today = new Date().toISOString().slice(0, 7)
-  const years = financialYears()
-  const latest = monthsOfFinancialYear(years[years.length - 1] as string)
-
-  return latest.includes(today) ? today : (latest[0] as string)
-}
-
 export function OfficeDashboardPage() {
-  const [month, setMonth] = useState(currentMonth())
+  /**
+   * Which period, kept in the address bar.
+   *
+   * The default is the whole club year, because that is the question a committee
+   * meeting actually asks — a month at a time meant opening twelve screens and adding
+   * up on paper. In the URL rather than in component state so a bearer can bookmark a
+   * year, send the link to another bearer, and reload without losing their place.
+   */
+  const [search, setSearch] = useSearchParams()
+  const period = readPeriod(search)
+
+  const setPeriod = (next: typeof period) => {
+    setSearch(writePeriod(next), { replace: true })
+  }
+
+  const params = periodParams(period)
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['finance', 'dashboard', month],
-    queryFn: () => financeApi.dashboard({ month }),
+    queryKey: ['finance', 'dashboard', params],
+    queryFn: () => financeApi.dashboard(params),
   })
 
   /**
@@ -106,18 +113,34 @@ export function OfficeDashboardPage() {
   }
 
   const surplus = data.totals.netPaise >= 0
+  const range = periodRange(period)
+
+  /**
+   * Whether "now" is honest.
+   *
+   * A closing balance for a period that ended in March is what the club held *then*.
+   * Labelling it "held now" while a committee reads last year's figures would be a
+   * plain untruth, and the sort a treasurer gets asked about in a meeting.
+   */
+  const current = periodCoversToday(period)
 
   return (
     <Container className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl text-ink-900 sm:text-3xl">Club finances</h1>
-          <p className="mt-1 text-sm text-ink-500">
-            Only entries approved by a second office bearer are counted here.
+          <p className="mt-1 text-sm/relaxed text-ink-500">
+            {period.kind === 'year' ? 'The whole of ' : ''}
+            <strong className="font-medium text-ink-700">{periodLabel(period)}</strong>
+            {period.kind === 'year' ? ` · club year ${period.financialYear}` : ''}. Only entries
+            approved by a second office bearer are counted.{' '}
+            <Link to="/office/years" className="text-brand-700 underline hover:text-brand-800">
+              Club years and opening balances →
+            </Link>
           </p>
         </div>
 
-        <MonthPeriodPicker month={month} onChange={setMonth} />
+        <PeriodPicker period={period} onChange={setPeriod} />
       </div>
 
       {/*
@@ -185,21 +208,21 @@ export function OfficeDashboardPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
           icon={Wallet}
-          label="Total held now"
+          label={current ? 'Total held now' : 'Held at the end'}
           value={formatPaise(data.totalFundsPaise)}
           tone="brand"
-          hint="Across every fund"
+          hint={current ? 'Across every fund' : `Across every fund on ${formatDate(range.to)}`}
         />
         <Stat
           icon={ArrowUpRight}
-          label="Income this period"
+          label={period.kind === 'year' ? 'Income this year' : 'Income this month'}
           value={formatPaise(data.totals.incomePaise)}
           tone="positive"
           hint={`${data.incomeBySource.length} sources`}
         />
         <Stat
           icon={ArrowDownRight}
-          label="Expenditure this period"
+          label={period.kind === 'year' ? 'Expenditure this year' : 'Expenditure this month'}
           value={formatPaise(data.totals.expensePaise)}
           tone="negative"
           hint={`${data.expenseByCategory.length} categories`}
@@ -216,6 +239,19 @@ export function OfficeDashboardPage() {
       {/* Funds */}
       <section className="rounded-card border border-ink-200 bg-white p-5 shadow-soft">
         <h2 className="font-display text-lg text-ink-900">Where the money is held</h2>
+        <p className="mt-1 text-sm/relaxed text-ink-500">
+          {/*
+            What "Opening" means depends on the period, and a reader cannot tell from a
+            column heading. Over a whole year it is the figure the committee adopted at
+            the last year end — which is the number they will be asked to reconcile.
+          */}
+          Opening is what each fund held on {formatDate(range.from)}
+          {period.kind === 'year'
+            ? ' — the balance carried into this club year — and Balance is where it stood on ' +
+              formatDate(range.to) +
+              '.'
+            : ', and Balance where it stood on ' + formatDate(range.to) + '.'}
+        </p>
         <div className="mt-4 overflow-x-auto">
           <table className="w-full min-w-[34rem] text-sm">
             <thead>
@@ -262,9 +298,26 @@ export function OfficeDashboardPage() {
               ))}
             </tbody>
             <tfoot>
+              {/*
+                Every column totalled, not just the last.
+                A committee reads this row across: the club started the period with
+                this, took in that, spent that, and holds this. Leaving three cells
+                blank meant the year's income had to be found on a different card and
+                the arithmetic taken on trust.
+              */}
               <tr className="border-t-2 border-ink-200">
                 <td className="pt-3 font-semibold text-ink-900">Total</td>
-                <td colSpan={3} />
+                <td className="pt-3 text-right font-semibold tabular-nums text-ink-700">
+                  {formatPaise(sumOf(data.fundBalances, 'openingBalancePaise'), {
+                    withSymbol: false,
+                  })}
+                </td>
+                <td className="pt-3 text-right font-semibold tabular-nums text-emerald-700">
+                  {formatPaise(sumOf(data.fundBalances, 'inPaise'), { withSymbol: false })}
+                </td>
+                <td className="pt-3 text-right font-semibold tabular-nums text-red-700">
+                  {formatPaise(sumOf(data.fundBalances, 'outPaise'), { withSymbol: false })}
+                </td>
                 <td className="pt-3 text-right font-semibold tabular-nums text-brand-800">
                   {formatPaise(data.totalFundsPaise, { withSymbol: false })}
                 </td>
@@ -344,6 +397,14 @@ export function OfficeDashboardPage() {
       </div>
     </Container>
   )
+}
+
+/** Add up one figure across the funds. Transfers cancel out, so the totals hold. */
+function sumOf(
+  balances: readonly FundBalance[],
+  field: 'openingBalancePaise' | 'inPaise' | 'outPaise'
+): number {
+  return balances.reduce((total, balance) => total + balance[field], 0)
 }
 
 function Stat({
