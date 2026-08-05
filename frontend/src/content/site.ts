@@ -364,14 +364,20 @@ export const history = {
 //    photo  Their photograph. Save the file in
 //               frontend/public/committee/
 //           and write the path from the site root. A file saved as
-//               frontend/public/committee/anita-sharma.jpg
+//               frontend/public/committee/president.jpg
 //           is written here as
-//               photo: '/committee/anita-sharma.jpg'
-//           Use lower-case names with hyphens and no spaces. A portrait about
-//           800 x 1000 pixels and under 300 KB is right — a photograph straight
-//           off a phone is 3–6 MB and every visitor would download all of it.
+//               photo: '/committee/president.jpg'
+//           Use lower-case names with hyphens and no spaces.
+//
+//           THE PHOTOGRAPH IS SHOWN AS A CIRCLE, cropped from the centre of the
+//           file. So crop it SQUARE before saving — about 600 x 600 pixels and
+//           under 200 KB — with the face centred and a little space around the
+//           head. A tall photograph is not rejected; it simply loses its top and
+//           bottom to the circle. A photograph straight off a phone is 3–6 MB
+//           and every visitor would download all of it.
+//
 //           Leave '' and the card shows a coloured monogram instead, which is
-//           what every card does today.
+//           what every card does today. Photographs can be added one at a time.
 //    email  Optional. Shown as a button on their card. Leave '' and the card
 //           shows no address, and the page asks visitors to write to the club
 //           office instead.
@@ -389,13 +395,37 @@ export const committee = {
   lead: 'The committee is elected by the general body and serves a fixed term. Members may contact any office bearer through the club office.',
   /** Term of the current committee, e.g. '2026–2028'. Empty string hides it. */
   term: '',
+  /**
+   * The eight offices of this committee, in the order they appear on the page.
+   *
+   * A suggested file name is against each one, so photographs can be dropped into
+   * frontend/public/committee/ and the path pasted in without inventing a naming
+   * scheme. `photo: ''` keeps the monogram until the file is actually there — a
+   * path pointing at a file that does not exist shows a broken image to visitors,
+   * so fill the two in together.
+   *
+   * Two bearers share the title Secretary and two share Game Secretary, as the club
+   * has them. If it would help visitors tell them apart, change one of each to
+   * 'Joint Secretary' and 'Assistant Game Secretary' — the wording here is what the
+   * card prints.
+   */
   members: [
+    // photo: '/committee/president.jpg'
     { name: 'Full name', role: 'President', since: '', photo: '', email: '' },
-    { name: 'Full name', role: 'Vice-President', since: '', photo: '', email: '' },
+    // photo: '/committee/secretary-1.jpg'
     { name: 'Full name', role: 'Secretary', since: '', photo: '', email: '' },
-    { name: 'Full name', role: 'Joint Secretary', since: '', photo: '', email: '' },
+    // photo: '/committee/secretary-2.jpg'
+    { name: 'Full name', role: 'Secretary', since: '', photo: '', email: '' },
+    // photo: '/committee/cultural-secretary.jpg'
+    { name: 'Full name', role: 'Cultural Secretary', since: '', photo: '', email: '' },
+    // photo: '/committee/treasurer.jpg'
     { name: 'Full name', role: 'Treasurer', since: '', photo: '', email: '' },
-    { name: 'Full name', role: 'Committee member', since: '', photo: '', email: '' },
+    // photo: '/committee/cashier.jpg'
+    { name: 'Full name', role: 'Cashier', since: '', photo: '', email: '' },
+    // photo: '/committee/game-secretary-1.jpg'
+    { name: 'Full name', role: 'Game Secretary', since: '', photo: '', email: '' },
+    // photo: '/committee/game-secretary-2.jpg'
+    { name: 'Full name', role: 'Game Secretary', since: '', photo: '', email: '' },
   ],
 }
 
