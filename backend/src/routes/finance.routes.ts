@@ -474,6 +474,7 @@ function toHttpError(result: { code: string; reason: string }): AppError {
       return notFound(result.reason)
     case 'not_officer':
       return forbidden(result.reason)
+    case 'year_not_started':
     case 'year_closed':
       // Well-formed, and refused because the year it belongs to is settled.
       return new AppError(409, result.code, result.reason)
