@@ -25,6 +25,24 @@ export function notFoundHandler(req: Request, res: Response): void {
 }
 
 /**
+ * Is this the database refusing a column it has never heard of?
+ *
+ * Appwrite answers a write carrying an unknown attribute with
+ * `document_invalid_structure`, and the message names the attribute. Matched on both
+ * the type and the wording rather than only the type, because the same type covers
+ * ordinary validation faults — a string too long for its column — which are the
+ * application's bug and should stay a 500 that somebody investigates.
+ */
+function isSchemaMismatch(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+
+  const type = (error as { type?: unknown }).type
+  const looksLikeAppwrite = type === 'document_invalid_structure' || type === 'row_invalid_structure'
+
+  return looksLikeAppwrite && /unknown attribute|unknown column/i.test(error.message)
+}
+
+/**
  * Terminal error handler.
  *
  * Anything unrecognised becomes a generic 500 in production: a stack trace or a
@@ -77,6 +95,30 @@ export function errorHandler(
     status = 400
     body = {
       error: { code: 'malformed_json', message: 'Request body is not valid JSON.' },
+      ...(requestId ? { requestId } : {}),
+    }
+  } else if (isSchemaMismatch(error)) {
+    /**
+     * The database is behind the code.
+     *
+     * This cost the club an evening. A release added a column to the payments table,
+     * the schema had not been provisioned yet, and Appwrite refused every write with
+     * "unknown attribute" — which arrived at the member as *An unexpected error
+     * occurred*, on the one screen where an unexplained failure means "the club has
+     * lost my money". Nothing on any screen or in any message named the cause.
+     *
+     * A 503 with the command that fixes it, because that is what is true: the request
+     * was fine, the service is not ready for it, and somebody has to run one thing.
+     */
+    status = 503
+    body = {
+      error: {
+        code: 'schema_out_of_date',
+        message:
+          'The club’s database is missing a column this version of the software needs, so this ' +
+          'could not be saved. Nothing was recorded — please tell an office bearer, and ask them ' +
+          'to run: npm run appwrite:provision -- --write',
+      },
       ...(requestId ? { requestId } : {}),
     }
   } else if (!isProduction && error instanceof Error) {
