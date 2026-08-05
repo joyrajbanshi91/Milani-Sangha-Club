@@ -60,6 +60,10 @@ __pycache__/
 
 # Superseded PWA icons, kept by scripts/icons-from-logo.sh
 frontend/.icon-backups/
+# Full-size gallery photographs, kept by scripts/gallery-resize.sh before it shrinks
+# them. Deliberately outside src/assets/gallery/ so the build never scans them and the
+# site never serves them — and out of git, because they are the multi-megabyte originals.
+frontend/.gallery-originals/
 
 # Local Netlify folder
 .netlify
