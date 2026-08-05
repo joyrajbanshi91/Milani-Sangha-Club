@@ -54,7 +54,10 @@ export function MembersPage() {
   const needle = search.trim().toLowerCase()
 
   const rows = (data?.members ?? []).filter((member) => {
-    if (filter === 'owing' && member.membership.paidInFull) return false
+    // A former member owes the club nothing — what they did not pay stopped being a
+    // debt when their account went. They still appear under "Everyone", because their
+    // money is still in the totals.
+    if (filter === 'owing' && (member.former || member.membership.paidInFull)) return false
     if (filter === 'paid' && !member.membership.paidInFull) return false
     if (needle && !`${member.name} ${member.email}`.toLowerCase().includes(needle)) return false
     return true
@@ -209,12 +212,19 @@ function MemberRow({ member }: { member: MemberRegisterRow }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-medium text-ink-900">{member.name}</p>
-            {member.role !== 'member' ? (
+            {member.former ? (
+              <span
+                className="rounded-full bg-ink-100 px-2 py-0.5 text-xs font-medium text-ink-600"
+                title="This account has been removed. What they paid stays in the club's accounts."
+              >
+                Former member
+              </span>
+            ) : member.role !== 'member' ? (
               <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs capitalize text-brand-800 ring-1 ring-brand-200">
                 {member.role}
               </span>
             ) : null}
-            {membership.paidInFull ? (
+            {member.former ? null : membership.paidInFull ? (
               <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
                 Paid in full
               </span>
@@ -230,7 +240,11 @@ function MemberRow({ member }: { member: MemberRegisterRow }) {
             ) : null}
           </div>
 
-          <p className="mt-0.5 text-xs text-ink-500">{member.email}</p>
+          <p className="mt-0.5 text-xs text-ink-500">
+            {member.former
+              ? 'Account removed — their payments remain in the club’s accounts'
+              : member.email}
+          </p>
         </div>
 
         <div className="shrink-0 text-right">
@@ -239,9 +253,11 @@ function MemberRow({ member }: { member: MemberRegisterRow }) {
             <span className="text-sm text-ink-400">/12</span>
           </p>
           <p className="text-xs text-ink-500">
-            {membership.paidInFull
-              ? 'nothing due'
-              : `${formatPaise(membership.outstandingPaise)} left`}
+            {member.former
+              ? `${formatPaise(membership.paidPaise)} paid`
+              : membership.paidInFull
+                ? 'nothing due'
+                : `${formatPaise(membership.outstandingPaise)} left`}
           </p>
         </div>
       </div>

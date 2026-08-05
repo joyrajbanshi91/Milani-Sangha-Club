@@ -1,6 +1,6 @@
 import { REQUIRED_APPROVALS } from '../config/constants.js'
 import { parseCategoriesCsv, parseFundsCsv, parseTransactionsCsv } from '../domain/csv.js'
-import type { Category, Fund, Transaction } from '../domain/types.js'
+import type { Category, Fund, Transaction, YearOpening } from '../domain/types.js'
 import { logger } from '../lib/logger.js'
 import {
   applyFilter,
@@ -37,6 +37,7 @@ export class InMemoryFinanceStore implements FinanceStore {
   private funds: Fund[] = []
   private categories: Category[] = []
   private transactions: Transaction[] = []
+  private years: YearOpening[] = []
   private sequence = 0
 
   /**
@@ -217,6 +218,25 @@ export class InMemoryFinanceStore implements FinanceStore {
 
     this.transactions[index] = next
     return Promise.resolve(next)
+  }
+
+  listYearOpenings(): Promise<YearOpening[]> {
+    return Promise.resolve([...this.years])
+  }
+
+  createYearOpening(opening: Omit<YearOpening, 'id'>): Promise<YearOpening> {
+    if (this.years.some((existing) => existing.financialYear === opening.financialYear)) {
+      throw new StoreConflictError(`${opening.financialYear} has already been opened.`)
+    }
+
+    const created: YearOpening = { ...opening, id: `year-${opening.financialYear}` }
+    this.years.push(created)
+    return Promise.resolve(created)
+  }
+
+  deleteYearOpening(financialYear: string): Promise<void> {
+    this.years = this.years.filter((opening) => opening.financialYear !== financialYear)
+    return Promise.resolve()
   }
 
   createTransactionBatch(

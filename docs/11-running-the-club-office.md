@@ -608,7 +608,88 @@ tell them apart.
 
 ---
 
-## 7. Testing it end to end
+## 7. The club year, and carrying the balance forward
+
+The club's year runs **April to March**. Each year's figures are its own: what it was
+declared to start with, plus its own entries. Nothing from three years ago leaks in.
+
+### The panel that appears once a year
+
+**Office → Dashboard.** For eleven months of every twelve there is nothing there. On
+1 April, when the calendar moves into a year the club has not opened yet, a panel
+appears at the top:
+
+> **A new club year has begun — 2027-28**
+> Close 2026-27 by saying what the club is carrying into 2027-28.
+
+It is filled in with what the books say each fund held on 31 March. **Those are a
+suggestion, not the answer.** Count the cash box, read the bank statement, and change
+anything that does not match — that is what a year end is for.
+
+If the adopted figure differs from the books, the panel says by how much and asks for a
+note. **Both figures are kept.** The difference is the interesting part, and a system
+that quietly replaced one with the other would destroy the only evidence that a count
+ever happened.
+
+The panel also warns if entries in the year being closed are still awaiting approval —
+they are not in the figures, and once the year is closed they cannot be added to it.
+
+### What closing a year does
+
+Opening 2027-28 **closes 2026-27**:
+
+- 2027-28's figures start from the balances you adopted, not from the club's whole
+  history
+- **nothing can be dated into 2026-27 any more.** Try it and the entry is refused,
+  naming the year and telling you what to do instead
+
+That second rule is the point. Without it, an entry added after the meeting would make
+the carry-forward the committee adopted stop matching the year it came from — silently,
+with nothing on any screen showing the difference.
+
+### Money that arrives late
+
+A member pays their 2026-27 subscription in June 2027, after the year is closed. Nothing
+is refused and nothing is lost:
+
+- the **entry** is dated 1 April 2027 — the first day the books are open, which is when
+  the club actually received the money — and its description records the date they
+  really paid, marked *arrears*
+- the **months** are still credited to 2026-27, so the member's register for that year
+  fills in and their receipt names the right months
+
+So the arrears carry forward into the open year, which is where the cash is.
+
+### Reopening a year
+
+**Office → Statements → Financial years** lists every year the club has opened, what it
+was started with, who adopted it and how it compared to the books.
+
+Adopted the wrong figures? **Reopen** the year. The one before it becomes editable
+again; correct it and close it once more. Reopening is recorded in the audit trail, as
+is every opening — including the difference between what the books said and what the
+committee adopted.
+
+### If a member leaves
+
+Deleting somebody's account removes their sign-in. **It does not remove their money.**
+
+- their ledger entries stay exactly where they are — the club has the cash, and an entry
+  that vanished would leave the accounts short with nothing explaining it
+- their receipts and payment records stay
+- they stay on the **membership register**, marked *Former member*, showing what they
+  paid
+
+What they did not pay stops being a debt: a former member is never shown as overdue and
+never appears under "Still owing". They are still under "Everyone", because their money
+is still in the totals.
+
+Prefer `npm run user -- disable` to deleting — see §1. It keeps the account and the
+audit trail intact and can be undone.
+
+---
+
+## 8. Testing it end to end
 
 Sign in at <https://newmilanisanghaclub.appwrite.network/login>.
 
@@ -631,7 +712,9 @@ Then the membership flow, which crosses both areas:
 | Step | Expect |
 | --- | --- |
 | As a member: My membership | Twelve boxes, all unpaid; "0 of 12 months paid", ₹600 outstanding |
-| Declare a payment — one month, by UPI | The amount shows ₹50 and **cannot be typed over**; sends with an acknowledgement `REF-…`, listed as *Awaiting verification* |
+| Declare a payment — click June, then click August | The three months highlight and the amount reads ₹150; there is no box to type an amount into |
+| Click "The rest of the year" | All twelve highlight at ₹600, the yearly rate |
+| Send it | An acknowledgement `REF-…`, listed as *Awaiting verification* |
 | Look at the twelve boxes again | Still unpaid — a declaration is not money until it is verified |
 | Try to declare the same month again | Refused, naming the month and the reference already claiming it |
 | Try "the rest of the year" | Priced at ₹550 for the remaining 11 months |
@@ -643,6 +726,16 @@ Then the membership flow, which crosses both areas:
 | Download the receipt again | **Approved by** now names the secretary |
 | As the treasurer: declare a payment of your own | Office → Members' payments offers no **Verify** button for it, and says another officer must |
 
+And the year end, which you can try at any time without waiting for April:
+
+| Step | Expect |
+| --- | --- |
+| Office → Statements → Financial years | Nothing closed yet |
+| Post an entry, then open next year from the dashboard panel | It is only offered once the calendar has passed 31 March; until then, check the panel is absent |
+| After opening a year, try to record an entry dated in the closed one | Refused, naming the year and saying to date it when the money arrived |
+| Record a member's payment whose paid-date is in the closed year | Entered on 1 April of the open year, described as *arrears*, with the member's months still credited to the year they paid for |
+| Statements → Financial years → Reopen | The year before becomes editable again |
+
 The amber **Sample data** bar appearing anywhere means the API has lost its database
 credentials and is serving the demo ledger. Check with:
 
@@ -652,7 +745,7 @@ npm run appwrite:check
 
 ---
 
-## 8. When something does not work
+## 9. When something does not work
 
 | Symptom | Cause |
 | --- | --- |
@@ -665,7 +758,7 @@ npm run appwrite:check
 
 ---
 
-## 9. Where the club's data actually lives
+## 10. Where the club's data actually lives
 
 Nothing sensitive is in GitHub, and a check now enforces that.
 
@@ -676,6 +769,7 @@ Nothing sensitive is in GitHub, and a check now enforces that.
 | Member ids | **Appwrite → Auth** (`npm run user -- list`) | No |
 | Funds, categories, the ledger | **Appwrite → Databases** | No |
 | Members' declared payments | **Appwrite → Databases** (`payments`) | No |
+| Year-end carry-forward figures | **Appwrite → Databases** (`finance_years`) | No |
 | Audit trail | **Appwrite → Databases** (`audit_logs`) | No |
 | Backups | **Google Drive**, via `scripts/backup-to-drive.sh` | No — `backups/` is ignored |
 | `data/club/*.csv` | Your machine only | No — ignored, see below |
@@ -731,7 +825,7 @@ scheduler, which a public repository rules out.
 
 ---
 
-## 10. Back up before you rely on it
+## 11. Back up before you rely on it
 
 ```bash
 npm run backup                                   # writes backups/<timestamp>.json

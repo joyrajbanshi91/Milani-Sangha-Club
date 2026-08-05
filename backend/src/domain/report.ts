@@ -8,6 +8,7 @@ import {
   periodTotals,
   postedOnly,
   totalFundsPaise,
+  type Baseline,
   type FundBalance,
   type PeriodTotals,
   type Rollup,
@@ -107,14 +108,20 @@ export function buildPeriodReport(input: {
   transactions: readonly Transaction[]
   generatedAt: string
   generatedBy: string
+  /**
+   * The declared balances this period is measured from, when the club has adopted
+   * one. Without it the report accumulates from the beginning of the ledger, which
+   * is right for a club in its first year and wrong for one in its fifth.
+   */
+  baseline?: Baseline
 }): PeriodReport {
-  const { from, to, funds, categories, transactions } = input
+  const { from, to, funds, categories, transactions, baseline } = input
 
   const posted = postedOnly(transactions)
   const window = inPeriod(posted, from, to)
 
-  const opening = openingTotalPaise(funds, transactions, from)
-  const balancesAtEnd = fundBalances(funds, transactions, to)
+  const opening = openingTotalPaise(funds, transactions, from, baseline)
+  const balancesAtEnd = fundBalances(funds, transactions, to, baseline)
 
   return {
     club: { name: input.clubName },

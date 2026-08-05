@@ -10,6 +10,7 @@ import {
   TRANSACTION_STATUSES,
 } from '../config/constants.js'
 import { isIsoDate, isIsoMonth, todayInIndia } from '../domain/dates.js'
+import { isFinancialYear, previousYear } from '../domain/financialYear.js'
 import { financialYearOf } from '../domain/membership.js'
 import { rupeesToPaise } from '../domain/money.js'
 import { monthRange } from '../domain/report.js'
@@ -342,6 +343,70 @@ financeRouter.get('/payments/:id/receipt.pdf', async (req: Request, res: Respons
 })
 
 // ---------------------------------------------------------------------------
+// Financial years and the carry-forward
+// ---------------------------------------------------------------------------
+
+/**
+ * What the club has opened, and what it would carry into the year asked about.
+ *
+ * The suggestion is computed on demand rather than stored, so it always reflects the
+ * ledger as it stands — including an entry recorded five minutes ago in the year
+ * being closed.
+ */
+financeRouter.get('/years', async (req: Request, res: Response) => {
+  const year = typeof req.query.suggestFor === 'string' ? req.query.suggestFor : undefined
+  if (year !== undefined && !isFinancialYear(year)) {
+    throw badRequest('suggestFor must look like 2027-28')
+  }
+
+  res.json({
+    years: await finance.listYearOpenings(),
+    ...(year ? { suggestion: await finance.carryForwardSuggestion(year) } : {}),
+  })
+})
+
+const openYearSchema = z.object({
+  financialYear: z.string().refine(isFinancialYear, 'Use the format 2027-28'),
+  /** Fund id → rupees, as the committee adopted them. */
+  balances: z.record(z.string().min(1), amountSchema),
+  note: z.string().trim().max(500).optional(),
+})
+
+financeRouter.post('/years', async (req: Request, res: Response) => {
+  const input = openYearSchema.parse(req.body)
+
+  const result = await finance.openYear(
+    input.financialYear,
+    input.balances,
+    actorOf(req),
+    input.note
+  )
+  if (!result.ok) throw toHttpError(result)
+
+  res.status(201).json({
+    year: result.value,
+    message:
+      `${input.financialYear} is open, starting from the balances you adopted. ` +
+      `${previousYear(input.financialYear)} is now closed — nothing further can be dated into it.`,
+  })
+})
+
+/** Reopen a year, when the figures adopted turn out to have been wrong. */
+financeRouter.delete('/years/:financialYear', async (req: Request, res: Response) => {
+  const financialYear = param(req, 'financialYear')
+  if (!isFinancialYear(financialYear)) throw badRequest('Use the format 2027-28')
+
+  const result = await finance.reopenYear(financialYear, actorOf(req))
+  if (!result.ok) throw toHttpError(result)
+
+  res.json({
+    message:
+      `${financialYear} has been reopened, so ${previousYear(financialYear)} can be corrected. ` +
+      'Close it again once the figures are right.',
+  })
+})
+
+// ---------------------------------------------------------------------------
 // The membership register
 // ---------------------------------------------------------------------------
 
@@ -409,6 +474,9 @@ function toHttpError(result: { code: string; reason: string }): AppError {
       return notFound(result.reason)
     case 'not_officer':
       return forbidden(result.reason)
+    case 'year_closed':
+      // Well-formed, and refused because the year it belongs to is settled.
+      return new AppError(409, result.code, result.reason)
     case 'entry_orphaned':
       // The ledger was written and the declaration was not. A 500 would be read as
       // "nothing happened", which is the one thing that is not true.

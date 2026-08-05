@@ -158,6 +158,8 @@ export const COLLECTIONS = {
   financeCategories: 'finance_categories',
   financeTransactions: 'finance_transactions',
   financeApprovals: 'finance_approvals',
+  /** One row per financial year, holding the balances it was started with. */
+  financeYears: 'finance_years',
 } as const
 
 export type CollectionName = (typeof COLLECTIONS)[keyof typeof COLLECTIONS]

@@ -119,6 +119,28 @@ export type TransactionDraft = Omit<
   | 'reversedBy'
 >
 
+/**
+ * What a financial year was started with.
+ *
+ * The carry-forward the committee adopted, per fund. Its existence also settles the
+ * year before — see domain/financialYear.ts for why that is one fact rather than two.
+ */
+export interface YearOpening {
+  id: string
+  /** '2027-28'. */
+  financialYear: string
+  /** Fund id → paise, as adopted. A fund absent from this starts at zero. */
+  balances: Record<string, number>
+  /** What the ledger computed at the time, kept so a later difference is explicable. */
+  suggestedTotalPaise: number
+  /** Why the adopted figure differs, if it does. */
+  note?: string
+
+  createdAt: string
+  createdBy: string
+  createdByName: string
+}
+
 /** Who is acting, as established from their verified ID token. */
 export interface Actor {
   uid: string

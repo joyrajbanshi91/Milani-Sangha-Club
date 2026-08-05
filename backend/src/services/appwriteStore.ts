@@ -1,7 +1,7 @@
 import { AppwriteException, ID, Query, type Models, type TablesDB } from 'node-appwrite'
 
 import { COLLECTIONS } from '../config/constants.js'
-import type { Approval, Category, Fund, Transaction } from '../domain/types.js'
+import type { Approval, Category, Fund, Transaction, YearOpening } from '../domain/types.js'
 import { allocateSequence } from './appwriteCounter.js'
 import {
   applyFilter,
@@ -93,6 +93,29 @@ function parseApprovals(value: unknown): Approval[] {
   } catch {
     return []
   }
+}
+
+/**
+ * A year's opening, with its per-fund balances brought back out of JSON.
+ *
+ * A malformed map must not make the year unreadable, for the same reason a malformed
+ * signature list must not hide a ledger entry: an empty set of balances is visibly
+ * wrong on screen and gets reported, where a thrown error is just a broken page.
+ */
+function toYearOpening(row: Row): YearOpening {
+  const { balancesJson, ...rest } = withoutNulls(stripMeta(row))
+
+  let balances: Record<string, number> = {}
+  if (typeof balancesJson === 'string' && balancesJson.length > 0) {
+    try {
+      const parsed: unknown = JSON.parse(balancesJson)
+      if (parsed && typeof parsed === 'object') balances = parsed as Record<string, number>
+    } catch {
+      balances = {}
+    }
+  }
+
+  return { ...rest, id: row.$id, balances } as unknown as YearOpening
 }
 
 /** Domain object → row payload. `id` lives in `$id`, so it is never a column. */
@@ -347,6 +370,50 @@ export class AppwriteFinanceStore implements FinanceStore {
     })
 
     return rows.map(toTransaction)
+  }
+
+  async listYearOpenings(): Promise<YearOpening[]> {
+    const { rows } = await this.tables.listRows({
+      databaseId: this.db,
+      tableId: COLLECTIONS.financeYears,
+      queries: [Query.orderAsc('financialYear'), Query.limit(100)],
+    })
+    return rows.map(toYearOpening)
+  }
+
+  async createYearOpening(opening: Omit<YearOpening, 'id'>): Promise<YearOpening> {
+    const { balances, ...rest } = opening
+
+    try {
+      const row = await this.tables.createRow({
+        databaseId: this.db,
+        tableId: COLLECTIONS.financeYears,
+        // The year is the id. Two rows for one year would make what the club started
+        // with ambiguous, and a unique index that is only enforced on a column is one
+        // migration away from not being enforced at all.
+        rowId: opening.financialYear,
+        data: { ...rest, balancesJson: JSON.stringify(balances) },
+      })
+      return toYearOpening(row)
+    } catch (error) {
+      if (isConflict(error)) {
+        throw new StoreConflictError(`${opening.financialYear} has already been opened.`)
+      }
+      throw error
+    }
+  }
+
+  async deleteYearOpening(financialYear: string): Promise<void> {
+    try {
+      await this.tables.deleteRow({
+        databaseId: this.db,
+        tableId: COLLECTIONS.financeYears,
+        rowId: financialYear,
+      })
+    } catch (error) {
+      // Already gone is the outcome the caller wanted.
+      if (!isNotFound(error)) throw error
+    }
   }
 
   /** Append-only audit trail. Never updated, never deleted. */
