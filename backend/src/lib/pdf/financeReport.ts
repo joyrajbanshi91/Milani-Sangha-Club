@@ -1,9 +1,24 @@
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib'
+import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib'
 
 import { REQUIRED_APPROVALS } from '../../config/constants.js'
-import { formatPaise } from '../../domain/money.js'
 import { reconcile, type PeriodReport } from '../../domain/report.js'
 import type { Rollup } from '../../domain/ledger.js'
+import {
+  BRAND,
+  drawClubMark,
+  embedClubMark,
+  INK,
+  letterheadLines,
+  money,
+  MUTED,
+  NEGATIVE,
+  ON_BRAND,
+  ON_BRAND_ACCENT,
+  ON_BRAND_MUTED,
+  POSITIVE,
+  RULE,
+  safe,
+} from './brand.js'
 
 /**
  * Renders a period financial statement as a PDF.
@@ -34,27 +49,8 @@ import type { Rollup } from '../../domain/ledger.js'
 const A4 = { width: 595.28, height: 841.89 }
 const MARGIN = 42
 
-const INK = rgb(0.11, 0.09, 0.08)
-const MUTED = rgb(0.45, 0.42, 0.38)
-const BRAND = rgb(0.06, 0.24, 0.18)
-const RULE = rgb(0.85, 0.83, 0.79)
-const POSITIVE = rgb(0.08, 0.45, 0.3)
-const NEGATIVE = rgb(0.7, 0.15, 0.12)
-
-/** WinAnsi cannot encode ₹, em dashes or most non-Latin text. */
-function safe(text: string): string {
-  return text
-    .replace(/₹/g, 'Rs.')
-    .replace(/[—–]/g, '-')
-    .replace(/[’‘]/g, "'")
-    .replace(/[“”]/g, '"')
-    .replace(/…/g, '...')
-    .replace(/[^\x20-\x7E]/g, '?')
-}
-
-function money(paise: number): string {
-  return safe(formatPaise(paise, { withSymbol: false }))
-}
+/** The green band on page one. Deep enough for the logo and the letterhead. */
+const BAND = 112
 
 /** Multiple of the font size used as the distance between wrapped lines. */
 const LINE_SPACING = 1.3
@@ -220,10 +216,12 @@ export async function renderFinanceReportPdf(
   const regular = await pdf.embedFont(StandardFonts.Helvetica)
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold)
 
+  const mark = await embedClubMark(pdf)
+
   const cursor: Cursor = { page: pdf.addPage([A4.width, A4.height]), y: 0, pageNumber: 1 }
   cursor.y = A4.height - MARGIN
 
-  drawHeader(cursor, report, detail, bold, regular)
+  drawHeader(cursor, report, detail, mark, bold, regular)
   drawSummary(cursor, report, bold, regular)
   drawFunds(cursor, report, bold, regular, pdf)
   drawRollup(cursor, 'Income by category', report.incomeByCategory, bold, regular, pdf)
@@ -239,9 +237,36 @@ export async function renderFinanceReportPdf(
 
   drawSignatures(cursor, bold, regular, pdf)
 
-  // Page numbers can only be written once the total is known.
+  // Page numbers and continuation headers can only be written once the total is known.
   const pages = pdf.getPages()
   pages.forEach((page, index) => {
+    if (index > 0) {
+      page.drawText(safe(`${report.club.name} - statement continued`), {
+        x: MARGIN,
+        y: A4.height - MARGIN - 2,
+        size: 8,
+        font: bold,
+        color: BRAND,
+      })
+
+      const period = safe(report.period.label)
+      const width = regular.widthOfTextAtSize(period, 8)
+      page.drawText(period, {
+        x: A4.width - MARGIN - width,
+        y: A4.height - MARGIN - 2,
+        size: 8,
+        font: regular,
+        color: MUTED,
+      })
+
+      page.drawLine({
+        start: { x: MARGIN, y: A4.height - MARGIN - 10 },
+        end: { x: A4.width - MARGIN, y: A4.height - MARGIN - 10 },
+        thickness: 0.5,
+        color: RULE,
+      })
+    }
+
     page.drawText(safe(`Page ${index + 1} of ${pages.length}`), {
       x: A4.width - MARGIN - 70,
       y: MARGIN - 18,
@@ -261,18 +286,37 @@ export async function renderFinanceReportPdf(
   return pdf.save()
 }
 
-/** Starts a new page when the next block would not fit. */
+/**
+ * Starts a new page when the next block would not fit.
+ *
+ * Every page after the first reserves a strip at the top for the continuation header,
+ * so a statement handed round a table is identifiable from any page rather than only
+ * from page one.
+ */
 function ensureSpace(cursor: Cursor, needed: number, pdf: PDFDocument): void {
   if (cursor.y - needed > MARGIN + 10) return
   cursor.page = pdf.addPage([A4.width, A4.height])
   cursor.pageNumber += 1
-  cursor.y = A4.height - MARGIN
+  cursor.y = A4.height - MARGIN - CONTINUATION
 }
 
+/** Height reserved at the top of pages two onwards. */
+const CONTINUATION = 22
+
+/**
+ * The letterhead, and what this document is.
+ *
+ * The club's logo and address at the top, because a statement is taken to a meeting,
+ * signed, and filed — and a page of figures with no letterhead could have come from
+ * anywhere. Which of the two statements this is stays on the face of it: two documents
+ * covering the same period with different totals visible is exactly the confusion to
+ * head off.
+ */
 function drawHeader(
   cursor: Cursor,
   report: PeriodReport,
   detail: ReportDetail,
+  mark: PDFImage | null,
   bold: PDFFont,
   regular: PDFFont
 ): void {
@@ -280,35 +324,51 @@ function drawHeader(
 
   page.drawRectangle({
     x: 0,
-    y: A4.height - 96,
+    y: A4.height - BAND,
     width: A4.width,
-    height: 96,
+    height: BAND,
     color: BRAND,
   })
 
+  /**
+   * Two rows, divided by a hairline.
+   *
+   * Who the club is on top; what this document is underneath. They were one block and
+   * collided — the title printed across the logo and into the registration number,
+   * because the title was placed upwards from the bottom of the band while the
+   * letterhead grew downwards from the top, and the two met in the middle. Rows that
+   * cannot reach each other are the fix, not smaller type.
+   */
+  const divider = A4.height - BAND + 30
+
+  const markSize = 46
+  drawClubMark(page, {
+    mark,
+    clubName: report.club.name,
+    x: MARGIN,
+    y: A4.height - 30 - markSize,
+    size: markSize,
+    font: bold,
+  })
+
+  const textX = MARGIN + markSize + 14
+
   page.drawText(safe(report.club.name), {
-    x: MARGIN,
+    x: textX,
     y: A4.height - 46,
-    size: 17,
+    size: 16,
     font: bold,
-    color: rgb(1, 1, 1),
+    color: ON_BRAND,
   })
-  // Which of the two this is, on the face of it. Two documents covering the same
-  // period with different totals visible is exactly the confusion to head off.
-  page.drawText(safe(detail === 'summary' ? 'Financial statement — summary' : 'Financial statement — detailed'), {
-    x: MARGIN,
-    y: A4.height - 65,
-    size: 10,
-    font: regular,
-    color: rgb(0.85, 0.93, 0.89),
-  })
-  page.drawText(safe(report.period.label), {
-    x: MARGIN,
-    y: A4.height - 82,
-    size: 11,
-    font: bold,
-    color: rgb(0.96, 0.8, 0.35),
-  })
+
+  let y = A4.height - 60
+  for (const line of letterheadLines({
+    address: report.club.address,
+    registrationNumber: report.club.registrationNumber,
+  })) {
+    page.drawText(safe(line), { x: textX, y, size: 7.5, font: regular, color: ON_BRAND_MUTED })
+    y -= 10
+  }
 
   const generated = new Date(report.generatedAt).toLocaleString('en-IN', {
     dateStyle: 'medium',
@@ -323,11 +383,42 @@ function drawHeader(
       y: A4.height - 46 - index * 11,
       size: 8,
       font: regular,
-      color: rgb(0.85, 0.93, 0.89),
+      color: ON_BRAND_MUTED,
     })
   })
 
-  cursor.y = A4.height - 96 - 26
+  page.drawLine({
+    start: { x: MARGIN, y: divider },
+    end: { x: A4.width - MARGIN, y: divider },
+    thickness: 0.5,
+    color: ON_BRAND,
+    opacity: 0.28,
+  })
+
+  // Which of the two statements this is, on the left; the period it covers on the
+  // right, in the accent colour, because that is the line a committee checks first.
+  page.drawText(
+    safe(detail === 'summary' ? 'FINANCIAL STATEMENT - SUMMARY' : 'FINANCIAL STATEMENT - DETAILED'),
+    {
+      x: MARGIN,
+      y: divider - 20,
+      size: 9,
+      font: bold,
+      color: ON_BRAND_MUTED,
+    }
+  )
+
+  const period = safe(report.period.label)
+  const periodWidth = bold.widthOfTextAtSize(period, 13)
+  page.drawText(period, {
+    x: A4.width - MARGIN - periodWidth,
+    y: divider - 22,
+    size: 13,
+    font: bold,
+    color: ON_BRAND_ACCENT,
+  })
+
+  cursor.y = A4.height - BAND - 26
 }
 
 function drawSectionTitle(cursor: Cursor, title: string, bold: PDFFont): void {
@@ -432,9 +523,13 @@ function drawSummary(
   }
 
   if (report.pendingCount > 0) {
+    // "1 entry is awaiting approval and are NOT included" — the second half was fixed
+    // text, so every singular case read as a mistake on a document people sign.
+    const one = report.pendingCount === 1
+
     note(
-      `${report.pendingCount} entr${report.pendingCount === 1 ? 'y is' : 'ies are'} awaiting a second officer's approval and ` +
-        `are NOT included in these figures.`,
+      `${report.pendingCount} entr${one ? 'y is' : 'ies are'} awaiting another officer's approval ` +
+        `and ${one ? 'is' : 'are'} NOT included in these figures.`,
       regular,
       MUTED
     )
@@ -758,14 +853,21 @@ function drawSignatures(cursor: Cursor, bold: PDFFont, regular: PDFFont, pdf: PD
   ensureSpace(cursor, 90, pdf)
   drawSectionTitle(cursor, 'Certification', bold)
 
-  // Says what is actually true of these figures. It read "approved by two office
-  // bearers each" while the club required two signatures; printing that on a
-  // statement produced under one would be a false certification on a financial
-  // document, which is worse than saying nothing.
+  /**
+   * Says what is actually true of these figures, and no more.
+   *
+   * It has been wrong twice, in the same way each time: an earlier version read
+   * "approved by two office bearers each" while the club required a single signature,
+   * and the corrected version still counted office bearers — which overstates a
+   * verified member payment, where the two people involved are the member who declared
+   * it and the one bearer who checked it. A false certification on a signed financial
+   * statement is worse than a vaguer true one.
+   */
   cursor.page.drawText(
     safe(
       REQUIRED_APPROVALS > 0
-        ? `The figures above are drawn from entries approved by ${REQUIRED_APPROVALS + 1} office bearers each.`
+        ? 'Every figure above comes from an entry that two different people put through: one to ' +
+            'record or declare it, another to approve it. Both are named in the club’s audit trail.'
         : 'The figures above are drawn from posted entries. Each was recorded by an office bearer, ' +
             'named against it in the club’s audit trail.'
     ),

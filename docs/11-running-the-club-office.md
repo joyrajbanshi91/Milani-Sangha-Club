@@ -503,7 +503,12 @@ A declaration sitting in the queue shows as unpaid, because a form is not money.
 Once a payment is verified, a **Download receipt** button appears against it in the
 member's list, and the receipt number (`RCT-2026-000001`) with it. The receipt carries:
 
-- the member, the amount, and **which months it covers**, in words
+- the club's **letterhead** — logo, name, and the address and registration number if set
+- the member, and **which months it covers**, in words
+- the amount in a panel of its own, **and again in words**: *Rupees six hundred only*. Not
+  decoration — it is the oldest anti-tampering device in bookkeeping, because a digit can
+  be added to a figure and a sentence cannot, and every paper receipt a member has ever
+  been handed carries it
 - how they paid and the reference matched against
 - the declaration and the ledger entry it produced, so it can be traced
 - one signature line — **Verified and entered by** — naming the bearer who accepted it,
@@ -611,16 +616,49 @@ both name individual members — a page of who paid what is not what goes on a
 noticeboard. It says on its face how many entries sit behind the totals and that the
 detailed version has them.
 
-Filenames carry the club, which report, the period and the day it was issued:
+### What the documents look like, and what they are called
+
+Both the statement and a member's receipt carry the **club's letterhead**: the logo, the
+club's name, and — if you set them — the address and registration number. The statement
+names itself again at the top of every page after the first, because a statement handed
+round a table arrives one page at a time, and page four with nothing on it but figures is
+not identifiable.
+
+To put the club's logo on them, run this once after changing the logo file:
+
+```bash
+npm run logo:pdf
+```
+
+It reads `frontend/public/brand/logo_web.png` and compiles a small copy into the API — the
+PDFs are built by the server, which cannot reach the website's files. Until you run it, or
+if the logo is missing, the documents print the club's initials in a ring instead, which
+looks deliberate rather than broken.
+
+The address and registration number come from two optional settings, because the API
+cannot read the website's content file. Add them in Netlify (Project configuration →
+Environment variables), or in `backend/.env` locally:
 
 ```
-Milani-Sangha-Club-summary-2026-04-issued-2026-08-05.pdf
-Milani-Sangha-Club-detailed-2026-04-05-to-2026-05-20-issued-2026-08-05.pdf
+CLUB_ADDRESS=Bhagini Nivedita Sarani, Nona Chandan Pukur, Barrackpore, Kolkata 700122
+CLUB_REGISTRATION_NUMBER=50219
 ```
 
-A period that is exactly one calendar month is named as that month. Two downloads of the
-same month no longer arrive as `statement.pdf` and `statement(1).pdf` with nothing to
-tell them apart.
+Leave them unset and the documents show the club's name alone — which is true. An address
+nobody stated would not be.
+
+**Filenames** carry the club, what the document is, what it covers, and a labelled date:
+
+```
+New-Milani-Sangha-Club-statement-summary-2026-04-issued-2026-08-05.pdf
+New-Milani-Sangha-Club-statement-detailed-2026-04-01-to-2027-03-31-issued-2026-08-05.pdf
+New-Milani-Sangha-Club-receipt-RCT-2026-000004-paid-2026-06-11.pdf
+```
+
+A period that is exactly one calendar month is named as that month. The dates say what
+they are — `issued` for a statement, `paid` for a receipt — because a bare date in a
+filename could be any of three things. Two downloads no longer arrive as `statement.pdf`
+and `statement(1).pdf` with nothing to tell them apart.
 
 ---
 

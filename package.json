@@ -28,6 +28,7 @@
     "verify": "npm run check:constants && npm run check:private && npm run lint && npm run typecheck && npm test && npm run build && npm run test:function && npm run check:bundle",
     "icons": "python3 scripts/generate_icons.py",
     "icons:from-logo": "bash scripts/icons-from-logo.sh",
+    "logo:pdf": "bash scripts/pdf-mark.sh",
     "user": "npm --prefix backend run user --",
     "seed:finance": "npm --prefix backend run seed:finance --",
     "dev:lan": "bash scripts/dev.sh --host",

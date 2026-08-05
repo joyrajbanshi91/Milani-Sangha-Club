@@ -15,7 +15,7 @@ const GENERATED = '2026-05-02T04:30:00.000Z'
 
 function report(transactions = TRANSACTIONS, from = '2026-04-01', to = '2026-04-30') {
   return buildPeriodReport({
-    clubName: 'New Milani Sangha Club',
+    club: { name: 'New Milani Sangha Club' },
     from,
     to,
     funds: FUNDS,
@@ -200,6 +200,61 @@ describe('PDF statement', () => {
   })
 
   /**
+   * The letterhead.
+   *
+   * A statement is taken to a meeting, signed and filed. A page of figures with no
+   * club name, address or mark on it could have come from anywhere, which is not what
+   * a committee should be asked to sign.
+   */
+  it('carries the club logo', async () => {
+    const bytes = await renderFinanceReportPdf(report())
+    expect(new TextDecoder('latin1').decode(bytes)).toContain('/Subtype /Image')
+  })
+
+  it('prints the address and registration number when the club has stated them', async () => {
+    const built = buildPeriodReport({
+      club: {
+        name: 'New Milani Sangha Club',
+        address: 'Barrackpore, Kolkata 700122',
+        registrationNumber: '50219',
+      },
+      from: '2026-04-01',
+      to: '2026-04-30',
+      funds: FUNDS,
+      categories: CATEGORIES,
+      transactions: TRANSACTIONS,
+      generatedAt: GENERATED,
+      generatedBy: 'Treasurer',
+    })
+
+    const drawn = (await textBoxes(() => renderFinanceReportPdf(built))).map((box) => box.text)
+
+    expect(drawn).toContain('Barrackpore, Kolkata 700122')
+    expect(drawn).toContain('Registration no. 50219')
+    // And says which of the two statements it is, on the face of it.
+    expect(drawn).toContain('FINANCIAL STATEMENT - DETAILED')
+  })
+
+  it('names itself again at the top of every later page', async () => {
+    // A statement handed round a table arrives page by page. Page four with nothing on
+    // it but figures is not identifiable, and the footer alone is easy to miss.
+    const many = Array.from({ length: 140 }, (_, index) =>
+      makeTransaction({
+        date: `2026-04-${String((index % 30) + 1).padStart(2, '0')}`,
+        amountPaise: 10_000 + index,
+      })
+    )
+
+    const boxes = await textBoxes(() => renderFinanceReportPdf(report(many)))
+    const continued = boxes.filter((box) => box.text.includes('statement continued'))
+
+    const pages = new Set(boxes.map((box) => box.page))
+    expect(continued).toHaveLength(pages.size - 1)
+    // Never on page one, which has the full letterhead already.
+    expect(continued.every((box) => box.page > 1)).toBe(true)
+  })
+
+  /**
    * The overlap regression.
    *
    * The club's first real statement was unreadable: descriptions long enough to wrap
@@ -236,7 +291,7 @@ describe('PDF statement', () => {
   it('does not let a long fund name or category run into the column beside it', async () => {
     // Both tables used to pass a maxWidth wider than the gap to the next column.
     const built = buildPeriodReport({
-      clubName: 'New Milani Sangha Club',
+      club: { name: 'New Milani Sangha Club' },
       from: '2026-04-01',
       to: '2026-04-30',
       funds: [
@@ -309,7 +364,7 @@ describe('no text overlaps any other text', () => {
 
   it('when a description, a source and a fund name are all long at once', async () => {
     const built = buildPeriodReport({
-      clubName: 'New Milani Sangha Club',
+      club: { name: 'New Milani Sangha Club' },
       from: '2026-04-01',
       to: '2026-04-30',
       funds: [{ ...CASH, name: 'Durga Puja committee collection account (Ward 12 branch)' }, BANK],
@@ -357,7 +412,7 @@ describe('no text overlaps any other text', () => {
     // The warning used to be given a fixed 22 points however long it was, and then
     // printed through the funds table it was warning about.
     const built = buildPeriodReport({
-      clubName: 'New Milani Sangha Club',
+      club: { name: 'New Milani Sangha Club' },
       from: '2026-04-01',
       to: '2026-04-30',
       funds: [

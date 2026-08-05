@@ -139,7 +139,7 @@ waiting for a name, a photograph and an address. Each bearer takes four fields:
   role: 'Secretary',
   since: '2026',
   photo: '/committee/secretary-1.jpg',
-  email: 'secretary@yourclub.in',
+  email: 'secretary@example.org',
 },
 ```
 
@@ -175,7 +175,7 @@ bottom of the page changes from *write to the club office* to *write to the bear
 whose office your enquiry concerns*, so the page does not contradict itself.
 
 Prefer an address that belongs to the **office rather than the person** —
-`secretary@yourclub.in` rather than somebody's personal Gmail. An address on a
+`secretary@example.org` rather than somebody's personal Gmail. An address on a
 public page is harvested by spammers within days, and an office address can be
 handed to the next bearer at the end of the term without editing the site or
 losing the mail.

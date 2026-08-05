@@ -13,7 +13,7 @@ import { describe, expect, it, vi } from 'vitest'
  */
 
 vi.mock('@/content/site', () => ({
-  club: { contact: { email: 'office@example.club' } },
+  club: { contact: { email: 'office@example.org' } },
   committee: {
     eyebrow: 'Executive committee',
     title: 'The office bearers',
@@ -25,7 +25,7 @@ vi.mock('@/content/site', () => ({
         role: 'President',
         since: '2026',
         photo: '/committee/with-a-photo.jpg',
-        email: 'president@example.club',
+        email: 'president@example.org',
       },
       { name: 'Without One', role: 'Treasurer', since: '', photo: '', email: '' },
     ],
@@ -69,9 +69,9 @@ describe('a bearer whose photograph and address the club has supplied', () => {
   it('offers their address as a mail link', () => {
     renderPage()
 
-    expect(screen.getByRole('link', { name: /president@example\.club/ })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /president@example\.org/ })).toHaveAttribute(
       'href',
-      'mailto:president@example.club'
+      'mailto:president@example.org'
     )
   })
 })

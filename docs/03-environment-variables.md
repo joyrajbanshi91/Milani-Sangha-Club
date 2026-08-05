@@ -156,6 +156,12 @@ Sensitive endpoints (login, OTP, payment submission) additionally get a fixed
 | --- | --- |
 | `CLUB_NAME` | Name on receipts, cards and emails |
 | `CLUB_UPI_ID` | UPI id the club collects into. Also stored in the `settings` collection from Phase 5 so the treasurer can change it without a deploy |
+| `CLUB_ADDRESS` | Optional. Printed under the club's name on receipts and statements. The API cannot read the website's content file, so the address for printed documents is stated here — keep it in step with section 1 of `frontend/src/content/site.ts`. Unset, the documents print the name alone |
+| `CLUB_REGISTRATION_NUMBER` | Optional. Printed as *Registration no. …* under the address |
+
+The club's **logo** on those documents is not an environment variable: it is compiled into
+the API by `npm run logo:pdf`, because a bundled serverless function cannot read a loose
+file. See §6 of docs/11-running-the-club-office.md.
 
 ---
 

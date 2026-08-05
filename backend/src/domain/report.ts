@@ -25,7 +25,14 @@ import type { Category, Fund, Transaction } from './types.js'
  */
 
 export interface PeriodReport {
-  club: { name: string }
+  /**
+   * The club, as it appears on the letterhead.
+   *
+   * The address and the registration number are optional and printed only when the
+   * club has stated them — an invented address on a signed statement is worse than
+   * none at all.
+   */
+  club: { name: string; address?: string | undefined; registrationNumber?: string | undefined }
   period: { from: string; to: string; label: string }
   generatedAt: string
   generatedBy: string
@@ -99,7 +106,7 @@ export function monthRange(month: string): { from: string; to: string } {
 }
 
 export function buildPeriodReport(input: {
-  clubName: string
+  club: { name: string; address?: string | undefined; registrationNumber?: string | undefined }
   from: string
   to: string
   funds: readonly Fund[]
@@ -124,7 +131,7 @@ export function buildPeriodReport(input: {
   const balancesAtEnd = fundBalances(funds, transactions, to, baseline)
 
   return {
-    club: { name: input.clubName },
+    club: input.club,
     period: { from, to, label: periodLabel(from, to) },
     generatedAt: input.generatedAt,
     generatedBy: input.generatedBy,

@@ -119,7 +119,7 @@ describe('data/demo templates', () => {
 
     const { from, to } = monthRange('2026-04')
     const report = buildPeriodReport({
-      clubName: 'New Milani Sangha Club',
+      club: { name: 'New Milani Sangha Club' },
       from,
       to,
       funds,
