@@ -415,7 +415,7 @@ export const committee = {
     // photo: '/committee/secretary-1.jpg'
     { name: 'Govindo Ghosh', role: 'Secretary', since: '2026', photo: '/committee/secretary-1.jpg', email: '' },
     // photo: '/committee/secretary-2.jpg'
-    { name: 'Partha Dey', role: 'Secretary', since: '2026', photo: '/committee/secretary-2.jpg', email: '' },
+    { name: 'Partha Dey', role: 'Joint Secretary', since: '2026', photo: '/committee/secretary-2.jpg', email: '' },
     // photo: '/committee/cultural-secretary.jpg'
     { name: 'Sudip Ghosh', role: 'Cultural Secretary', since: '2026', photo: '/committee/cultural-secretary.jpg', email: '' },
     // photo: '/committee/treasurer.jpg'
@@ -423,9 +423,9 @@ export const committee = {
     // photo: '/committee/cashier.jpg'
     { name: 'Full name', role: 'Cashier', since: '', photo: '', email: '' },
     // photo: '/committee/game-secretary-1.jpg'
-    { name: 'Full name', role: 'Game Secretary', since: '', photo: '', email: '' },
+    { name: 'Full name', role: 'Game Secretary', since: '2026', photo: '/committee/game-secretary-1.jpg', email: '' },
     // photo: '/committee/game-secretary-2.jpg'
-    { name: 'Full name', role: 'Game Secretary', since: '', photo: '', email: '' },
+    { name: 'Full name', role: 'Joint Game Secretary', since: '2026', photo: '/committee/game-secretary-2.jpg', email: '' },
   ],
 }
 
