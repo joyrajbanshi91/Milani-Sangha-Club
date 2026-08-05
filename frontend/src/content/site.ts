@@ -419,7 +419,7 @@ export const committee = {
     // photo: '/committee/cultural-secretary.jpg'
     { name: 'Sudip Ghosh', role: 'Cultural Secretary', since: '2026', photo: '/committee/cultural-secretary.jpg', email: '' },
     // photo: '/committee/treasurer.jpg'
-    { name: 'Sukanta Bose', role: 'Treasurer', since: '', photo: '', email: '' },
+    { name: 'Sukanta Bose', role: 'Treasurer', since: '2026', photo: '/committee/treasurer.jpg', email: '' },
     // photo: '/committee/cashier.jpg'
     { name: 'Full name', role: 'Cashier', since: '', photo: '', email: '' },
     // photo: '/committee/game-secretary-1.jpg'
