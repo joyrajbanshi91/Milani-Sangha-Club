@@ -524,6 +524,85 @@ moment of printing, so receipts issued under the old two-signature rule stay tru
 An officer can reprint any member's receipt from **Office → Members' payments** — the
 commonest request an office ever gets.
 
+### The verification code, and why a receipt number is not enough
+
+Every number this system issues is **sequential** — `REF-2026-000012`, `RCT-2026-000004`.
+That is deliberate: gapless numbering is what makes a set of books auditable, because a
+missing number is a question somebody has to answer.
+
+It is also guessable, and the club spotted the consequence. Anybody holding one genuine
+receipt knows roughly where the counter is, and could put a plausible number on a document
+the club never issued — for a payment never made, or for more than was handed over.
+
+So every declaration also carries a **verification code** that cannot be guessed:
+
+```
+Verification code   PMV4-9WED-9A
+```
+
+- **Ten characters, drawn at random** from the operating system's random source — about
+  300 trillion possibilities. It has no relationship to the reference number beside it.
+- **Never issued twice.** The system checks its records before using one, and the database
+  refuses a repeat outright, so it is a guarantee rather than a hope.
+- **Allocated when the member declares the payment**, so it is on their acknowledgement
+  before any money is confirmed, and on the receipt afterwards.
+- **No I, L, O or U.** Those are the characters a tired reader confuses with 1, 0 and V
+  when copying a code off a paper counterfoil.
+
+**To check a receipt: Office → Members' payments → _Check a receipt's verification code_.**
+Type the code off the document — hyphens, spaces and capitals do not matter, and O reads as
+0 exactly as somebody would write it. The club gets back the member, the amount, the date
+and the receipt number.
+
+**Compare every figure against the paper.** A code that matches a real payment for a
+*different amount* is precisely the forgery worth catching, and a green tick alone would
+hide it. A code with no record behind it was not issued by this club.
+
+Only office bearers can check codes. A member could otherwise try codes one after another
+until one hit.
+
+### Paying by UPI: the club's QR code
+
+**Portal → Declare a payment → By UPI** shows a QR code and the UPI ID beneath it. The
+member scans it, types the amount themselves — it depends how many months they are paying
+for — and then records the transaction ID.
+
+The QR is **generated from the UPI ID**, not a screenshot of somebody's payment app:
+
+```bash
+npm run upi:qr
+```
+
+That reads `club.upi` from `frontend/src/content/site.ts` and writes
+`frontend/public/brand/upi-qr.svg`. **Run it again whenever the UPI ID changes** — a stale
+QR sends money to the old account, silently, for as long as nobody scans it and reads the
+name. Generating it means the QR and the printed ID cannot disagree, because both come from
+the same line of one file.
+
+Set the ID and the payee name in section 1 of `site.ts`:
+
+```ts
+upi: {
+  id: 'someone@okaxis',
+  payeeName: 'Sanjay Karmakar (Cashier)',
+  qr: '/brand/upi-qr.svg',
+  note: 'Paid to the club’s cashier.',
+},
+```
+
+The payee name is printed under the QR with the instruction *"if your app shows any other
+name, stop and tell an office bearer"* — which is the only protection a member has against
+a swapped QR, and it only works if the name here matches what the payment app shows.
+
+Leave `id` empty and the screen says UPI is not configured yet rather than showing a code
+nobody can pay into.
+
+> **On whose account this is.** Dues paid into an office bearer's personal account are that
+> person's money as far as their bank is concerned, and the club cannot reconcile what it
+> has no statement for. It works, and clubs do it — but a current account in the club's own
+> name, with its own UPI ID, is worth the paperwork. When the club opens one, change `id`,
+> run `npm run upi:qr`, and commit both.
+
 Receipt numbers are a separate gapless series from declaration references, numbered by
 the year the money was **paid**, so a receipt issued in April for a March payment sits in
 the right book. There is no receipt for a payment that has not been verified, and asking
@@ -647,18 +726,25 @@ CLUB_REGISTRATION_NUMBER=50219
 Leave them unset and the documents show the club's name alone — which is true. An address
 nobody stated would not be.
 
-**Filenames** carry the club, what the document is, what it covers, and a labelled date:
+**Filenames** lead with what the document is, then the period it covers:
 
 ```
-New-Milani-Sangha-Club-statement-summary-2026-04-issued-2026-08-05.pdf
-New-Milani-Sangha-Club-statement-detailed-2026-04-01-to-2027-03-31-issued-2026-08-05.pdf
-New-Milani-Sangha-Club-receipt-RCT-2026-000004-paid-2026-06-11.pdf
+Statement_2026-04_summary.pdf
+Statement_2026-04-01_to_2027-03-31_detailed.pdf
+Receipt_2026-06-11_RCT-2026-000004.pdf
 ```
 
-A period that is exactly one calendar month is named as that month. The dates say what
-they are — `issued` for a statement, `paid` for a receipt — because a bare date in a
-filename could be any of three things. Two downloads no longer arrive as `statement.pdf`
-and `statement(1).pdf` with nothing to tell them apart.
+A period that is exactly one calendar month is named as that month. The summary and the
+detailed statement cover the same dates and show different totals, so which one it is
+stays in the name — that is the confusion the whole scheme exists to prevent.
+
+> **If a statement ever downloads as `statement.pdf` again**, the browser could not read
+> the name the server sent. That name travels in a header called `Content-Disposition`,
+> and a browser hides response headers from a page on a different origin unless the API
+> says otherwise — which is exactly what happened to this club. The API now says
+> otherwise, and the app also works the name out for itself from the period you chose, so
+> it takes two failures rather than one. If you see it a third time, say so: it means a
+> proxy in front of the site is stripping headers.
 
 ---
 

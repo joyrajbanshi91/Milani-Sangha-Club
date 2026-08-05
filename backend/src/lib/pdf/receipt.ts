@@ -2,6 +2,7 @@ import { PDFDocument, StandardFonts, type PDFFont, type PDFImage, type PDFPage }
 
 import { financialYearLabel, periodLabel } from '../../domain/payments.js'
 import type { Payment, Transaction } from '../../domain/types.js'
+import { formatSecurityCode } from '../securityCode.js'
 import {
   amountInWords,
   BRAND,
@@ -284,6 +285,19 @@ function drawBody(page: PDFPage, payment: Payment, bold: PDFFont, regular: PDFFo
       : []),
     ...(payment.handedTo ? ([['Handed to', payment.handedTo]] as Array<[string, string]>) : []),
     ['Declaration', payment.reference],
+    /**
+     * The code that makes this receipt checkable.
+     *
+     * A forged receipt can carry a plausible RCT- number, because that series is
+     * sequential and anybody holding one genuine receipt can guess the next. It
+     * cannot carry a code the club has a record of. Printed grouped, because it gets
+     * read down a telephone.
+     */
+    ...(payment.securityCode
+      ? ([['Verification code', formatSecurityCode(payment.securityCode)]] as Array<
+          [string, string]
+        >)
+      : []),
     ...(payment.transactionReference
       ? ([['Ledger entry', payment.transactionReference]] as Array<[string, string]>)
       : []),
@@ -390,7 +404,10 @@ function drawFooter(page: PDFPage, input: ReceiptInput, regular: PDFFont): void 
 
   page.drawText(
     safe(
-      'This is a club receipt for the club’s own records. It is not a tax receipt and carries no exemption number.'
+      input.payment.securityCode
+        ? 'A club receipt for the club’s own records — not a tax receipt, and it carries no exemption number. ' +
+            'The office can confirm this receipt from its verification code.'
+        : 'This is a club receipt for the club’s own records. It is not a tax receipt and carries no exemption number.'
     ),
     { x: MARGIN, y: MARGIN - 4, size: 6.5, font: regular, color: MUTED }
   )

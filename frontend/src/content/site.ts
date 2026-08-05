@@ -126,6 +126,37 @@ export const club = {
   },
 
   /**
+   * HOW MEMBERS PAY BY UPI.
+   *
+   *   id         The VPA money is sent to, e.g. 'someone@okaxis'. Copy it exactly
+   *              from the payment app — one wrong character sends a member's dues to
+   *              a stranger, and nothing on this screen can detect that.
+   *   payeeName  What the member should see they are paying. Write it as the name the
+   *              UPI app will show for that VPA, so the two do not look like a
+   *              mismatch and make a careful member abandon the payment.
+   *   qr         The QR code image, generated from `id` by
+   *                  npm run upi:qr
+   *              which writes frontend/public/brand/upi-qr.svg. Regenerate it
+   *              whenever `id` changes — a stale QR is money sent to the wrong place.
+   *   note       Anything the member should know: whose account this is, or when to
+   *              use a different route.
+   *
+   * Leave `id` empty and the payment screen says UPI is not configured yet rather
+   * than showing a QR nobody can pay into.
+   *
+   * ON WHOSE ACCOUNT THIS IS: dues paid into an office bearer's personal account are
+   * that person's money in the eyes of their bank, and a club cannot reconcile what it
+   * cannot see a statement for. A current account in the club's own name, with its own
+   * VPA, is worth the paperwork.
+   */
+  upi: {
+    id: 'sanjaykarmakar1431-1@okaxis',
+    payeeName: 'Sanjay Karmakar (Cashier)',
+    qr: '/brand/upi-qr.svg',
+    note: 'Paid to the club’s cashier. Quote nothing in the UPI note — the treasurer matches your transaction ID.',
+  },
+
+  /**
    * Google Maps.
    *
    * `directionsUrl` is a normal Google Maps link and is always safe to set.

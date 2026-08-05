@@ -22,7 +22,20 @@ const corsOptions: CorsOptions = {
   },
   methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
-  exposedHeaders: ['X-Request-Id'],
+  /**
+   * `Content-Disposition` is here because a download is fetched, not linked.
+   *
+   * A PDF is downloaded with `fetch` — a plain link cannot carry the Authorization
+   * header — and the filename the server chose travels in `Content-Disposition`. A
+   * browser hides every response header from a cross-origin fetch unless the server
+   * names it here, so where the site and the API are not the same origin, the club's
+   * carefully named `Statement_2026-04_summary.pdf` arrived as the front end's
+   * fallback name and the club reported that statements were all called
+   * `statement.pdf`. They were: the name was on the response and unreadable.
+   *
+   * Same-origin deployments never needed this, which is exactly why it went unnoticed.
+   */
+  exposedHeaders: ['X-Request-Id', 'Content-Disposition'],
   maxAge: 86_400,
 }
 

@@ -192,6 +192,19 @@ export interface Payment {
   /** Anything else the member wants the treasurer to know. */
   note?: string
 
+  /**
+   * The code that proves this receipt is the club's, e.g. '4K7P2WQ9XB'.
+   *
+   * Unguessable, unique, and allocated when the member declares the payment — so it
+   * is on the acknowledgement before any money is confirmed and on the receipt
+   * afterwards. The sequential `reference` orders the books; this authenticates them.
+   * See lib/securityCode.ts for why both are needed.
+   *
+   * Optional because declarations recorded before the club had codes do not have one,
+   * and their receipts must still print.
+   */
+  securityCode?: string
+
   /** ISO timestamp. */
   submittedAt: string
 

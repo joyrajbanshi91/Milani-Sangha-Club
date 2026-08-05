@@ -49,6 +49,15 @@ export interface Payment {
   /** 'RCT-2026-000042'. Exists only once an officer has verified the payment. */
   receiptNumber?: string
 
+  /**
+   * The unguessable code printed on the receipt, e.g. '4K7P2WQ9XB'.
+   *
+   * The reference number is sequential and therefore guessable: anybody holding one
+   * genuine receipt can write a plausible number on a document the club never issued.
+   * This code cannot be guessed, so the office can confirm a receipt is theirs.
+   */
+  securityCode?: string
+
   withdrawnAt?: string
 }
 
@@ -161,6 +170,18 @@ export const officePaymentsApi = {
 
   decline: (id: string, reason: string) =>
     api.post<{ payment: Payment; message: string }>(`/finance/payments/${id}/decline`, { reason }),
+
+  /**
+   * Is this receipt the club's?
+   *
+   * `payment` is null for a code the club has no record of, which is an answer rather
+   * than an error — the officer asked a fair question about a piece of paper in front
+   * of them.
+   */
+  verifyCode: (code: string) =>
+    api.get<{ payment: Payment | null; message: string }>(
+      `/finance/payments/verify?code=${encodeURIComponent(code)}`
+    ),
 }
 
 /**
@@ -175,7 +196,16 @@ export const officePaymentsApi = {
  */
 export async function downloadReceipt(
   paymentId: string,
-  scope: 'mine' | 'office' = 'mine'
+  scope: 'mine' | 'office' = 'mine',
+  /**
+   * What to call the file if the server's own name cannot be read.
+   *
+   * The name travels in `Content-Disposition`, which a browser hides from a
+   * cross-origin fetch unless the API exposes it — and when it did not, every receipt
+   * a member downloaded was called `receipt.pdf`. The API exposes it now; this is the
+   * belt to that braces, built from what the caller already has on screen.
+   */
+  naming?: { receiptNumber?: string | undefined; paidOn?: string | undefined }
 ): Promise<void> {
   const { resolveToken } = await import('@/lib/session')
   const { ApiError } = await import('@/lib/apiError')
@@ -204,10 +234,24 @@ export async function downloadReceipt(
     throw new ApiError(message, response.status)
   }
 
+  const fallback = [naming?.paidOn, naming?.receiptNumber].filter(Boolean).join('_')
+
   saveBlob(
     await response.blob(),
-    response.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] ?? 'receipt.pdf'
+    response.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] ??
+      (fallback ? `Receipt_${fallback}.pdf` : 'Receipt.pdf')
   )
+}
+
+/**
+ * '4K7P-2WQ9-XB' from '4K7P2WQ9XB'.
+ *
+ * Display only. What is stored and looked up is always the ungrouped code, so a member
+ * reading the hyphens back over the telephone cannot fail a check. Mirrors
+ * `formatSecurityCode` in backend/src/lib/securityCode.ts.
+ */
+export function formatSecurityCode(code: string): string {
+  return code.replace(/(.{4})(.{4})(.*)/, '$1-$2-$3').replace(/-+$/, '')
 }
 
 /** Hand a fetched blob to the browser as an ordinary download. */
