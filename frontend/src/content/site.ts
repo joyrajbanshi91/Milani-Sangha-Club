@@ -321,8 +321,8 @@ export const about = {
   lead: 'The club is run entirely by its members. Every office bearer is elected, every account is presented to the general body, and every major decision is taken in the open.',
   /** Each entry becomes a paragraph. Add or remove entries freely. */
   paragraphs: [
-    'Describe the club here: where it operates, who it serves, and what a typical year looks like. Two or three paragraphs is plenty — visitors who want detail will read the constitution on the Documents page.',
-    'Mention the facilities members can use, the fixtures the club competes in, and the community work it takes on. Keep it concrete: specifics build more trust than adjectives.',
+    'New Barrackpore Milani Sangha is a registered community club in Barrackpore, North 24 Parganas, dedicated to promoting unity, culture, sports, and social service. We bring together people of all ages through football tournaments, cultural programmes, festival celebrations, blood donation camps, and various community welfare initiatives.',
+    'Our club serves as a vibrant space for members to connect, volunteer, and preserve local traditions while contributing to the development and well-being of the community. Together, we strive to build a stronger, more inclusive society through service and collective action.',
   ],
   /** The values band. Delete entries to show fewer. */
   values: [
@@ -726,9 +726,9 @@ export interface Testimonial {
 export const testimonials: ReadonlyArray<Testimonial> = [
   {
     quote:
-      'Replace this with a real quote from a member, in their own words, with their permission.',
-    name: 'Member name',
-    role: 'Member since —',
+      'Together, we preserve our heritage, serve our community, and build a stronger future through unity, compassion, and collective action.',
+    name: 'Pankaj Ghosh',
+    role: 'President',
   },
   {
     quote:
