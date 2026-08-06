@@ -6,9 +6,8 @@
  *
  * ## Why this test exists
  *
- * Netlify's free plan refuses per-variable *scoping* — `403 Upgrade your Netlify
- * account to set specific scopes` — so every variable a site has is granted all four
- * scopes, builds included. `APPWRITE_API_KEY` is therefore present in the environment
+ * A hosting platform that cannot scope a variable to one part of a deployment hands
+ * every variable a site has to the build as well as to the running function. `APPWRITE_API_KEY` is therefore present in the environment
  * when the frontend is compiled, and that key bypasses every permission check in the
  * club's database.
  *

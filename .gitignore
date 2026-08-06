@@ -65,8 +65,6 @@ frontend/.icon-backups/
 # site never serves them — and out of git, because they are the multi-megabyte originals.
 frontend/.gallery-originals/
 
-# Local Netlify folder
-.netlify
 
 # Data exports from `npm run backup`. Never commit these: the repository is
 # public, and a dump contains member data.

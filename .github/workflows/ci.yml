@@ -69,8 +69,8 @@ jobs:
         run: npm run test
 
       # Deliberately no `env:` block. The build must succeed with no environment
-      # variables at all, because that is exactly the state a fresh Netlify deploy
-      # builds in. Placeholders here would hide a regression that only the club would
+      # variables at all, because that is exactly the state a fresh deploy of the
+      # site builds in. Placeholders here would hide a regression that only the club would
       # find, on their own site.
       - name: Build (no environment variables — as a fresh deploy does)
         run: npm run build
@@ -121,14 +121,14 @@ jobs:
   # The deployment target itself. `npm test` exercises the Express app directly,
   # which bypasses the layer that actually broke: serverless-http translating a
   # function invocation, and the container choosing a store when no credentials
-  # exist. This runs the API the way Netlify does, with nothing configured — the
+  # exist. This runs the API the way Appwrite does, with nothing configured — the
   # state a first deploy is in.
   #
   # This replaced a Firebase rules dry-run that needed two repository secrets which
   # were never configured, so it warned and passed on every run without checking
   # anything.
   function:
-    name: API as a Netlify Function
+    name: API as a serverless function
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -147,8 +147,8 @@ jobs:
       - name: Invoke the function with no credentials
         run: npm run test:function
 
-  # Netlify's free plan refuses per-variable scoping, so every variable a site has
-  # reaches the build environment — including the Appwrite server key. Vite only
+  # A hosting platform that cannot scope variables per build step hands every
+  # variable a site has to the build environment — including the Appwrite server key. Vite only
   # inlines VITE_-prefixed values, which keeps it out of the bundle. That guarantee
   # sits between a live credential and a public CDN, so it is tested rather than
   # remembered.

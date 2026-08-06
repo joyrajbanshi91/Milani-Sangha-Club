@@ -14,9 +14,7 @@ import { createApp } from '../../backend/dist/app.js'
  * CORS, the rate limiter, request logging, body parsing — all keep working, and the
  * backend's 148 tests continue to exercise the same code.
  *
- * The same library already runs this app on Netlify, so the repository has one
- * mental model for "the API as a function" rather than two.
- *
+
  * ## One function, not one per route
  *
  * Appwrite's free plan allows two functions per project, so a function per route
@@ -36,7 +34,7 @@ import { createApp } from '../../backend/dist/app.js'
  *
  * The function has its own domain, separate from the site's, and Appwrite Sites has
  * no documented path rewrite to hide that. So CORS is genuinely exercised here,
- * unlike the single-origin arrangement Netlify allowed. Set `CORS_ORIGINS` to the
+ * so CORS is genuinely load-bearing here. Set `CORS_ORIGINS` to the
  * site's URL, or the browser will refuse every response the API sends.
  */
 const app = createApp()
@@ -47,7 +45,7 @@ const handler = serverless(app, {
    *
    * A function's reply carries a text body, so anything that is not text has to be
    * base64-encoded and flagged. Without this the PDF statement and the Excel export
-   * arrive as mangled UTF-8 and will not open — the same trap as on Netlify.
+   * arrive as mangled UTF-8 and will not open.
    */
   binary: ['application/pdf', 'application/octet-stream', 'image/*', 'font/*'],
 })

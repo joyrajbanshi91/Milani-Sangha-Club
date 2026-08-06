@@ -8,19 +8,19 @@ import { env, isTest } from '../config/env.js'
  *
  * Supplied explicitly because the default — `req.ip` — is not reliable in a
  * function. Express derives `req.ip` from the socket unless `trust proxy` is set,
- * and inside a Netlify Function there is no real socket: `serverless-http`
- * fabricates the request from an event. With `TRUST_PROXY` unset the value comes
- * back `undefined`, and express-rate-limit then throws
- * `ERR_ERL_UNDEFINED_IP_ADDRESS` on every request — so the limiter stops limiting
- * anything, silently, in exactly the deployment where it matters most.
+ * and inside an Appwrite Function there is no real socket: `serverless-http`
+ * fabricates the request from the platform's own description of the call. With
+ * `TRUST_PROXY` unset the value comes back `undefined`, and express-rate-limit then
+ * throws `ERR_ERL_UNDEFINED_IP_ADDRESS` on every request — so the limiter stops
+ * limiting anything, silently, in exactly the deployment where it matters most.
  *
- * `TRUST_PROXY=1` fixes `req.ip` properly and is what docs/09-netlify.md says to
- * set. This is the fallback for when someone has not, which is a configuration
- * mistake that should cost the club a coarser rate limit rather than none at all.
+ * `TRUST_PROXY=1` fixes `req.ip` properly and is what docs/10-appwrite.md says to
+ * set. What follows is the fallback for when somebody has not, which is a
+ * configuration mistake that should cost the club a coarser rate limit rather than
+ * none at all.
  *
- * `x-nf-client-connection-ip` is Netlify's own header and is preferred over
- * `x-forwarded-for`, which is a client-supplied list and only trustworthy from the
- * right — hence taking the *first* entry only when it is all we have.
+ * `x-forwarded-for` is a client-supplied list and only trustworthy from the right —
+ * hence taking the *first* entry only when it is all there is.
  *
  * The final fallback puts every unidentifiable caller in one bucket. That throttles
  * more aggressively than reality, never less, which is the safe direction: an
@@ -34,9 +34,6 @@ import { env, isTest } from '../config/env.js'
  */
 function callerKey(req: Request): string {
   if (req.ip) return ipKeyGenerator(req.ip)
-
-  const netlifyIp = req.headers['x-nf-client-connection-ip']
-  if (typeof netlifyIp === 'string' && netlifyIp !== '') return ipKeyGenerator(netlifyIp)
 
   const forwarded = req.headers['x-forwarded-for']
   const first = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',')[0]?.trim()

@@ -1,43 +1,48 @@
 #!/usr/bin/env node
 /**
- * Smoke test for the API as a serverless function.
+ * Smoke test for the API as it actually runs: an Appwrite Function.
  *
  * `npm test` exercises the Express app through supertest, which is the right tool for
- * routes but bypasses the layer that actually broke in deployment: `serverless-http`
- * translating a function invocation into the request and response objects Express
- * expects, and the container deciding which store to build when no credentials exist.
+ * routes but bypasses the layer that broke in deployment — the adapter in
+ * `functions/api/main.mjs` translating Appwrite's `{ req, res }` into the request and
+ * response objects Express expects, and the container deciding which store to build
+ * when no credentials exist.
  *
- * Every failure this catches was a real one:
+ * This runs **the real entrypoint**, not a copy of it. It used to build its own
+ * `serverless-http` handler and invoke it with a Netlify-shaped Lambda event, which
+ * stopped testing anything real the day the site moved to Appwrite: the adapter it
+ * checked was not the adapter that runs.
+ *
+ * Every failure it catches was a real one:
  *
  *   • The container threw when it found no database credentials in a serverless
  *     runtime, so every route answered 500 — health included, which is what made it
  *     so hard to diagnose from a deployed site.
  *   • The demo store seeded itself by resolving a relative path to `data/demo`, which
- *     does not survive esbuild bundling the backend into one file.
- *   • `export const handler` rather than `export default` in the Netlify entrypoint: a
- *     default export opts into Netlify's v2 API, which hands the function a Web
- *     `Request` that `serverless-http` cannot read.
+ *     does not survive the backend being bundled into one file.
+ *   • A PDF returned as text rather than base64 arrives as mangled UTF-8 and will not
+ *     open.
  *
- * Run with `npm run test:function`. `AWS_LAMBDA_FUNCTION_NAME` is set below because it
- * is what Netlify sets, and `isServerless` in config/env.ts reads it — without it this
+ * Run with `npm run test:function`. `APPWRITE_FUNCTION_ID` is set below because that
+ * is what Appwrite sets and `isServerless` in config/env.ts reads it — without it this
  * would test the long-lived-server path and prove nothing about the function.
  */
 import assert from 'node:assert/strict'
 
 process.env.NODE_ENV ??= 'production'
 process.env.LOG_LEVEL ??= 'silent'
-// What Netlify sets. Makes config/env.ts report isServerless === true.
-process.env.AWS_LAMBDA_FUNCTION_NAME ??= 'api'
+// What Appwrite sets. Makes config/env.ts report isServerless === true.
+process.env.APPWRITE_FUNCTION_ID ??= 'api'
 
 /**
  * Deliberately NOT setting TRUST_PROXY.
  *
- * docs/09-netlify.md says to set it to 1, and with it Express resolves `req.ip` from
+ * docs/10-appwrite.md says to set it to 1, and with it Express resolves `req.ip` from
  * the forwarded header correctly. Leaving it unset here tests the misconfigured case
  * on purpose: it is the one that used to make express-rate-limit throw
  * ERR_ERL_UNDEFINED_IP_ADDRESS on every request and stop limiting anything at all.
- * The `keyGenerator` in middleware/rateLimit.ts now falls back to Netlify's own
- * header, and this is what proves it.
+ * The `keyGenerator` in middleware/rateLimit.ts falls back to `x-forwarded-for`, and
+ * this is what proves it.
  */
 
 // Deliberately unset, so this tests the no-credentials path a first deploy takes.
@@ -52,41 +57,60 @@ for (const key of [
   delete process.env[key]
 }
 
-const serverless = (await import('serverless-http')).default
-const { createApp } = await import('../backend/dist/app.js')
+/**
+ * The deployed entrypoint itself, so this tests the adapter that actually runs.
+ */
+const main = (await import('../functions/api/main.mjs')).default
 
-const handler = serverless(createApp(), {
-  basePath: '/.netlify/functions/api',
-  binary: ['application/pdf', 'application/octet-stream', 'image/*', 'font/*'],
-})
-
-/** Invoke the function the way Netlify's Lambda-compatible runtime does. */
+/** Invoke the function the way Appwrite's runtime does. */
 async function invoke(path, { method = 'GET', body, headers = {} } = {}) {
   const [pathname, search = ''] = path.split('?')
 
-  const response = await handler(
-    {
-      httpMethod: method,
-      // The redirect in netlify.toml sends /api/v1/x to the function as
-      // /.netlify/functions/api/api/v1/x; basePath above strips the prefix back off.
-      path: `/.netlify/functions/api${pathname}`,
-      queryStringParameters: Object.fromEntries(new URLSearchParams(search)),
+  // Appwrite's response object, reduced to what the adapter uses. Capturing what it
+  // is handed is the point: a status or a header lost in translation is exactly the
+  // class of bug this file exists for.
+  let captured = { statusCode: 0, headers: {}, body: '', binary: false }
+
+  const res = {
+    text: (value, statusCode, responseHeaders) => {
+      captured = { statusCode, headers: responseHeaders ?? {}, body: value, binary: false }
+      return captured
+    },
+    binary: (value, statusCode, responseHeaders) => {
+      captured = { statusCode, headers: responseHeaders ?? {}, body: value, binary: true }
+      return captured
+    },
+    json: (value, statusCode, responseHeaders) => {
+      captured = {
+        statusCode,
+        headers: responseHeaders ?? {},
+        body: JSON.stringify(value),
+        binary: false,
+      }
+      return captured
+    },
+  }
+
+  await main({
+    req: {
+      method,
+      path: pathname,
+      query: Object.fromEntries(new URLSearchParams(search)),
       headers: {
         'content-type': 'application/json',
-        // Netlify sets both of these on every invocation. Included because the rate
-        // limiter's key depends on them when TRUST_PROXY is unset.
-        'x-nf-client-connection-ip': '203.0.113.7',
+        // The rate limiter's key depends on this when TRUST_PROXY is unset.
         'x-forwarded-for': '203.0.113.7',
         ...headers,
       },
-      body: body === undefined ? '' : JSON.stringify(body),
-      isBase64Encoded: false,
-      requestContext: { path: pathname, httpMethod: method },
+      bodyText: body === undefined ? '' : JSON.stringify(body),
+      bodyBinary: undefined,
     },
-    {}
-  )
+    res,
+    log: () => {},
+    error: () => {},
+  })
 
-  return response
+  return captured
 }
 
 function parse(response, path) {
@@ -206,7 +230,7 @@ for (const { name, fn } of checks) {
 
 process.stdout.write(
   `\n${checks.length - failed}/${checks.length} function checks passed.\n${
-    failed > 0 ? '\nThe API would not work as a Netlify Function in this state.\n' : ''
+    failed > 0 ? '\nThe API would not work as an Appwrite Function in this state.\n' : ''
   }`
 )
 

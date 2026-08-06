@@ -4,8 +4,8 @@ import { z } from 'zod'
  * Validated view of the build-time environment.
  *
  * **Nothing here is required.** The site builds and runs with no environment
- * variables at all, which is what makes a first deploy to Netlify a push rather
- * than a configuration exercise: the public website is entirely self-contained,
+ * variables at all, which is what makes a first deploy a push rather than a
+ * configuration exercise: the public website is entirely self-contained,
  * and the signed-in area follows whatever the API reports about itself.
  *
  * That was not always so. An earlier version required an Appwrite project id and
@@ -35,7 +35,7 @@ const envSchema = z.object({
 export type Env = z.infer<typeof envSchema>
 
 function parseEnv(): Env {
-  // An empty string counts as unset, so a variable created in the Netlify dashboard
+  // An empty string counts as unset, so a variable created in a hosting dashboard
   // without a value cannot shadow the default below it.
   const supplied = Object.fromEntries(
     Object.entries(import.meta.env).filter(([, value]) => value !== '')

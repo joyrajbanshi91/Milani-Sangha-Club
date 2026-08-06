@@ -67,7 +67,7 @@ function getClient(): Client {
     throw new Error(
       'The API reports it is using Appwrite for sign-in, but it did not say which ' +
         'project. Check GET /api/v1/auth/config — it should carry an "appwrite" block ' +
-        'with an endpoint and a projectId. See docs/09-netlify.md.'
+        'with an endpoint and a projectId. See docs/10-appwrite.md.'
     )
   }
 

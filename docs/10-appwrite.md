@@ -6,10 +6,12 @@ the recommended backing store.
 
 **Appwrite hosts everything.** The website is an Appwrite Site, the API is an
 Appwrite Function, and the database and sign-in are in the same project — see
-[Hosting the site and the API](#hosting-the-site-and-the-api) below. Netlify was the
-host until the club's project there was deleted;
-[09-netlify.md](09-netlify.md) is kept as a working recipe for a second host but
-nothing in it is live.
+[Hosting the site and the API](#hosting-the-site-and-the-api) below.
+
+The club was hosted on Netlify for a fortnight early on. That is gone: the project
+there was deleted, and every trace of it has been removed from this repository so
+that nobody follows an instruction to set a variable in a dashboard the club does
+not have. **Everything is configured in the Appwrite console.**
 
 **None of this is required to deploy.** With no Appwrite project configured the API
 serves an embedded sample ledger and offers demo sign-in, and the site works. Set this
@@ -401,7 +403,7 @@ Sources:
 | Appwrite data layer — `appwriteStore.ts`, provisioning   | **done**                       |
 | Sign-in, roles and password reset on Appwrite Auth      | **done**                       |
 | Profiles (`profileStore.ts`)                             | **done**                       |
-| The API as a function                                    | **done** — on Netlify, not Appwrite |
+| The API as a function                                    | **done** — Appwrite Function `api`  |
 | Firestore as an alternative store                        | kept, unused when `APPWRITE_*` is set |
 
 `container.ts` prefers Appwrite whenever both are configured, so a deployment still

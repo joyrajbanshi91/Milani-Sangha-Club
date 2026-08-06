@@ -46,7 +46,6 @@ signed-in page. Connecting a real database is a dashboard step taken later.
 ├── frontend/            React + Vite PWA (public site, member portal, officer area)
 ├── backend/             Express REST API (privileged operations, PDFs, email)
 ├── functions/api/       The API as an Appwrite Function (the deploy target)
-├── netlify/functions/   The same API as a Netlify Function — kept, not deployed
 ├── data/                Chart-of-accounts templates and the demo ledger
 ├── docs/                Architecture, setup, deployment and phase documentation
 ├── scripts/             Developer utilities (dev runner, icons, function smoke test)
@@ -62,7 +61,7 @@ signed-in page. Connecting a real database is a dashboard step taken later.
   version is pinned for hosted builds in `.nvmrc`).
 
 That is the whole list. No global CLIs are needed — `firebase-tools` and
-`netlify-cli` are both invoked through `npx` by the scripts that use them, and
+`firebase-tools` is invoked through `npx` by the scripts that use it, and
 neither is needed to run the app or to deploy it.
 
 ## Quick start
@@ -106,7 +105,7 @@ Receiver in Control Centre, which answers with an unhelpful `403`.
 | `npm run lint`            | ESLint across both apps                                            |
 | `npm run format`          | Prettier write                                                     |
 | `npm test`                | Unit tests (Vitest) for both apps                                  |
-| `npm run test:function`   | Invoke the API as a Netlify Function, with nothing configured       |
+| `npm run test:function`   | Invoke the API as an Appwrite Function, with nothing configured     |
 | `npm run verify`          | Everything above, in the order CI runs it                          |
 | `npm run appwrite:deploy` | Deploy the website and the API to Appwrite                         |
 | `npm run appwrite:github` | Connect the repo so a push redeploys both                          |

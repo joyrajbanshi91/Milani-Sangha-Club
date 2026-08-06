@@ -6,8 +6,8 @@ before filling anything in.
 **Nothing in either file is required.** Both apps run with no environment variables
 at all: the website is self-contained, and the API falls back to an embedded sample
 ledger with demo sign-in. Every variable below switches something on or points it
-somewhere else. That is what makes a first deploy to Netlify a push rather than a
-configuration exercise — see [09-netlify.md](09-netlify.md).
+somewhere else. That is what makes a first deploy a push rather than a
+configuration exercise — see [10-appwrite.md](10-appwrite.md).
 
 ---
 
@@ -25,7 +25,7 @@ other secret.
 | --- | --- | --- |
 | `VITE_APPWRITE_PROJECT_ID` | no | Appwrite project id. **Blank means demo sign-in** — a working state, not an error |
 | `VITE_APPWRITE_ENDPOINT` | no (default set) | Region-specific, e.g. `https://fra.cloud.appwrite.io/v1`. Copy it from the console rather than guessing |
-| `VITE_API_BASE_URL` | no (default `/api/v1`) | API prefix. Relative, because the Netlify redirect keeps the API on the site's own origin |
+| `VITE_API_BASE_URL` | no (default `/api/v1`) | Where the browser calls the API. The default suits local development, where Vite proxies it. **The deployed site must set the API function's full URL** — the site and the API are separate domains on Appwrite |
 | `VITE_CLUB_NAME` | no (default set) | Club name shown throughout the UI |
 | `VITE_CLUB_UPI_ID` | no | Displayed alongside the payment QR code (Phase 7) |
 | `VITE_SUPPORT_EMAIL` | no | Contact address in the footer and help desk |
@@ -58,8 +58,8 @@ the toolchain it is guarding.
 ## Backend — `backend/.env`
 
 **Everything here is secret.** This file is git-ignored and must stay that way.
-For the deployed API these values live in the Netlify dashboard, scoped to
-**Functions**, never in a file in the repository.
+For the deployed API these values live in the Appwrite console — Functions → `api` →
+Settings → Variables — never in a file in the repository.
 
 With none of them set the API runs the embedded demo ledger and demo sign-in, logs a
 warning saying so on every boot, reports `store: "memory"` from `/auth/config`, and
@@ -76,7 +76,7 @@ answers `503` from `/api/v1/health/ready`. It does **not** refuse to start; see
 | `LOG_LEVEL` | `info` | `fatal`…`trace`, or `silent` |
 | `CORS_ORIGINS` | `http://localhost:5173` | Comma-separated allowed browser origins |
 | `APP_BASE_URL` | `http://localhost:5173` | Public web app URL used in emails, receipts and QR verification links |
-| `TRUST_PROXY` | `0` | Proxy hops to trust for client IP. `0` locally, `1` behind Netlify — wrong values break rate limiting |
+| `TRUST_PROXY` | `0` | Proxy hops to trust for client IP. `0` locally, `1` for the deployed function — wrong values break rate limiting |
 
 ### Appwrite — the recommended store
 
@@ -93,7 +93,7 @@ ledger to Firestore.
 
 `APPWRITE_API_KEY` has project-wide reach and bypasses every permission check. It is
 the most dangerous value in this project alongside a service account key. Never give it
-to a browser: on Netlify it must be scoped to **Functions** and not Builds. Setup is in
+to a browser: set it on the **function**, never as a site build variable. Setup is in
 [10-appwrite.md](10-appwrite.md).
 
 ### Firebase Admin — the alternative store
@@ -108,9 +108,9 @@ Supply **one** of these two forms. Only read when the `APPWRITE_*` values are ab
 
 On Google's own runtimes (Cloud Run, Cloud Functions, App Engine) neither form is
 needed: the runtime service account is picked up automatically, which is what
-`isGoogleCloudRuntime` in `config/env.ts` detects. On Netlify there is no such thing,
-which is why the inline trio is the form to use there — a function has no filesystem to
-mount a key file onto.
+`isGoogleCloudRuntime` in `config/env.ts` detects. On Appwrite there is no such thing,
+which is why the inline trio is the form to use — a function has no filesystem to mount
+a key file onto.
 
 A service account key is the most dangerous value in this project. It bypasses
 every security rule. Do not commit it, do not paste it into a chat or a ticket,
@@ -174,11 +174,11 @@ file. See §6 of docs/11-running-the-club-office.md.
 
 Set these in **GitHub → Settings → Secrets and variables → Actions**.
 
-Deployment does **not** happen from GitHub Actions. Netlify builds and publishes on
-push, so the deployment variables live in the Netlify dashboard — see
-[09-netlify.md § 5](09-netlify.md#5-optional-connect-a-real-database) for the full list
+Deployment does **not** happen from GitHub Actions. Appwrite builds and publishes on
+push, so the deployment variables live in the Appwrite console — see
+[10-appwrite.md](10-appwrite.md) for the full list
 with the scope each one needs.
 
 **`ci.yml` needs no secrets at all.** It builds with no environment variables, which is
-deliberate: that is exactly the state a fresh Netlify deploy builds in, so if it ever
+deliberate: that is exactly the state a fresh deploy builds in, so if it ever
 stops working, CI is what notices rather than the club.

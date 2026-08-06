@@ -13,9 +13,9 @@
 # The PDFs are built by the API, which runs as a bundled serverless function. A
 # function bundler follows `import`, not `fs.readFile`, so a PNG sitting beside the
 # code is simply absent at runtime unless every deployment target is separately
-# told to carry it — and this project has two (Netlify, Appwrite). The failure mode
-# is a logo that works locally and is missing on the live site, which is the worst
-# kind. Compiled in, it cannot go missing.
+# told to carry it. The failure mode is a logo that works locally and is missing
+# from the member's receipt on the live site, which is the worst kind. Compiled in,
+# it cannot go missing.
 #
 # The cost is a large-looking source file. That is the trade, made deliberately:
 # roughly 30 KB of text in the API bundle, once, against a document the club puts

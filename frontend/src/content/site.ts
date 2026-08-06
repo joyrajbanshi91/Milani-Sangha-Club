@@ -507,14 +507,17 @@ export const membership = {
   /** Membership categories, matching SRS §7. `period` is what the fee buys. */
   types: [
     { key: 'student', name: 'Student', fee: null, period: 'per year', eligibility: 'Enrolled students, on production of a valid student card.' },
-    { key: 'regular', name: 'Regular', fee: '600', period: 'per year', eligibility: 'Open to all eligible applicants.', highlight: true },
+    { key: 'regular', name: 'Regular', fee: 600, period: 'per year', eligibility: 'Open to all eligible applicants.', highlight: true },
     { key: 'family', name: 'Family', fee: null, period: 'per year', eligibility: 'One household, covering spouse and dependent children.' },
     { key: 'senior', name: 'Senior', fee: null, period: 'per year', eligibility: 'Members above the age set by the committee.' },
     { key: 'life', name: 'Life', fee: null, period: 'one-time', eligibility: 'A single payment in place of annual dues.' },
     { key: 'corporate', name: 'Corporate', fee: null, period: 'per year', eligibility: 'Firms and institutions supporting the club.' },
     { key: 'associate', name: 'Associate', fee: null, period: 'per year', eligibility: 'Limited membership without voting rights.' },
     { key: 'honorary', name: 'Honorary', fee: null, period: 'no fee', eligibility: 'Conferred by the committee in recognition of service.' },
-  ] as ReadonlyArray<MembershipTypeItem>,
+    // `satisfies`, not `as`. An assertion silenced exactly the mistake it looked like
+    // it was guarding: a fee written as '600' rather than 600 compiled, rendered as
+    // ₹600 because Intl coerces it, and was caught only by a test.
+  ] satisfies ReadonlyArray<MembershipTypeItem>,
 
   /** The "how to join" steps. */
   steps: [
