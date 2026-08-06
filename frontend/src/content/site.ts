@@ -507,7 +507,7 @@ export const membership = {
   /** Membership categories, matching SRS §7. `period` is what the fee buys. */
   types: [
     { key: 'student', name: 'Student', fee: null, period: 'per year', eligibility: 'Enrolled students, on production of a valid student card.' },
-    { key: 'regular', name: 'Regular', fee: null, period: 'per year', eligibility: 'Open to all eligible applicants.', highlight: true },
+    { key: 'regular', name: 'Regular', fee: '₹600', period: 'per year', eligibility: 'Open to all eligible applicants.', highlight: true },
     { key: 'family', name: 'Family', fee: null, period: 'per year', eligibility: 'One household, covering spouse and dependent children.' },
     { key: 'senior', name: 'Senior', fee: null, period: 'per year', eligibility: 'Members above the age set by the committee.' },
     { key: 'life', name: 'Life', fee: null, period: 'one-time', eligibility: 'A single payment in place of annual dues.' },
