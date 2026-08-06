@@ -8,6 +8,7 @@ import { PageHero } from '@/components/layout/PageHero'
 import { Field, Input, Select, Textarea } from '@/components/ui/Field'
 import { Reveal } from '@/components/ui/Reveal'
 import { Section } from '@/components/ui/Section'
+import { ENQUIRY_LIMITS } from '@/config/constants'
 import { club, contact } from '@/content/site'
 import { contactApi } from '@/features/contact/api'
 import { ApiError } from '@/lib/api'
@@ -15,16 +16,26 @@ import { cn } from '@/lib/cn'
 import { fieldBorder } from '@/lib/formStyles'
 import { hueByIndex } from '@/lib/hues'
 
+/**
+ * The same limits the server enforces, so nothing is refused after being typed.
+ *
+ * They are caps on characters rather than words because that is what costs the club
+ * database space, and this form is the one place a stranger can write into it. A
+ * thousand characters is about 150 words — generous for any enquiry a club receives.
+ */
 const enquirySchema = z.object({
-  name: z.string().trim().min(2, 'Please enter your name'),
-  email: z.email('Please enter a valid email address'),
-  phone: z.string().trim().max(20, 'That phone number looks too long').optional(),
+  name: z.string().trim().min(2, 'Please enter your name').max(ENQUIRY_LIMITS.name),
+  email: z.email('Please enter a valid email address').max(ENQUIRY_LIMITS.email),
+  phone: z.string().trim().max(ENQUIRY_LIMITS.phone, 'That phone number looks too long').optional(),
   subject: z.string().min(1, 'Please choose a subject'),
   message: z
     .string()
     .trim()
     .min(20, 'Please give us a little more detail — at least 20 characters')
-    .max(2000, 'Please keep the message under 2000 characters'),
+    .max(
+      ENQUIRY_LIMITS.message,
+      `Please keep the message under ${ENQUIRY_LIMITS.message} characters — about 150 words`
+    ),
 })
 
 type EnquiryForm = z.infer<typeof enquirySchema>

@@ -1124,15 +1124,71 @@ the internet is out.
 
 ## 12. The website's contact form
 
-**Office → nothing.** This one is entirely on the public site: a visitor fills in
-*Send an enquiry* on the contact page and the message arrives in the club's inbox.
+**Office → Enquiries.** A visitor fills in *Send an enquiry* on the contact page, and the
+message appears on that screen. It stays there until somebody marks it dealt with and says
+what was done.
 
-Until the four settings below are filled in, the form tells visitors plainly that the
-club's website cannot send email and to write to the address on the page instead. That is
-deliberate. **The one thing it must never do is accept a message and drop it** — which is
-what the previous version effectively did: it handed the message to the visitor's own
-email application, and on a computer with no mail client set up, pressing the button did
-nothing at all.
+### The list is the record; email is only a notification
+
+The club asked for this and was right to. An emailed enquiry depends on things nobody at
+the club controls — an app password that expires, 2-step verification switched off, a
+message filed as spam — and each of those loses a message **silently**, with the person who
+wrote it having no way to know. So an enquiry is written to the club's own records first,
+and the visitor is told it arrived only because it did. Email still goes out when it is set
+up, carrying the same reference, but if it fails the enquiry is already safe.
+
+Nothing has to be configured for this to work. **Set up email or don't — enquiries arrive
+either way.**
+
+### Who can see them
+
+**The secretary and the president only.** Not the treasurer, and not an ordinary member: an
+enquiry is not a financial record, and it carries a stranger's name, address and telephone
+number. The menu shows *Enquiries* only to those two, and the server refuses everybody
+else — a treasurer who follows a link is told who to ask rather than getting an error.
+
+An administrator who needs access can give themselves the `secretary` role, which is a
+change with a name against it in the audit trail. That is the right shape for this: nobody
+reads the club's post by accident.
+
+### Dealing with one
+
+| | |
+| --- | --- |
+| **To answer** | What nobody has dealt with yet. The count also appears on the office dashboard |
+| **Mark dealt with** | Asks for a note — *what was done*. Optional, and worth writing: six months later "resolved" on its own tells the next secretary nothing |
+| **Not finished after all** | Puts it back in the open list. The note is kept, because it is still a record of what happened |
+| **Delete** | Removes the message and the person's details for good. For spam, and for enquiries the club has finished with |
+| **The email address** | A link. Clicking it opens a reply with the subject and reference already filled in |
+
+Two officers cannot overwrite each other: the second one to press *Mark dealt with* is told
+the first already did, rather than quietly replacing their note.
+
+### How much of the club's database this uses
+
+Every field is capped, because the contact form is the one place a stranger can write into
+the club's database:
+
+| Field | Limit |
+| --- | --- |
+| Message | **1000 characters** — about 150 words |
+| Name | 80 · Email 120 · Phone 20 · Subject 120 |
+| The office's note | 500 |
+
+A thousand characters is roughly a kilobyte, so ten thousand enquiries would be about ten
+megabytes — a rounding error against the free tier. The caps exist so that somebody pasting
+a novel, or a bot pasting a dictionary, cannot make it otherwise. **Deleting** finished
+enquiries is how the club keeps the table small, and it is also how a stranger's details
+stop being held once they are of no further use.
+
+Ten submissions per quarter of an hour per visitor, and a hidden field that bots fill in
+and humans cannot see — those submissions are accepted politely and thrown away.
+
+### Email notifications, if you want them
+
+Optional. With them, the secretary gets a copy in Gmail the moment an enquiry arrives
+instead of having to look at the screen. Without them, nothing is lost — the message is
+still on the Enquiries page.
 
 ### Setting it up with Gmail
 

@@ -41,6 +41,7 @@ import {
 import { PeriodPicker } from '@/features/finance/PeriodPicker'
 import { YearEndPanel } from '@/features/finance/YearEnd'
 import { officePaymentsApi } from '@/features/payments/api'
+import { EnquiriesWaiting } from '@/pages/office/EnquiriesPage'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 
@@ -171,6 +172,9 @@ export function OfficeDashboardPage() {
           </div>
         </div>
       ) : null}
+
+      {/* Somebody wrote to the club and is waiting. Nothing renders for a treasurer. */}
+      <EnquiriesWaiting />
 
       {waiting.data && waiting.data.payments.length > 0 ? (
         <Link

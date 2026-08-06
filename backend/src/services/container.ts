@@ -8,6 +8,7 @@ import { FinanceService, type AuditEntry } from './financeService.js'
 import { InMemoryFinanceStore } from './memoryStore.js'
 import { PaymentService } from './paymentService.js'
 import { buildPaymentStore } from './paymentStore.js'
+import { buildEnquiryStore, type EnquiryStore } from './enquiryStore.js'
 import { buildProfileStore, type ProfileStore } from './profileStore.js'
 import type { FinanceStore } from './store.js'
 
@@ -26,6 +27,7 @@ export interface Container {
   store: FinanceStore
   profiles: ProfileStore
   payments: PaymentService
+  enquiries: EnquiryStore
 }
 
 let container: Container | undefined
@@ -79,6 +81,9 @@ export function getContainer(): Container {
     // must go through exactly the path an officer's own entry does, so the
     // two-person rule cannot be bypassed by writing to the store directly.
     payments: new PaymentService(buildPaymentStore(), finance, audit),
+    // No service wrapping it: an enquiry has no rules beyond "who may read it", and
+    // that is the router's guard. A service here would be a file that forwards.
+    enquiries: buildEnquiryStore(),
   }
 
   logger.info({ store: store.kind, auth: auth.mode }, 'services ready')

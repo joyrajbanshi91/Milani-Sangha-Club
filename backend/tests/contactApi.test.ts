@@ -51,12 +51,19 @@ afterEach(() => {
 })
 
 describe('a visitor sending an enquiry', () => {
-  it('sends it to the club, with no session of any kind', async () => {
+  it('stores it and emails it, with no session of any kind', async () => {
     // No Authorization header: a visitor has no account and must not need one.
     const response = await request(app).post('/api/v1/contact').send(ENQUIRY).expect(201)
 
-    expect(response.body.message).toMatch(/sent to the club/i)
-    expect(sendEnquiry).toHaveBeenCalledWith(expect.objectContaining(ENQUIRY))
+    // Stored first, so the visitor is given the club's own reference for it.
+    expect(response.body.reference).toMatch(/^ENQ-\d{4}-\d{6}$/)
+    expect(response.body.message).toMatch(/reached the club/i)
+
+    // Then emailed, carrying the same reference so a reply in Gmail can be matched to
+    // the message on the office's screen.
+    expect(sendEnquiry).toHaveBeenCalledWith(
+      expect.objectContaining({ ...ENQUIRY, reference: response.body.reference })
+    )
   })
 
   it('carries the phone number when one is given, and not when it is not', async () => {
@@ -121,23 +128,34 @@ describe('what it refuses', () => {
 })
 
 describe('when the club’s mail is not working', () => {
-  it('says so, and does not pretend the message was sent', async () => {
+  /**
+   * The inversion the club asked for.
+   *
+   * This used to answer 503 when SMTP was unset, which meant the club could not receive
+   * an enquiry at all until somebody had made a Gmail app password — and a visitor who
+   * had typed a message was told to send it again by hand. The enquiry is now written to
+   * the club's records first, and email is a notification. A mail failure is the club's
+   * problem to notice in the logs, not the visitor's to solve.
+   */
+  it('still takes the message, because the record is the club’s own list', async () => {
     isMailConfigured.mockReturnValue(false)
 
-    const response = await request(app).post('/api/v1/contact').send(ENQUIRY).expect(503)
+    const response = await request(app).post('/api/v1/contact').send(ENQUIRY).expect(201)
 
-    expect(response.body.error.code).toBe('mail_not_configured')
-    // The visitor has typed a message: they must be told it did not go, in words.
-    expect(response.body.error.message).toMatch(/has not been sent/i)
-    expect(response.body.error.message).toMatch(/write to the address on this page/i)
+    expect(response.body.reference).toMatch(/^ENQ-/)
+    expect(response.body.message).toMatch(/reached the club/i)
+    // Nothing was attempted, because there is nothing configured to attempt it with.
+    expect(sendEnquiry).not.toHaveBeenCalled()
   })
 
-  it('says so when the mail host refuses it', async () => {
+  it('still takes the message when the mail host refuses it', async () => {
     sendEnquiry.mockResolvedValue({ ok: false, reason: 'send_failed' })
 
-    const response = await request(app).post('/api/v1/contact').send(ENQUIRY).expect(502)
+    const response = await request(app).post('/api/v1/contact').send(ENQUIRY).expect(201)
 
-    expect(response.body.error.code).toBe('mail_failed')
-    expect(response.body.error.message).toMatch(/nothing has been sent to the club/i)
+    // The enquiry is safe in the club's records; telling the visitor it failed would be
+    // a lie, and would have them send it twice.
+    expect(response.body.reference).toMatch(/^ENQ-/)
+    expect(sendEnquiry).toHaveBeenCalled()
   })
 })
