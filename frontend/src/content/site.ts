@@ -580,13 +580,13 @@ export const events: ReadonlyArray<EventItem> = [
   },
   {
     slug: 'health-camp',
-    title: 'Free health check-up camp',
+    title: 'Blood Donation Camp',
     date: '2026-12-06',
     time: '09:00',
     venue: 'Club premises',
     category: 'Service',
     summary:
-      'General health screening open to the neighbourhood, run with a local hospital.',
+      'Blood donation camp run with a local hospital.',
   },
 ]
 
@@ -684,7 +684,7 @@ export const gallery: ReadonlyArray<AlbumItem> = [
   // Each slug has a folder of the same name in frontend/src/assets/gallery/.
   { slug: 'cultural-evening', title: 'Cultural evening', date: '2025-11-08', description: 'Performances by members and the prize distribution.' },
   { slug: 'tournament', title: 'Inter-club tournament', date: '2025-10-12', description: 'Match play, the final, and the presentation.' },
-  { slug: 'health-camp', title: 'Health check-up camp', date: '2026-05-31', description: 'Screening camp run with a local hospital.' },
+  { slug: 'health-camp', title: 'Blood donation camp', date: '2026-05-31', description: 'Blood donation camp run with a local hospital.' },
   { slug: 'founders-day', title: 'Founders’ day', date: '2025-08-15', description: 'Flag hoisting, prize giving and the community lunch.' },
 ]
 
