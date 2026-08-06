@@ -88,6 +88,9 @@ export function describe(photo: Photo): string {
     .replace(/\.[^.]+$/, '')
     .replace(/^\d+[-_\s]*/, '')
     .replace(/[-_]+/g, ' ')
+    // '04-Guest- felicitation.jpeg' would otherwise read with a double space. Files are
+    // named by people, and people leave stray spaces around a hyphen.
+    .replace(/\s+/g, ' ')
     .trim()
 
   // A bare camera name says nothing, so let the caller use the album title instead.

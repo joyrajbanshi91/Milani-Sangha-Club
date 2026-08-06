@@ -14,6 +14,7 @@ import { Reveal } from '@/components/ui/Reveal'
 import { Section } from '@/components/ui/Section'
 import { SectionHeading } from '@/components/ui/SectionHeading'
 import { club, events, gallery, home, news, sponsors, testimonials } from '@/content/site'
+import { photosFor } from '@/features/gallery/photos'
 import { cn } from '@/lib/cn'
 import { isUpcoming } from '@/lib/format'
 import { hueByIndex } from '@/lib/hues'
@@ -25,7 +26,21 @@ export function HomePage() {
       (a, b) => Number(b.pinned ?? false) - Number(a.pinned ?? false) || b.date.localeCompare(a.date)
     )
     .slice(0, 3)
-  const albums = gallery.slice(0, 4)
+  /**
+   * Four albums, the ones with photographs first.
+   *
+   * The home page is a shop window: it should lead with pictures the club has actually
+   * taken, not with four coloured placeholders for events nobody has photographed yet.
+   * Within each group the newest comes first, which is the order the gallery page uses.
+   */
+  const albums = [...gallery]
+    .map((album) => ({ album, photos: photosFor(album.slug) }))
+    .sort(
+      (a, b) =>
+        Number(b.photos.length > 0) - Number(a.photos.length > 0) ||
+        b.album.date.localeCompare(a.album.date)
+    )
+    .slice(0, 4)
 
   return (
     <>
@@ -84,8 +99,10 @@ export function HomePage() {
         />
         {albums.length > 0 ? (
           <Reveal mode="stagger" className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {albums.map((album) => (
-              <AlbumCard key={album.slug} album={album} />
+            {albums.map(({ album, photos }) => (
+              // `photos` is what makes the card show the club's own photograph rather
+              // than a placeholder — the home page was not passing it.
+              <AlbumCard key={album.slug} album={album} photos={photos} />
             ))}
           </Reveal>
         ) : (
