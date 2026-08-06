@@ -335,44 +335,44 @@ committee, or testing on a real phone.
 
 ### 2. A shareable preview URL — the whole app, free
 
-Push a branch and open a pull request. Netlify builds it and comments with a deploy
-preview URL, on which **everything works**, including sign-in and the finance area:
-a preview runs the API function too, so the site and the API are one origin there
-exactly as they are in production.
-
-Works from anywhere, on any device, with nothing installed, and nothing is
-published at the club's real address.
+Push a branch. Appwrite builds it and gives that deployment its own
+`commit-<hash>.appwrite.network` address, which anybody can open on any device with
+nothing installed — and nothing is published at the club's real address until the
+deployment is activated.
 
 ### 3. A real, permanent address — sign-in working online
 
-**Free, and no card.** Netlify serves the PWA and runs the same Express app as a
-Netlify Function, so the member area and the finance area work online. The full
-walkthrough is [09-netlify.md](09-netlify.md); the short version is: connect the
+**Free, and no card.** Appwrite Sites serves the PWA and an Appwrite Function runs
+the same Express app, so the member area and the finance area work online. The full
+walkthrough is [10-appwrite.md](10-appwrite.md); the short version is: connect the
 GitHub repository and push. There is nothing to configure for a first deploy and no
 database needed — the site comes up showing sample figures, clearly labelled, and the
 club connects a real ledger when it is ready.
 
-No paid plan is needed at any point. Appwrite's free plan covers the database and
-sign-in; Netlify's free plan covers the site and the API. Firebase's **Blaze** plan
-was only ever required for *hosting the API*, which Netlify now does instead — so it
-is not needed even if the club picks Firestore.
+No paid plan is needed at any point: one Appwrite free project covers the site, the
+API, the database and sign-in. Firebase's **Blaze** plan was only ever required for
+*hosting the API*, which Appwrite now does — so it is not needed even if the club
+picks Firestore.
 
-Two things people get wrong on the first attempt, both covered in that guide:
+Three things people get wrong on the first attempt, all covered in that guide:
 
 - **`VITE_` variables are compiled into the bundle at build time.** Adding or editing
-  one changes nothing until a build runs afterwards — use **Clear cache and deploy
-  site**, not a plain retry. This no longer breaks a deploy, because none of them is
-  required, but it is still why a value "did not take effect".
-- **Scope matters.** `VITE_APPWRITE_PROJECT_ID` needs the *Builds* scope to reach the
-  bundle; `APPWRITE_API_KEY` must have *Functions* and **not** Builds, or a server
-  credential ends up in the browser. If the club uses Firestore instead, the Netlify
-  hostname must also be added to **Firebase console → Authentication → Settings →
-  Authorised domains**, or sign-in fails with `auth/unauthorized-domain`.
+  one changes nothing until a build runs afterwards. This no longer breaks a deploy,
+  because none of them is required, but it is still why a value "did not take effect".
+- **Where a variable goes.** `VITE_*` values belong on the **site**; database
+  credentials and `SMTP_*` belong on the **function**. `APPWRITE_API_KEY` on the site
+  would be compiled into the browser bundle, which is a server key given away.
+- **The site and the API are separate domains.** `CORS_ORIGINS` on the function must
+  list the site's URL, and `VITE_API_BASE_URL` on the site must be the function's full
+  URL. If the club uses Firestore instead, the site's hostname must also be added to
+  **Firebase console → Authentication → Settings → Authorised domains**, or sign-in
+  fails with `auth/unauthorized-domain`.
 
 ### Hosting the API somewhere else
 
-Nothing ties the API to Netlify. It is a plain Express app with no platform-specific
-code — `npm start` is all it needs on anything running Node 22.
+Nothing ties the API to Appwrite. It is a plain Express app with no platform-specific
+code — `npm start` is all it needs on anything running Node 22, and
+`functions/api/main.mjs` is a thin adapter that could be swapped for another.
 
 Whichever host you pick, two settings connect it up:
 
@@ -388,11 +388,11 @@ Expect a slow first request on a free tier, which spins the service down when id
 
 ### Before publishing to the club's real address
 
-Before the Netlify URL is given out to members:
+Before the club's address is given out to members:
 
 - Replace the placeholder content and set `contentStatus` to `'reviewed'`
   ([06-editing-the-website.md](06-editing-the-website.md)). Right now the committee
   page lists "Full name" six times and the testimonials ask to be replaced.
 - Check the opening balances on the funds are the club's real figures.
-- Work through the verification table in [09-netlify.md](09-netlify.md) — in
+- Work through the verification list in [05-deployment.md](05-deployment.md) — in
   particular `/api/v1/health/ready`, signing in, and a PDF download.

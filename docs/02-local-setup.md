@@ -26,12 +26,11 @@ npm --version     # 10.x or newer
 ```
 
 **No global CLIs are needed.** Nothing else has to be installed to run the app, to
-test it, or to deploy it — Netlify builds from a push, and both `firebase-tools` and
-`netlify-cli` are invoked through `npx` by the scripts that use them:
+test it, or to deploy it — Appwrite builds from a push, and `firebase-tools` is
+invoked through `npx` by the scripts that use it:
 
 ```bash
 npm run firebase -- --version     # nothing installed globally
-npm run netlify:dev               # Netlify's own runtime, locally
 ```
 
 The Firebase CLI is only relevant at all if the club chooses Firestore over Appwrite

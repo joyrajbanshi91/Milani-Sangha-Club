@@ -16,10 +16,10 @@ export default defineConfig(({ mode }) => {
    *
    * An earlier version read `APPWRITE_SITE_PROJECT_ID` and
    * `APPWRITE_SITE_API_ENDPOINT` here, which Appwrite Sites injects into its own
-   * deployments. Netlify never sets them, so on Netlify that path only ever
-   * produced empty strings — and because src/config/env.ts then demanded a project
-   * id, the build failed with a message about a variable nobody had been asked to
-   * set. Every value now comes from `VITE_*` alone, all of it optional.
+   * deployments — but nothing sets them locally or in CI, so that path produced
+   * empty strings everywhere else, and because src/config/env.ts then demanded a
+   * project id the build failed with a message about a variable nobody had been
+   * asked to set. Every value now comes from `VITE_*` alone, all of it optional.
    */
   return {
     plugins: [
@@ -114,8 +114,8 @@ export default defineConfig(({ mode }) => {
       css: false,
       // Deliberately only the two values a test asserts against. The Appwrite
       // pair is absent so that tests run in the same zero-configuration state a
-      // fresh Netlify deploy does — if that state ever stops working, a test
-      // should be what notices.
+      // fresh deploy does — if that state ever stops working, a test should be
+      // what notices.
       env: {
         VITE_API_BASE_URL: '/api/v1',
         VITE_CLUB_NAME: 'New Barrackpore Milani Sangha Club',

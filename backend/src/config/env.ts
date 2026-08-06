@@ -113,11 +113,11 @@ export const isDevelopment = env.NODE_ENV === 'development'
 /**
  * Running as a short-lived function rather than a long-lived server?
  *
- * **Netlify** and AWS Lambda set AWS_LAMBDA_FUNCTION_NAME, which is the case that
- * matters here — netlify/functions/api.mts is how this API is deployed. Cloud
- * Functions sets FUNCTION_TARGET, Vercel sets VERCEL, Appwrite sets
- * APPWRITE_FUNCTION_ID; all three are kept so the same code reports itself honestly
- * wherever it is put.
+ * **Appwrite** sets APPWRITE_FUNCTION_ID, which is the case that matters here —
+ * functions/api/main.mjs is how this API is deployed. AWS Lambda sets
+ * AWS_LAMBDA_FUNCTION_NAME, Cloud Functions sets FUNCTION_TARGET and Vercel sets
+ * VERCEL; the others are kept so the same code reports itself honestly wherever it
+ * is put.
  *
  * Used only to decide how loudly to talk about a missing database. `buildStore()`
  * once used it to *refuse* to start without credentials, which turned a first

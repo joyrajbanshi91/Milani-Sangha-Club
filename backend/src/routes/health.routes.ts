@@ -48,7 +48,7 @@ healthRouter.get('/ready', async (req: Request, res: Response) => {
         message:
           'No database credentials, so the finance area is showing sample data that is ' +
           'lost on restart. Set APPWRITE_PROJECT_ID and APPWRITE_API_KEY (or the ' +
-          'FIREBASE_* trio) to use a real ledger. See docs/09-netlify.md.',
+          'FIREBASE_* trio) to use a real ledger. See docs/10-appwrite.md.',
       },
     })
     return

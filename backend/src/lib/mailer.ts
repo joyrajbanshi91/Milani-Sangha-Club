@@ -45,7 +45,7 @@ export function enquiryRecipient(): string | undefined {
 /**
  * The transport, built once.
  *
- * Cached because a Netlify function may serve several requests before it is recycled,
+ * Cached because a function may serve several requests before it is recycled,
  * and building a transport per request throws away the connection pool for no reason.
  * `undefined` means "not asked yet"; `null` means "asked, and there is no configuration".
  */

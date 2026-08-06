@@ -6,7 +6,7 @@
  * It was, and that is precisely what broke the deployment. The demo store seeded
  * itself by resolving `import.meta.dirname` up three levels to `data/demo`, which
  * is correct when the API runs as `backend/dist/services/container.js` on a real
- * filesystem. Inside a Netlify Function it is not: esbuild flattens the whole
+ * filesystem. Inside a deployed function it is not: the bundler flattens the whole
  * backend into one bundled file in a different directory, so the relative path
  * points nowhere, and `data/` is not part of the function's payload in any case.
  * The seed threw, the container threw, and every route answered 500 — including the

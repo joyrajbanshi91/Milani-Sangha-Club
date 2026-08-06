@@ -38,7 +38,7 @@ approved before the next begins. This file is the running record.
   request logging with correlation ids and redaction, rate limiting, a typed error
   contract, lazy Firebase Admin initialisation, health and readiness endpoints,
   Vitest + Supertest.
-- Hosting: `netlify.toml` with the `/api/*` redirect ahead of the SPA fallback,
+- Hosting: `appwrite.config.json` declaring the site and the API function,
   PWA-correct cache headers and security headers. `firebase.json` retains the
   emulator ports and the paths to the Firestore and Storage rules, which **deny all
   client access** as the baseline; empty index manifest.

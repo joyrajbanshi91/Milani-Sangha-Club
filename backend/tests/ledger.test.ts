@@ -40,7 +40,7 @@ describe('only approved entries count', () => {
   })
 
   it('still counts a reversed entry, because its reversal offsets it', () => {
-    // Regression test for a bug found deploying to Netlify: cancelling a ₹1,250.75
+    // Regression test for a bug found on the deployed site: cancelling a ₹1,250.75
     // expense left the balance ₹1,250.75 HIGHER than before it was recorded. The
     // original was dropped from the balance *and* its reversal was added, so the
     // correction was applied twice.

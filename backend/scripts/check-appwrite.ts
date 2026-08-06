@@ -33,19 +33,17 @@ function explain(error: unknown, scope: string): string {
 /**
  * Is the deployed API actually serving?
  *
- * This used to inspect an Appwrite Function called `api` — its active deployment, its
- * environment variables, its last failed execution. That function no longer exists:
- * the API runs as a Netlify Function (`netlify/functions/api.mts`), and hosting on
- * Appwrite was abandoned. The check was left in place for a while and was worse than
- * nothing, because it reported `function not created yet` against a perfectly healthy
- * deployment — a diagnostic that lies is what you consult when something else is
+ * This once inspected an Appwrite Function called `api` by name and reported
+ * `function not created yet` against a perfectly healthy deployment, because the
+ * function had been renamed. The check was left in place for a while and was worse
+ * than nothing — a diagnostic that lies is what you consult when something else is
  * broken.
  *
  * What replaces it is a probe of the real thing, over HTTP, which needs no Appwrite
  * scope and makes no assumption about where the API is hosted. Skipped unless a URL
  * is given, because guessing the club's hostname would report a false failure.
  *
- *   API_PROBE_URL=https://your-site.netlify.app npm run appwrite:check
+ *   API_PROBE_URL=https://milani-api.fra.appwrite.run npm run appwrite:check
  */
 /**
  * Where the deployed API lives, discovered rather than demanded.
@@ -194,31 +192,25 @@ async function probeDeployedApi(): Promise<boolean> {
       log(`api        GET ${path} → ${response.status} ${isJson ? 'JSON' : 'NOT JSON'}`)
 
       /**
-       * Netlify's own access control, not a fault in the deployment.
+       * A sign-in wall in front of the whole deployment, not a fault in the API.
        *
-       * A site with `sso_login` enabled — Project configuration → Access & security →
-       * Visitor access — answers 401 on *every* path with an HTML page that redirects
-       * to app.netlify.com/edge-access. In a browser where you are already signed in
-       * to Netlify this is invisible, so the site appears to work while every request
-       * from outside is refused.
-       *
-       * Checked before the HTML case below, because that one blames the redirect order
-       * in netlify.toml — which would send someone to rearrange a file that is
-       * perfectly correct.
+       * Some hosting arrangements put access control ahead of every path and answer
+       * 401 with an HTML sign-in page. In a browser where you are already signed in
+       * this is invisible, so the site appears to work while every request from
+       * outside is refused. Named separately because the HTML case below would
+       * otherwise blame the API for something in front of it.
        */
       if (response.status === 401 && /edge-access|Login Redirect/.test(body)) {
-        log('             Netlify SSO is on, so the whole site is closed to callers')
-        log('             outside your browser. This is not an API fault and says')
-        log('             nothing either way about Appwrite.')
-        log('             Turn it off under Project configuration → Access & security')
-        log('             → Visitor access, or check the site in a browser where you')
-        log('             are signed in to Netlify.')
+        log('             a sign-in wall is answering for the whole deployment, so it')
+        log('             is closed to callers outside your browser. This is not an')
+        log('             API fault and says nothing either way about Appwrite.')
         continue
       }
 
-      // HTML here means the SPA fallback answered instead of the function, which is
-      // the redirect order in netlify.toml being wrong rather than anything to do
-      // with Appwrite. It is worth naming, because every other check then misleads.
+      // HTML here means the site's own SPA fallback answered instead of the API,
+      // which is a routing problem in front of the function rather than anything to
+      // do with Appwrite's database. Worth naming, because every other check then
+      // misleads.
       if (!isJson) {
         healthy = false
         log('             HTML, so the site shell answered rather than the function.')
@@ -234,7 +226,7 @@ async function probeDeployedApi(): Promise<boolean> {
           healthy = false
           log('             store is "memory" — the deployment has NO database and is')
           log('             showing sample data. Set APPWRITE_PROJECT_ID and')
-          log('             APPWRITE_API_KEY in the Netlify dashboard (Functions scope).')
+          log('             APPWRITE_API_KEY on the function in the Appwrite console.')
         } else if (response.ok) {
           log(`             ready, store "${store ?? 'unknown'}"`)
         } else {

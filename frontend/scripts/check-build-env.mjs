@@ -8,8 +8,8 @@
  * longer any required ones — src/config/env.ts gives every value a default and the
  * public website is entirely self-contained. That change fixed the failure this
  * file used to *cause*: it demanded `VITE_APPWRITE_PROJECT_ID`, which only Appwrite
- * Sites ever supplied, so a Netlify build died in `prebuild` complaining about a
- * variable nobody had been told to set. A guard that blocks a working deploy is
+ * Sites supplied under a different name, so a build died in `prebuild` complaining
+ * about a variable nobody had been told to set. A guard that blocks a working deploy is
  * worse than no guard.
  *
  * What remains is the one problem that genuinely cannot be recovered from at
@@ -36,7 +36,8 @@ import { fileURLToPath } from 'node:url'
  * about the backing service.
  *
  * Which means there is no longer any build-scope variable that affects how the
- * deployed site behaves — the reason the Netlify setup was so easy to get wrong. Kept
+ * deployed site behaves — the reason the hosting setup used to be so easy to get
+ * wrong. Kept
  * as an empty list rather than deleted, because the reporting below is the right shape
  * for the next optional integration that genuinely is compiled in.
  */
@@ -95,7 +96,7 @@ function readEnvironment() {
     }
   }
 
-  // process.env wins: a value set in the Netlify dashboard is the deliberate one,
+  // process.env wins: a value set in the hosting dashboard is the deliberate one,
   // and a stale file in the image must not mask it.
   return { ...fromFiles, ...process.env }
 }
@@ -120,11 +121,10 @@ function findInstallProblem() {
   return (
     'The frontend dependencies are not installed, so the build would fail at\n' +
     '`vite: not found`. The install step did not reach this workspace.\n\n' +
-    'netlify.toml already handles this — its build command runs `npm run install:all`,\n' +
-    'which installs both workspaces. Seeing this means the build command was\n' +
-    'overridden in the Netlify dashboard, which takes precedence over netlify.toml.\n' +
-    'Either clear it there, or set it to:\n\n' +
-    '  npm run install:all && npm --prefix backend run build && npm --prefix frontend run build\n\n' +
+    'The site builds from the frontend/ directory, so its install command has to\n' +
+    'reach this workspace. In the Appwrite console, on the site: Settings → Build,\n' +
+    'install command `npm install --include=dev` with the root directory set to\n' +
+    '`frontend` — which is what appwrite.config.json already declares.\n\n' +
     'Locally: run `npm install` in frontend/, or `npm run install:all` at the root.'
   )
 }

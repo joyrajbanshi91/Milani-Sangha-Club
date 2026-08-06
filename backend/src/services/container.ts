@@ -119,8 +119,8 @@ function buildStore(): FinanceStore {
     logger.warn(
       'DEPLOYED WITH NO DATABASE. The finance area is showing sample data and every ' +
         'entry will be lost when this function goes cold. Set APPWRITE_PROJECT_ID and ' +
-        'APPWRITE_API_KEY in the Netlify dashboard to use a real ledger — see ' +
-        'docs/09-netlify.md.'
+        'APPWRITE_API_KEY in the Appwrite console, on the function, to use a real ' +
+        'ledger — see docs/10-appwrite.md.'
     )
   }
 

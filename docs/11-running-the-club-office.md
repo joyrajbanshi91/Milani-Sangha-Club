@@ -715,8 +715,8 @@ if the logo is missing, the documents print the club's initials in a ring instea
 looks deliberate rather than broken.
 
 The address and registration number come from two optional settings, because the API
-cannot read the website's content file. Add them in Netlify (Project configuration →
-Environment variables), or in `backend/.env` locally:
+cannot read the website's content file. Add them in the **Appwrite console** —
+Functions → `api` → Settings → Variables — or in `backend/.env` locally:
 
 ```
 CLUB_ADDRESS=Bhagini Nivedita Sarani, Nona Chandan Pukur, Barrackpore, Kolkata 700122
@@ -1200,8 +1200,9 @@ without touching the account:
    exist without it: <https://myaccount.google.com/signinoptions/two-step-verification>
 2. Go to <https://myaccount.google.com/apppasswords>, name it *Club website*, and copy the
    16 characters it shows once.
-3. Put these in **Netlify → Project configuration → Environment variables**, scoped to
-   **Functions**:
+3. Put these in the **Appwrite console**, on the API function:
+   **Functions → `api` → Settings → Variables**. They belong on the *function*, never
+   on the site — a build variable would be compiled into the browser bundle.
 
    ```
    SMTP_HOST=smtp.gmail.com
@@ -1212,13 +1213,14 @@ without touching the account:
    CONTACT_TO=<the same address>
    ```
 
-4. Redeploy, or trigger a deploy from the Netlify dashboard. Environment variables are
-   read when the function starts, so an existing deployment will not pick them up.
+4. Redeploy the function, or wait for the next push. Variables are read when the
+   function starts, so a running deployment will not pick them up on its own.
 
 For local testing put the same lines in `backend/.env`.
 
-**`SMTP_PASSWORD` is a credential.** It belongs in Netlify and in `backend/.env` — never
-in `site.ts`, never in a commit, never pasted into a chat or a ticket. If it leaks, revoke
+**`SMTP_PASSWORD` is a credential.** It belongs on the Appwrite function and in
+`backend/.env` — never in `site.ts`, never in a commit, never pasted into a chat or a
+ticket. If it leaks, revoke
 that one app password on the account and make another; nothing else is affected.
 
 ### The four things worth knowing
@@ -1250,8 +1252,8 @@ curl -i -X POST https://<the site>/api/v1/contact \
        "message":"Checking that the club contact form still works."}'
 ```
 
-`201` means it was sent. `503 mail_not_configured` means the Netlify variables are missing
-or the function has not restarted since they were added. `502 mail_failed` means Gmail
+`201` means it was sent. `503 mail_not_configured` means the variables are missing on
+the function, or it has not restarted since they were added. `502 mail_failed` means Gmail
 refused the credentials — almost always an app password that was revoked, or 2-Step
 Verification switched off on that account.
 
