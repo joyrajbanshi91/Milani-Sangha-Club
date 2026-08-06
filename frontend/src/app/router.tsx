@@ -154,6 +154,23 @@ export const router = createBrowserRouter([
         }),
       },
       {
+        /**
+         * Messages from the website's contact page.
+         *
+         * The server allows only the secretary and the president; the page itself says
+         * so to anybody else rather than 404ing, because a treasurer who follows a link
+         * should be told who to ask, not that the page does not exist.
+         *
+         * This route must stay **above** the catch-all below. Without it, `/office/enquiries`
+         * matched `*`, was redirected to `/office`, and the club found the Enquiries menu
+         * item showing them the finance dashboard.
+         */
+        path: 'enquiries',
+        lazy: async () => ({
+          Component: (await import('@/pages/office/EnquiriesPage')).EnquiriesPage,
+        }),
+      },
+      {
         // Starting a new club year with the opening balance the committee adopted, and
         // every year the club has kept. Its own route because a treasurer goes looking
         // for it; as a panel under the statements it could not be found.

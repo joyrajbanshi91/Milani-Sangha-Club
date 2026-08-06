@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, Inbox, Loader2, Mail, Phone, Trash2, Undo2 } from 'lucide-react'
 import { useState } from 'react'
-import { useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 
 import { Container } from '@/components/ui/Container'
 import { Field, Input } from '@/components/ui/Field'
@@ -331,8 +331,17 @@ export function EnquiriesWaiting() {
   if (!data || data.counts.new === 0) return null
 
   return (
-    <a
-      href="/office/enquiries"
+    /**
+     * `Link`, never a plain `<a href>`.
+     *
+     * An `<a>` reloads the whole application. The session is re-established
+     * asynchronously on boot, so the officer guard runs before it knows anybody is
+     * signed in and sends the visitor to the sign-in page — which is exactly what the
+     * club saw: click the notification, land on sign-in. `Link` navigates inside the
+     * app, where the session is already established.
+     */
+    <Link
+      to="/office/enquiries"
       className="flex items-center gap-3 rounded-card border border-brand-300 bg-brand-50 p-4 transition-colors hover:bg-brand-100"
     >
       <Inbox className="h-5 w-5 shrink-0 text-brand-700" aria-hidden="true" />
@@ -342,6 +351,6 @@ export function EnquiriesWaiting() {
         </span>{' '}
         — somebody wrote to the club and is waiting for an answer →
       </p>
-    </a>
+    </Link>
   )
 }
