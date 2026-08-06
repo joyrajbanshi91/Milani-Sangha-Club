@@ -224,6 +224,7 @@ async function main(): Promise<void> {
   const users = getUsers()
   const toCreate: MemberRow[] = []
   const toRelabel: Array<MemberRow & { id: string; from: string }> = []
+  const toRename: Array<MemberRow & { id: string; from: string }> = []
   const unchanged: MemberRow[] = []
 
   for (const row of rows) {
@@ -234,11 +235,28 @@ async function main(): Promise<void> {
       continue
     }
 
+    /**
+     * A changed name is applied, not ignored.
+     *
+     * It used to be: the name was written when an account was created and never
+     * afterwards, so correcting a spelling in the spreadsheet and re-running reported
+     * "unchanged" and left the old name on every screen the person appeared on. The
+     * club hit exactly that. An import that reads a column and silently declines to
+     * act on it is worse than one that does not read it at all.
+     *
+     * Name and role are counted separately, because they are different decisions: a
+     * spelling correction is housekeeping, a role change decides who can see the
+     * club's accounts and is called out on its own below.
+     */
+    if (existing.name !== row.name) {
+      toRename.push({ ...row, id: existing.$id, from: existing.name || '(none)' })
+    }
+
     const current = (existing.labels ?? []).find((label) => ROLES.includes(label as Role))
-    if (current === row.role) {
-      unchanged.push(row)
-    } else {
+    if (current !== row.role) {
       toRelabel.push({ ...row, id: existing.$id, from: current ?? '(none)' })
+    } else if (existing.name === row.name) {
+      unchanged.push(row)
     }
   }
 
@@ -250,6 +268,9 @@ async function main(): Promise<void> {
   for (const row of toRelabel) {
     console.log(`  role      ${row.email.padEnd(34)} ${row.from} -> ${row.role}`)
   }
+  for (const row of toRename) {
+    console.log(`  name      ${row.email.padEnd(34)} "${row.from}" -> "${row.name}"`)
+  }
   for (const row of unchanged) {
     console.log(`  unchanged ${row.email.padEnd(34)} ${row.role}`)
   }
@@ -259,6 +280,11 @@ async function main(): Promise<void> {
       `\n  ${toRelabel.length} existing account(s) would have their role changed. Roles decide who` +
         '\n  can see the club’s accounts, so check that list before applying it.'
     )
+  }
+
+  if (toCreate.length + toRelabel.length + toRename.length === 0) {
+    console.log('\nEvery account already matches the file. Nothing to do.\n')
+    return
   }
 
   if (!write) {
@@ -288,10 +314,28 @@ async function main(): Promise<void> {
     console.log(`  relabeled ${row.email}  -> ${row.role}`)
   }
 
+  for (const row of toRename) {
+    await users.updateName({ userId: row.id, name: row.name })
+    console.log(`  renamed   ${row.email}  -> ${row.name}`)
+  }
+
   console.log(
     `\nDone. ${created.length} created, ${toRelabel.length} role change(s), ` +
-      `${unchanged.length} already correct.`
+      `${toRename.length} name change(s), ${unchanged.length} already correct.`
   )
+
+  if (toRelabel.length + toRename.length > 0) {
+    /**
+     * The bit people ask about ten minutes later.
+     *
+     * A role and a name are read when somebody signs in. Changing either leaves their
+     * open session showing the old one, which reads as "the import did not work".
+     */
+    console.log(
+      '\nAnyone whose name or role changed must sign out and in again before they see\n' +
+        'it — a browser holds what it was told at sign-in.'
+    )
+  }
 
   if (created.length === 0) return
 
