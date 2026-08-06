@@ -684,7 +684,7 @@ export const gallery: ReadonlyArray<AlbumItem> = [
   // Each slug has a folder of the same name in frontend/src/assets/gallery/.
   { slug: 'cultural-evening', title: 'Cultural evening', date: '2025-11-08', description: 'Performances by members and the prize distribution.' },
   { slug: 'tournament', title: 'Inter-club tournament', date: '2025-10-12', description: 'Match play, the final, and the presentation.' },
-  { slug: 'health-camp', title: 'Health check-up camp', date: '2025-12-07', description: 'Screening camp run with a local hospital.' },
+  { slug: 'health-camp', title: 'Health check-up camp', date: '2026-05-31', description: 'Screening camp run with a local hospital.' },
   { slug: 'founders-day', title: 'Founders’ day', date: '2025-08-15', description: 'Flag hoisting, prize giving and the community lunch.' },
 ]
 
