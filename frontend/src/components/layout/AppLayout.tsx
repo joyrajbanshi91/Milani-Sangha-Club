@@ -5,6 +5,7 @@ import { DemoDataNotice } from '@/components/layout/DemoDataNotice'
 import { Container } from '@/components/ui/Container'
 import { club } from '@/content/site'
 import { useAuth } from '@/features/auth/authContext'
+import { canReadEnquiries } from '@/features/enquiries/api'
 import { cn } from '@/lib/cn'
 
 /**
@@ -30,6 +31,8 @@ export function AppLayout() {
     { to: '/office/members', label: 'Membership register', show: officer },
     { to: '/office/reports', label: 'Statements', show: officer },
     { to: '/office/years', label: 'Club years', show: officer },
+    // The club's post: the secretary and the president answer it, so only they see it.
+    { to: '/office/enquiries', label: 'Enquiries', show: canReadEnquiries(user?.role) },
   ].filter((link) => link.show)
 
   return (

@@ -75,6 +75,14 @@ export interface Enquiry {
   phone?: string | undefined
   subject: string
   message: string
+  /**
+   * The club's own reference for it, 'ENQ-2026-000042'.
+   *
+   * The enquiry is stored before it is emailed, so the notification can quote the same
+   * reference the office sees on screen. Without it somebody replying from Gmail has no
+   * way to find the message in the club's list and mark it dealt with.
+   */
+  reference?: string | undefined
 }
 
 export type SendResult =
@@ -102,9 +110,13 @@ export async function sendEnquiry(enquiry: Enquiry): Promise<SendResult> {
     `Email:   ${enquiry.email}`,
     ...(enquiry.phone ? [`Phone:   ${enquiry.phone}`] : []),
     `Subject: ${enquiry.subject}`,
+    ...(enquiry.reference ? [`Reference: ${enquiry.reference}`] : []),
     '',
     `Sent from the ${env.CLUB_NAME} website contact form.`,
     'Reply to this message and it goes to the person who wrote it.',
+    ...(enquiry.reference
+      ? ['It is also in the office list under Enquiries — mark it dealt with there.']
+      : []),
   ]
 
   try {
@@ -115,7 +127,9 @@ export async function sendEnquiry(enquiry: Enquiry): Promise<SendResult> {
       replyTo: `${enquiry.name} <${enquiry.email}>`,
       // Newlines stripped: a header cannot contain them, and a subject assembled from
       // a stranger's choice is exactly where somebody tries to inject one.
-      subject: `[Website] ${enquiry.subject}`.replace(/[\r\n]+/g, ' ').slice(0, 160),
+      subject: `[Website] ${enquiry.subject}${enquiry.reference ? ` (${enquiry.reference})` : ''}`
+        .replace(/[\r\n]+/g, ' ')
+        .slice(0, 160),
       text: lines.join('\n'),
     })
 

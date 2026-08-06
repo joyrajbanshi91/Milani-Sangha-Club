@@ -163,6 +163,39 @@ export const TABLES: Table[] = [
     ],
   },
   {
+    id: COLLECTIONS.enquiries,
+    name: 'Website enquiries',
+    /**
+     * Sizes are the caps from domain/enquiry.ts, and they are the point rather than a
+     * detail: this is the one table a stranger can write into, so every column is as
+     * small as a real enquiry needs and no larger. 1000 characters is about 150 words.
+     */
+    columns: [
+      str('reference', 32, true),
+      str('status', 16, true),
+      str('name', 80, true),
+      str('email', 120, true),
+      str('phone', 20),
+      str('subject', 120, true),
+      str('message', 1000, true),
+      str('receivedAt', 32, true),
+      str('resolvedAt', 32),
+      str('resolvedBy', TEXT_SIZE.id),
+      str('resolvedByName', 80),
+      str('resolutionNote', 500),
+    ],
+    indexes: [
+      { key: 'unique_reference', type: 'unique', columns: ['reference'] },
+      // The office's list: what is still unanswered, newest first.
+      {
+        key: 'by_status_received',
+        type: 'key',
+        columns: ['status', 'receivedAt'],
+        orders: ['asc', 'desc'],
+      },
+    ],
+  },
+  {
     id: COLLECTIONS.payments,
     name: 'Member payment declarations',
     columns: [

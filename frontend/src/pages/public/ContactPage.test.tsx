@@ -98,13 +98,16 @@ describe('sending an enquiry', () => {
 
 describe('when it cannot be sent', () => {
   it('says so in the server’s words and never claims success', async () => {
+    // The club's records are the destination now, so this is a database failure rather
+    // than a mail one — but what the visitor needs is unchanged: the truth, and the
+    // address to write to instead.
     fetchMock.mockResolvedValue(
       json(
         {
           error: {
-            code: 'mail_not_configured',
+            code: 'internal_error',
             message:
-              'The club’s website cannot send email yet. Please write to the address on this page instead — your message has not been sent.',
+              'Your message could not be saved just now. Please write to the address on this page instead — your message has not been sent.',
           },
         },
         503

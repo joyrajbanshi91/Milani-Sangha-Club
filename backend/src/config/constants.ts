@@ -160,6 +160,49 @@ export const COLLECTIONS = {
   financeApprovals: 'finance_approvals',
   /** One row per financial year, holding the balances it was started with. */
   financeYears: 'finance_years',
+  /** Messages sent through the website's contact form. */
+  enquiries: 'enquiries',
+} as const
+
+/**
+ * Where a visitor's enquiry has got to.
+ *
+ *   new        nobody in the office has dealt with it yet
+ *   resolved   an officer answered it and said what they did
+ *
+ * Two states and no more. A club office is three people, not a support desk, and every
+ * extra state is one more thing to be wrong about — "in progress" on a message somebody
+ * replied to a fortnight ago says less than nothing.
+ */
+export const ENQUIRY_STATUSES = ['new', 'resolved'] as const
+export type EnquiryStatus = (typeof ENQUIRY_STATUSES)[number]
+
+/**
+ * Who may read the club's enquiries.
+ *
+ * The secretary and the president, because that is who answers the club's post. Not the
+ * treasurer — an enquiry is not a financial record, and the fewer people who can read a
+ * stranger's name, address and telephone number, the better. An administrator can grant
+ * themselves the role if they ever need to, and that is a change with a name against it.
+ */
+export const ENQUIRY_ROLES: readonly Role[] = ['secretary', 'president']
+
+/**
+ * How long each part of an enquiry may be.
+ *
+ * The contact form is the one place a stranger can write into the club's database, so
+ * every field is capped — generous for a real enquiry, useless for anything else. The
+ * caps are in characters because that is what costs bytes; the form shows the visitor a
+ * word count, because "about 150 words" means something to a person writing and "1000
+ * characters" does not.
+ */
+export const ENQUIRY_LIMITS = {
+  name: 80,
+  email: 120,
+  phone: 20,
+  subject: 120,
+  message: 1000,
+  note: 500,
 } as const
 
 export type CollectionName = (typeof COLLECTIONS)[keyof typeof COLLECTIONS]

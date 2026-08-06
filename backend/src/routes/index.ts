@@ -2,6 +2,7 @@ import { Router } from 'express'
 
 import { authRouter } from './auth.routes.js'
 import { contactRouter } from './contact.routes.js'
+import { enquiriesRouter } from './enquiries.routes.js'
 import { financeRouter } from './finance.routes.js'
 import { healthRouter } from './health.routes.js'
 import { membersRouter } from './members.routes.js'
@@ -39,5 +40,8 @@ apiRouter.use('/contact', contactRouter)
 apiRouter.use('/members', membersRouter)
 // Both of these are gated by requireAuth + requireFinanceOfficer inside the
 // router itself, so no finance route can be added without the guard.
+// The office's side of the contact form: the secretary and the president only, gated
+// inside the router itself.
+apiRouter.use('/enquiries', enquiriesRouter)
 apiRouter.use('/finance', financeRouter)
 apiRouter.use('/reports', reportsRouter)
