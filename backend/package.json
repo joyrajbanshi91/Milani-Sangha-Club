@@ -26,6 +26,7 @@
     "export:book": "tsx scripts/export-backup.ts",
     "appwrite:check": "tsx scripts/check-appwrite.ts",
     "reset:ledger": "tsx scripts/reset-ledger.ts",
+    "reset:members": "tsx scripts/reset-members.ts",
     "members:import": "tsx scripts/import-members.ts"
   },
   "overrides": {
