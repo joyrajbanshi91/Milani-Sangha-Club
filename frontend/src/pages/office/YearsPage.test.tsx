@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { AuthContext, type AuthState } from '@/features/auth/authContext'
 import type { CarryForwardSuggestion, Fund, YearOpening } from '@/features/finance/api'
 import { YearsPage } from '@/pages/office/YearsPage'
 
@@ -119,14 +120,35 @@ function serve(years: YearOpening[]) {
   })
 }
 
-function renderPage() {
+/** The treasurer, unless a test says otherwise. Starting a year is their job. */
+const TREASURER = {
+  uid: 'u-treasurer',
+  name: 'Treasurer',
+  role: 'treasurer',
+  isFinanceOfficer: true,
+  canRecordFinance: true,
+}
+
+function renderPage(user: Record<string, unknown> = TREASURER) {
+  const auth = {
+    user,
+    loading: false,
+    config: { mode: 'appwrite', store: 'appwrite' },
+    signIn: async () => null,
+    signOut: async () => {},
+    requestPasswordReset: async () => {},
+    signInDemo: async () => {},
+  } as unknown as AuthState
+
   return render(
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
     >
-      <MemoryRouter>
-        <YearsPage />
-      </MemoryRouter>
+      <AuthContext.Provider value={auth}>
+        <MemoryRouter>
+          <YearsPage />
+        </MemoryRouter>
+      </AuthContext.Provider>
     </QueryClientProvider>
   )
 }
@@ -167,6 +189,36 @@ describe('starting a new club year', () => {
     expect(Array.from(choose.querySelectorAll('option')).map((node) => node.textContent)).toContain(
       'Start 2027-28 (closing 2026-27)'
     )
+  })
+})
+
+describe('a read-only officer', () => {
+  /**
+   * The cultural and game secretaries see the club's years. Closing one adopts figures
+   * and settles the books, which is not something they are here to do — so the chooser
+   * is replaced by the sentence that says so, and Reopen is not offered either.
+   */
+  const CULTURAL_SECRETARY = {
+    uid: 'u-cultural',
+    name: 'Cultural Secretary',
+    role: 'culturalSecretary',
+    isFinanceOfficer: true,
+    canRecordFinance: false,
+  }
+
+  it('reads the years and cannot start or reopen one', async () => {
+    vi.setSystemTime(new Date('2027-05-01T09:00:00.000Z'))
+    serve([opening()])
+    renderPage(CULTURAL_SECRETARY)
+
+    expect(await screen.findByText('2026-27')).toBeInTheDocument()
+    expect(await screen.findByText(/Opened with ₹2,000.00/)).toBeInTheDocument()
+
+    expect(
+      screen.queryByLabelText(/summarise a year and start the next/i)
+    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /reopen/i })).not.toBeInTheDocument()
+    expect(screen.getByText(/see the club’s accounts but not change them/i)).toBeInTheDocument()
   })
 })
 

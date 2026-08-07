@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express'
 
 import type { Role } from '../config/constants.js'
-import { isFinanceOfficer } from '../domain/approval.js'
+import { canViewFinances, isFinanceOfficer } from '../domain/approval.js'
 import { forbidden, unauthorised } from '../lib/httpError.js'
 import type { AuthService } from '../services/authService.js'
 
@@ -54,10 +54,13 @@ export function requireRole(...roles: Role[]) {
 }
 
 /**
- * Gate for everything in the finance area.
+ * Gate on the door of the finance area: may this person look?
  *
- * Ordinary members are refused here and cannot read finance data from Firestore
- * either. The message deliberately does not describe what is behind the door.
+ * Wider than it used to be, because a club can now give a role read-only access — the
+ * Cultural Secretary who wants to see what the club is spending without being able to
+ * spend it. Ordinary members are still refused here, and the Appwrite rules refuse them
+ * the tables independently. The message deliberately does not describe what is behind
+ * the door.
  */
 export function requireFinanceOfficer(req: Request, _res: Response, next: NextFunction): void {
   const actor = req.actor
@@ -65,8 +68,38 @@ export function requireFinanceOfficer(req: Request, _res: Response, next: NextFu
     next(unauthorised())
     return
   }
+  if (!canViewFinances(actor.role)) {
+    next(forbidden('This area is limited to the club’s office bearers.'))
+    return
+  }
+  next()
+}
+
+/**
+ * Gate on every button that changes something.
+ *
+ * The read-only roles get past `requireFinanceOfficer` and stop here. Applied to the
+ * write routes as well as being checked inside the domain, because two of them —
+ * creating a fund and creating a category — have no domain rule of their own, and a
+ * permission that depends on remembering to check it is one that will eventually not
+ * be checked.
+ *
+ * The refusal says what the person can do instead, because "forbidden" on a screen they
+ * were invited to open reads as a fault rather than as a rule.
+ */
+export function requireFinanceWriter(req: Request, _res: Response, next: NextFunction): void {
+  const actor = req.actor
+  if (!actor) {
+    next(unauthorised())
+    return
+  }
   if (!isFinanceOfficer(actor.role)) {
-    next(forbidden('This area is limited to the president, secretary and treasurer.'))
+    next(
+      forbidden(
+        'You can see the club’s accounts but not change them. Ask the treasurer, ' +
+          'secretary or president to record this.'
+      )
+    )
     return
   }
   next()

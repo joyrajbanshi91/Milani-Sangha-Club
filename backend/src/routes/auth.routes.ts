@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from 'express'
 import { z } from 'zod'
 
 import { appwriteProjectId, env } from '../config/env.js'
-import { isFinanceOfficer } from '../domain/approval.js'
+import { canViewFinances, isFinanceOfficer } from '../domain/approval.js'
 import { badRequest, unauthorised } from '../lib/httpError.js'
 import { requireAuth } from '../middleware/auth.js'
 import { sensitiveLimiter } from '../middleware/rateLimit.js'
@@ -76,7 +76,14 @@ authRouter.post('/demo-login', sensitiveLimiter, (req: Request, res: Response) =
 
   res.json({
     token: session.token,
-    user: { ...session.actor, isFinanceOfficer: isFinanceOfficer(session.actor.role) },
+    user: {
+      ...session.actor,
+      // Two flags, because there are now three states: no access, look but not touch,
+      // and full. The browser hides what the server would refuse — the server is still
+      // the one that refuses it.
+      isFinanceOfficer: canViewFinances(session.actor.role),
+      canRecordFinance: isFinanceOfficer(session.actor.role),
+    },
   })
 })
 
@@ -86,7 +93,11 @@ authRouter.get('/me', requireAuth(auth), (req: Request, res: Response) => {
   if (!actor) throw unauthorised()
 
   res.json({
-    user: { ...actor, isFinanceOfficer: isFinanceOfficer(actor.role) },
+    user: {
+      ...actor,
+      isFinanceOfficer: canViewFinances(actor.role),
+      canRecordFinance: isFinanceOfficer(actor.role),
+    },
   })
 })
 

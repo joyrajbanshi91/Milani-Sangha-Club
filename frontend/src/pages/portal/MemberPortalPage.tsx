@@ -16,7 +16,7 @@ import { useState } from 'react'
 
 import { Container } from '@/components/ui/Container'
 import { Field, Input, Select } from '@/components/ui/Field'
-import type { PaymentMethod, PaymentPurpose } from '@/config/constants'
+import { ROLE_LABEL, type PaymentMethod, type PaymentPurpose } from '@/config/constants'
 import { club, membership } from '@/content/site'
 import { useAuth } from '@/features/auth/authContext'
 import { formatDate, formatDateTime, formatPaise } from '@/features/finance/money'
@@ -74,7 +74,7 @@ export function MemberPortalPage() {
       <div>
         <h1 className="font-display text-2xl text-ink-900 sm:text-3xl">My membership</h1>
         <p className="mt-1 text-sm text-ink-500">
-          Signed in as {user?.name} · {user?.role}
+          Signed in as {user?.name}{user ? ` · ${ROLE_LABEL[user.role]}` : ''}
         </p>
       </div>
 

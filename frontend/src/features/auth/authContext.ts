@@ -6,7 +6,17 @@ export interface SignedInUser {
   uid: string
   name: string
   role: Role
+  /** May open the office area. True for read-only roles as well. */
   isFinanceOfficer: boolean
+  /**
+   * May record, approve, verify — change something.
+   *
+   * False for a read-only role such as the Cultural Secretary, who sees every screen
+   * and none of the buttons. Absent on an older API, which is why it is optional and
+   * why the screens fall back to `isFinanceOfficer`: a deploy where the browser is
+   * newer than the server must not silently hide a treasurer's own buttons.
+   */
+  canRecordFinance?: boolean
 }
 
 export interface AuthConfig {

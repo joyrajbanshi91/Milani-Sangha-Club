@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router'
 
 import { DemoDataNotice } from '@/components/layout/DemoDataNotice'
 import { Container } from '@/components/ui/Container'
+import { ROLE_LABEL } from '@/config/constants'
 import { club } from '@/content/site'
 import { useAuth } from '@/features/auth/authContext'
 import { canReadEnquiries } from '@/features/enquiries/api'
@@ -56,7 +57,7 @@ export function AppLayout() {
             {user ? (
               <span className="hidden text-right text-xs leading-tight sm:block">
                 <span className="block font-medium text-ink-900">{user.name}</span>
-                <span className="block capitalize text-ink-500">{user.role}</span>
+                <span className="block text-ink-500">{ROLE_LABEL[user.role]}</span>
               </span>
             ) : null}
 

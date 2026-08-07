@@ -16,6 +16,16 @@ export const ROLES = [
   'visitor',
   'member',
   'volunteer',
+  /**
+   * The two offices that organise rather than administer.
+   *
+   * Written as one word because these are Appwrite **labels**, which allow letters and
+   * digits only — no space, no hyphen. `ROLE_LABEL` below is what a person is shown,
+   * and `data/club/members.csv` accepts "cultural secretary" and "game secretary" in
+   * the club's own words.
+   */
+  'culturalSecretary',
+  'gameSecretary',
   'secretary',
   'treasurer',
   'president',
@@ -33,14 +43,37 @@ export const ROLE_RANK: Record<Role, number> = {
   visitor: 0,
   member: 1,
   volunteer: 2,
-  secretary: 3,
-  treasurer: 4,
-  president: 5,
-  administrator: 6,
+  culturalSecretary: 3,
+  gameSecretary: 4,
+  secretary: 5,
+  treasurer: 6,
+  president: 7,
+  administrator: 8,
+}
+
+/**
+ * What each role is called on screen.
+ *
+ * The stored value has to be one alphanumeric word, which is a database constraint and
+ * not something a club should have to read. Everywhere a role is shown to a person —
+ * the header, the membership register, the sign-in page — it comes through here.
+ */
+export const ROLE_LABEL: Record<Role, string> = {
+  visitor: 'Visitor',
+  member: 'Member',
+  volunteer: 'Volunteer',
+  culturalSecretary: 'Cultural Secretary',
+  gameSecretary: 'Game Secretary',
+  secretary: 'Secretary',
+  treasurer: 'Treasurer',
+  president: 'President',
+  administrator: 'Administrator',
 }
 
 export const STAFF_ROLES: readonly Role[] = [
   'volunteer',
+  'culturalSecretary',
+  'gameSecretary',
   'secretary',
   'treasurer',
   'president',

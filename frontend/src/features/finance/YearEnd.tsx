@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 
 import { Field, Input } from '@/components/ui/Field'
+import { READ_ONLY_NOTE, useCanRecordFinance } from '@/features/auth/permissions'
 import { financeApi, type CarryForwardSuggestion } from '@/features/finance/api'
 import { formatPaise } from '@/features/finance/money'
 import {
@@ -317,6 +318,7 @@ export function FinancialYears() {
   const queryClient = useQueryClient()
   const [error, setError] = useState<string | null>(null)
   const [closing, setClosing] = useState<string | null>(null)
+  const canRecord = useCanRecordFinance()
 
   const thisYear = financialYearOf(new Date())
 
@@ -382,7 +384,13 @@ export function FinancialYears() {
         </p>
 
         <div className="mt-4 border-t border-ink-100 pt-4">
-          {closing ? (
+          {/*
+            Closing a year adopts figures and settles the books. A read-only officer
+            reads them and does not do that.
+          */}
+          {!canRecord ? (
+            <p className="text-xs/relaxed text-ink-500">{READ_ONLY_NOTE}</p>
+          ) : closing ? (
             <YearEndPanel financialYear={closing} onCancel={() => setClosing(null)} />
           ) : openable.length > 0 ? (
             <div className="flex flex-wrap items-end gap-3">
@@ -503,7 +511,7 @@ export function FinancialYears() {
                     See the whole year
                   </Link>
 
-                  {opening ? (
+                  {opening && canRecord ? (
                     <button
                       type="button"
                       disabled={reopen.isPending}

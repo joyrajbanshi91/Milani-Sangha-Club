@@ -1,4 +1,5 @@
-import { FINANCE_ROLES, REQUIRED_APPROVALS, type Role } from '../config/constants.js'
+import { REQUIRED_APPROVALS, type Role } from '../config/constants.js'
+import { financeRoles, financeViewRoles } from '../config/roles.js'
 import { isIsoDate } from './dates.js'
 import type { Actor, Approval, Transaction, TransactionDraft } from './types.js'
 
@@ -40,8 +41,30 @@ function fail<T>(code: string, reason: string): Outcome<T> {
   return { ok: false, code, reason }
 }
 
+/**
+ * May this role **move** the club's money — record, approve, reverse, verify?
+ *
+ * The four core finance roles, plus anything the club has promoted through
+ * `FINANCE_ROLES_FULL`. Every write in this file asks this question.
+ *
+ * Named as it is because that is what the club calls them, but note it is now the
+ * narrower of two: a Cultural Secretary can be a finance *viewer* without being one of
+ * these. See config/roles.ts.
+ */
 export function isFinanceOfficer(role: Role): boolean {
-  return FINANCE_ROLES.includes(role)
+  return financeRoles().includes(role)
+}
+
+/**
+ * May this role **look at** the club's money?
+ *
+ * Everyone above, plus the read-only roles. This is the gate on the office area as a
+ * whole: the dashboard, the entries list, the register, the statements. It is
+ * deliberately wider than the one above, and every button that changes something
+ * checks the narrower one.
+ */
+export function canViewFinances(role: Role): boolean {
+  return financeViewRoles().includes(role)
 }
 
 /** How many more signatures a pending entry needs. */
