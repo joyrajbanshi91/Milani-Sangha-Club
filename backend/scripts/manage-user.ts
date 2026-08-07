@@ -5,6 +5,7 @@
  *   npm run user -- role    --email member@example.org --role president
  *   npm run user -- list
  *   npm run user -- disable --email member@example.org
+ *   npm run user -- delete  --email member@example.org --write
  *
  * Roles live in Appwrite **labels**, which only a server holding an API key can
  * set — that is the whole point. Not prefs: a signed-in member can write their own
@@ -21,8 +22,8 @@ import { randomBytes } from 'node:crypto'
 
 import { AppwriteException, ID, Query } from 'node-appwrite'
 
-import { getUsers } from '../src/config/appwrite.js'
-import { ROLES, type Role } from '../src/config/constants.js'
+import { databaseId, getTables, getUsers } from '../src/config/appwrite.js'
+import { COLLECTIONS, ROLES, type Role } from '../src/config/constants.js'
 import { hasAppwriteCredentials } from '../src/config/env.js'
 
 interface Options {
@@ -74,6 +75,7 @@ Manage club accounts and roles.
   npm run user -- role    --email <email> --role <role>
   npm run user -- list
   npm run user -- disable --email <email>
+  npm run user -- delete  --email <email> [--with-declarations] --write
 
 Roles: ${ROLES.join(', ')}
 
@@ -200,6 +202,127 @@ async function main(): Promise<void> {
       await users.deleteSessions({ userId: user.$id })
 
       console.log(`\n${email} is disabled and their existing sessions are revoked.\n`)
+      break
+    }
+
+    /**
+     * Remove somebody for good: the account, and their profile photograph.
+     *
+     * `disable` is the ordinary answer when a member leaves — it keeps the record and
+     * the audit trail, and stops them signing in. This is for the other case: test
+     * accounts before the club starts for real, and a person who has asked to be
+     * removed rather than merely switched off.
+     *
+     * ## What it will not delete, and why
+     *
+     * **Ledger entries.** If the club took their money, that is the club's record, not
+     * theirs: deleting the entry changes the accounts — income falls, a fund balance
+     * moves, and a statement already printed stops matching. Money recorded in error is
+     * corrected by a **reversal**, which leaves both halves on the record. This prints
+     * what is attached and stops rather than quietly rewriting the books.
+     *
+     * **Their payment declarations**, unless `--with-declarations` is given. A
+     * declaration holds their name, address and telephone number, so removing it is
+     * usually right when somebody asks to be forgotten — but it is also the only record
+     * of what they claimed to have paid, and their receipt is printed from it.
+     */
+    case 'delete': {
+      const email = assertEmail(options.email)
+      const write = process.argv.includes('--write')
+      const withDeclarations = process.argv.includes('--with-declarations')
+
+      const user = await findByEmail(email)
+      if (!user) exit('No account with that email.')
+
+      const tables = getTables()
+      const database = databaseId()
+
+      const [declarations, entries, profiles] = await Promise.all([
+        tables.listRows({
+          databaseId: database,
+          tableId: COLLECTIONS.payments,
+          queries: [Query.equal('memberUid', user.$id), Query.limit(100)],
+        }),
+        tables.listRows({
+          databaseId: database,
+          tableId: COLLECTIONS.financeTransactions,
+          queries: [Query.equal('createdBy', user.$id), Query.limit(100)],
+        }),
+        tables.listRows({
+          databaseId: database,
+          tableId: COLLECTIONS.members,
+          queries: [Query.equal('uid', user.$id), Query.limit(10)],
+        }),
+      ])
+
+      const paid = (declarations.rows as Array<Record<string, unknown>>)
+        .filter((row) => row.status === 'approved')
+        .reduce((sum, row) => sum + Number(row.amountPaise ?? 0), 0)
+
+      console.log(`\n${user.name || '(no name)'}  <${email}>`)
+      console.log(`  role                  ${(user.labels ?? []).join(', ') || '(none)'}`)
+      console.log(`  profile photograph    ${profiles.total > 0 ? 'yes' : 'no'}`)
+      console.log(`  payment declarations  ${declarations.total}`)
+      console.log(`  ledger entries they recorded  ${entries.total}`)
+
+      if (paid > 0) {
+        console.log(
+          `\n  They have Rs. ${(paid / 100).toFixed(2)} of verified payments in the club's books.`
+        )
+        console.log('  Those entries are NOT deleted: they are the club\'s record of money it')
+        console.log('  received. If any of it was recorded in error, reverse it in Office →')
+        console.log('  Entries, which leaves both halves on the record.')
+      }
+
+      if (entries.total > 0) {
+        console.log(
+          `\n  ${entries.total} ledger entr${entries.total === 1 ? 'y' : 'ies'} will keep naming them ` +
+            'as the officer who recorded'
+        )
+        console.log('  it. That is what an audit trail is for, and it cannot be rewritten here.')
+      }
+
+      if (!write) {
+        console.log('\nCheck only — nothing was deleted.')
+        console.log(`\n  npm run user -- delete --email ${email} --write`)
+        if (declarations.total > 0) {
+          console.log(`  npm run user -- delete --email ${email} --with-declarations --write`)
+        }
+        console.log('\nOr keep the record and just stop them signing in:')
+        console.log(`  npm run user -- disable --email ${email}\n`)
+        break
+      }
+
+      if (withDeclarations) {
+        for (const row of declarations.rows as Array<{ $id: string; reference?: string }>) {
+          await tables.deleteRow({
+            databaseId: database,
+            tableId: COLLECTIONS.payments,
+            rowId: row.$id,
+          })
+          console.log(`  deleted declaration ${row.reference ?? row.$id}`)
+        }
+      }
+
+      for (const row of profiles.rows as Array<{ $id: string }>) {
+        await tables.deleteRow({
+          databaseId: database,
+          tableId: COLLECTIONS.members,
+          rowId: row.$id,
+        })
+        console.log('  deleted their profile photograph')
+      }
+
+      await users.delete({ userId: user.$id })
+
+      console.log(`\n${email} deleted.`)
+      if (!withDeclarations && declarations.total > 0) {
+        console.log(
+          `Their ${declarations.total} declaration(s) were kept. Add --with-declarations to remove\n` +
+            'those too — that is the copy holding their name and telephone number.'
+        )
+      }
+      console.log()
       break
     }
 
