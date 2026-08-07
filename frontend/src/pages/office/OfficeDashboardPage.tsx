@@ -28,6 +28,7 @@ import {
 } from 'recharts'
 
 import { Container } from '@/components/ui/Container'
+import { useCanRecordFinance } from '@/features/auth/permissions'
 import { financeApi, type FundBalance, type Rollup } from '@/features/finance/api'
 import { formatDate, formatMonth, formatPaise, formatRupeesShort } from '@/features/finance/money'
 import {
@@ -59,6 +60,7 @@ export function OfficeDashboardPage() {
    */
   const [search, setSearch] = useSearchParams()
   const period = readPeriod(search)
+  const canRecord = useCanRecordFinance()
 
   const setPeriod = (next: typeof period) => {
     setSearch(writePeriod(next), { replace: true })
@@ -151,7 +153,18 @@ export function OfficeDashboardPage() {
         opened, and it changes what every figure below means — so it goes first, not
         as a note at the bottom that gets scrolled past for a fortnight.
       */}
-      {data.openingNeededFor ? <YearEndPanel financialYear={data.openingNeededFor} /> : null}
+      {data.openingNeededFor ? (
+        canRecord ? (
+          <YearEndPanel financialYear={data.openingNeededFor} />
+        ) : (
+          // A read-only officer is told, and not handed a form that would be refused.
+          <p className="rounded-card border border-brand-300 bg-brand-50 p-4 text-sm/relaxed text-ink-700">
+            A new club year has begun — <strong>{data.openingNeededFor}</strong>. The treasurer,
+            secretary or president needs to close the last one and say what the club is carrying
+            forward. Until they do, the figures below are the old year’s.
+          </p>
+        )
+      ) : null}
 
       {/* Warnings first: a figure that is wrong matters more than one that is big. */}
       {data.overdrawnFunds.length > 0 ? (

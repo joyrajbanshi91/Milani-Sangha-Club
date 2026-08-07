@@ -18,7 +18,7 @@ import { approvalsOutstanding } from '../domain/approval.js'
 import type { Actor, Transaction } from '../domain/types.js'
 import { AppError, badRequest, forbidden, notFound, unauthorised } from '../lib/httpError.js'
 import { sendReceipt } from '../lib/receiptResponse.js'
-import { requireAuth, requireFinanceOfficer } from '../middleware/auth.js'
+import { requireAuth, requireFinanceOfficer, requireFinanceWriter } from '../middleware/auth.js'
 import { getContainer } from '../services/container.js'
 import { StoreConflictError } from '../services/store.js'
 
@@ -86,7 +86,7 @@ const fundSchema = z.object({
   notes: z.string().trim().optional(),
 })
 
-financeRouter.post('/funds', async (req: Request, res: Response) => {
+financeRouter.post('/funds', requireFinanceWriter, async (req: Request, res: Response) => {
   const input = fundSchema.parse(req.body)
   const created = await store.createFund({
     name: input.name,
@@ -109,7 +109,7 @@ const categorySchema = z.object({
   notes: z.string().trim().optional(),
 })
 
-financeRouter.post('/categories', async (req: Request, res: Response) => {
+financeRouter.post('/categories', requireFinanceWriter, async (req: Request, res: Response) => {
   const input = categorySchema.parse(req.body)
   const created = await store.createCategory({
     name: input.name,
@@ -192,7 +192,7 @@ const entrySchema = z
     path: ['date'],
   })
 
-financeRouter.post('/transactions', async (req: Request, res: Response) => {
+financeRouter.post('/transactions', requireFinanceWriter, async (req: Request, res: Response) => {
   const input = entrySchema.parse(req.body)
   const actor = actorOf(req)
 
@@ -224,7 +224,7 @@ financeRouter.post('/transactions', async (req: Request, res: Response) => {
 const approvalSchema = z.object({ note: z.string().trim().max(500).optional() })
 const reasonSchema = z.object({ reason: z.string().trim().min(3, 'Please give a reason') })
 
-financeRouter.post('/transactions/:id/approve', async (req: Request, res: Response) => {
+financeRouter.post('/transactions/:id/approve', requireFinanceWriter, async (req: Request, res: Response) => {
   const { note } = approvalSchema.parse(req.body ?? {})
   const id = param(req, 'id')
 
@@ -240,7 +240,7 @@ financeRouter.post('/transactions/:id/approve', async (req: Request, res: Respon
   })
 })
 
-financeRouter.post('/transactions/:id/reject', async (req: Request, res: Response) => {
+financeRouter.post('/transactions/:id/reject', requireFinanceWriter, async (req: Request, res: Response) => {
   const { reason } = reasonSchema.parse(req.body)
   const id = param(req, 'id')
 
@@ -249,7 +249,7 @@ financeRouter.post('/transactions/:id/reject', async (req: Request, res: Respons
   res.json({ transaction: result.value, message: 'Rejected.' })
 })
 
-financeRouter.post('/transactions/:id/withdraw', async (req: Request, res: Response) => {
+financeRouter.post('/transactions/:id/withdraw', requireFinanceWriter, async (req: Request, res: Response) => {
   const id = param(req, 'id')
 
   const result = await finance.discard(id, actorOf(req))
@@ -263,7 +263,7 @@ financeRouter.post('/transactions/:id/withdraw', async (req: Request, res: Respo
  * Not DELETE, because nothing is deleted: this creates the opposite entry, which
  * itself needs a second officer. The original stays in the ledger.
  */
-financeRouter.post('/transactions/:id/reverse', async (req: Request, res: Response) => {
+financeRouter.post('/transactions/:id/reverse', requireFinanceWriter, async (req: Request, res: Response) => {
   const { reason } = reasonSchema.parse(req.body)
   const id = param(req, 'id')
 
@@ -334,7 +334,7 @@ const recordSchema = z.object({
   note: z.string().trim().max(200).optional(),
 })
 
-financeRouter.post('/payments/:id/record', async (req: Request, res: Response) => {
+financeRouter.post('/payments/:id/record', requireFinanceWriter, async (req: Request, res: Response) => {
   const input = recordSchema.parse(req.body)
   const id = param(req, 'id')
 
@@ -351,7 +351,7 @@ financeRouter.post('/payments/:id/record', async (req: Request, res: Response) =
   })
 })
 
-financeRouter.post('/payments/:id/decline', async (req: Request, res: Response) => {
+financeRouter.post('/payments/:id/decline', requireFinanceWriter, async (req: Request, res: Response) => {
   const { reason } = reasonSchema.parse(req.body)
   const id = param(req, 'id')
 
@@ -399,7 +399,7 @@ const openYearSchema = z.object({
   note: z.string().trim().max(500).optional(),
 })
 
-financeRouter.post('/years', async (req: Request, res: Response) => {
+financeRouter.post('/years', requireFinanceWriter, async (req: Request, res: Response) => {
   const input = openYearSchema.parse(req.body)
 
   const result = await finance.openYear(
@@ -419,7 +419,7 @@ financeRouter.post('/years', async (req: Request, res: Response) => {
 })
 
 /** Reopen a year, when the figures adopted turn out to have been wrong. */
-financeRouter.delete('/years/:financialYear', async (req: Request, res: Response) => {
+financeRouter.delete('/years/:financialYear', requireFinanceWriter, async (req: Request, res: Response) => {
   const financialYear = param(req, 'financialYear')
   if (!isFinancialYear(financialYear)) throw badRequest('Use the format 2027-28')
 

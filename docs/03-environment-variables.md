@@ -142,6 +142,29 @@ work against Appwrite uses a real project — or, more usually, the demo store.
 Sensitive endpoints (login, OTP, payment submission) additionally get a fixed
 10-per-15-minutes limiter from Phase 3.
 
+### Finance access — who sees the books, who moves the money
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `FINANCE_ROLES_READONLY` | `culturalSecretary,gameSecretary` | Roles that may **open** every screen in the office area and change nothing. Every write route refuses them, and the browser hides the buttons rather than showing controls that always fail |
+| `FINANCE_ROLES_FULL` | unset | Extra roles that may record, approve, reverse and verify, on top of the four in `FINANCE_ROLES`. This is the promotion switch |
+
+Set on the **API function**, not the site, and read once when the function starts — so
+restart it after a change. Neither variable can take access away from `treasurer`,
+`secretary`, `president` or `administrator`: a mistyped value cannot lock a club out of
+its own accounts. A word that is not a role is ignored and named in the log.
+
+To give the Cultural Secretary full access:
+
+```bash
+FINANCE_ROLES_FULL=culturalSecretary
+FINANCE_ROLES_READONLY=gameSecretary
+```
+
+To put them back to looking only, move the word back to `FINANCE_ROLES_READONLY`. To shut
+a role out of the office area altogether, leave it out of both. Walkthrough in
+[11-running-the-club-office.md § 4](11-running-the-club-office.md).
+
 ### Email — the contact form
 
 | Variable | Notes |

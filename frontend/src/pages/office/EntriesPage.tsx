@@ -9,6 +9,7 @@ import { Field, Input, Select, Textarea } from '@/components/ui/Field'
 import { financeApi, type Transaction } from '@/features/finance/api'
 import { formatDate, formatDateTime, formatPaise } from '@/features/finance/money'
 import { useAuth } from '@/features/auth/authContext'
+import { READ_ONLY_NOTE, useCanRecordFinance } from '@/features/auth/permissions'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 
@@ -24,6 +25,7 @@ export function EntriesPage() {
   const [params, setParams] = useSearchParams()
   const status = params.get('status') ?? 'all'
   const [showForm, setShowForm] = useState(false)
+  const canRecord = useCanRecordFinance()
 
   const { data, isLoading } = useQuery({
     queryKey: ['finance', 'transactions', status],
@@ -42,17 +44,24 @@ export function EntriesPage() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setShowForm((open) => !open)}
-          className="inline-flex h-10 items-center gap-2 rounded-full bg-gradient-to-r from-brand-700 to-brand-500 px-4 text-sm font-medium text-white shadow-glow"
-        >
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          {showForm ? 'Close form' : 'Record an entry'}
-        </button>
+        {canRecord ? (
+          <button
+            type="button"
+            onClick={() => setShowForm((open) => !open)}
+            className="inline-flex h-10 items-center gap-2 rounded-full bg-gradient-to-r from-brand-700 to-brand-500 px-4 text-sm font-medium text-white shadow-glow"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            {showForm ? 'Close form' : 'Record an entry'}
+          </button>
+        ) : (
+          // Said once, at the top, rather than beside every button that is not there.
+          <p className="max-w-sm rounded-card border border-ink-200 bg-ink-50 p-3 text-xs/relaxed text-ink-600">
+            {READ_ONLY_NOTE}
+          </p>
+        )}
       </div>
 
-      {showForm ? <NewEntryForm onDone={() => setShowForm(false)} /> : null}
+      {showForm && canRecord ? <NewEntryForm onDone={() => setShowForm(false)} /> : null}
 
       <div className="flex flex-wrap gap-2">
         {['all', 'pending', 'posted', 'reversed', 'rejected'].map((option) => (
@@ -93,6 +102,7 @@ export function EntriesPage() {
 
 function EntryRow({ transaction }: { transaction: Transaction }) {
   const { user } = useAuth()
+  const canRecord = useCanRecordFinance()
   const queryClient = useQueryClient()
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null)
 
@@ -193,7 +203,19 @@ function EntryRow({ transaction }: { transaction: Transaction }) {
 
       {/* Actions available to this person on this entry */}
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-3">
-        {transaction.status === 'pending' ? (
+        {/*
+          A read-only officer is told what the entry is waiting for and given no
+          buttons. The server refuses them anyway; showing a control that always fails
+          is worse than showing none.
+        */}
+        {!canRecord && transaction.status === 'pending' ? (
+          <p className="text-xs text-amber-700">
+            Waiting for {outstanding} approval{outstanding === 1 ? '' : 's'} from an office
+            bearer who records the club’s money.
+          </p>
+        ) : null}
+
+        {canRecord && transaction.status === 'pending' ? (
           isAuthor ? (
             <>
               <p className="text-xs text-amber-700">
@@ -240,7 +262,7 @@ function EntryRow({ transaction }: { transaction: Transaction }) {
           )
         ) : null}
 
-        {transaction.status === 'posted' && !transaction.reversedBy ? (
+        {canRecord && transaction.status === 'posted' && !transaction.reversedBy ? (
           <button
             type="button"
             disabled={act.isPending}

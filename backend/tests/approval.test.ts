@@ -42,6 +42,20 @@ describe('who counts as a finance officer', () => {
     expect(isFinanceOfficer('volunteer')).toBe(false)
     expect(isFinanceOfficer('visitor')).toBe(false)
   })
+
+  /**
+   * The two offices that organise rather than administer.
+   *
+   * A Cultural Secretary runs the evening; a Game Secretary runs the fixtures. Neither
+   * keeps the books, so by default neither sees the club's money — every entry, every
+   * member's payments, every statement. That is a decision about who may read the
+   * club's finances, so it is written down here rather than left to be inferred from a
+   * list: adding either to FINANCE_ROLES breaks this test, which is the point.
+   */
+  it('does not give the cultural or game secretary the club’s accounts', () => {
+    expect(isFinanceOfficer('culturalSecretary')).toBe(false)
+    expect(isFinanceOfficer('gameSecretary')).toBe(false)
+  })
 })
 
 /**

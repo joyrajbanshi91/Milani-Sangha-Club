@@ -5,6 +5,7 @@ import { Link } from 'react-router'
 
 import { Container } from '@/components/ui/Container'
 import { Input, Select } from '@/components/ui/Field'
+import { ROLE_LABEL } from '@/config/constants'
 import { formatPaise } from '@/features/finance/money'
 import { financialYearOf, financialYears } from '@/features/finance/years'
 import { MonthGrid } from '@/features/payments/MonthGrid'
@@ -211,8 +212,8 @@ function MemberRow({ member }: { member: MemberRegisterRow }) {
                 Former member
               </span>
             ) : member.role !== 'member' ? (
-              <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs capitalize text-brand-800 ring-1 ring-brand-200">
-                {member.role}
+              <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs text-brand-800 ring-1 ring-brand-200">
+                {ROLE_LABEL[member.role]}
               </span>
             ) : null}
             {member.former ? null : membership.paidInFull ? (

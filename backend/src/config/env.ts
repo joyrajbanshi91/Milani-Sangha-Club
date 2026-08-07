@@ -87,6 +87,24 @@ const envSchema = z.object({
    * message goes to another has been misled.
    */
   CONTACT_TO: z.string().optional(),
+
+  /**
+   * Who may see the club's money, and who may move it. Comma separated role names.
+   *
+   * `FINANCE_ROLES_READONLY` — sees every screen in the office area and can change
+   * nothing. Defaults to the two offices that organise rather than administer, which
+   * is what the club asked for.
+   *
+   * `FINANCE_ROLES_FULL` — records, approves and verifies, like the treasurer. Empty
+   * by default.
+   *
+   * Move a role from one to the other and restart the function: that is how the club
+   * promotes its Cultural Secretary, and how it puts them back. Neither can take
+   * access away from the treasurer, secretary, president or administrator. See
+   * config/roles.ts.
+   */
+  FINANCE_ROLES_READONLY: z.string().default('culturalSecretary,gameSecretary'),
+  FINANCE_ROLES_FULL: z.string().optional(),
 })
 
 export type Env = z.infer<typeof envSchema>

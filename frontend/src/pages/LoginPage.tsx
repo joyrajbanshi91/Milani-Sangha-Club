@@ -6,6 +6,7 @@ import { PageHero } from '@/components/layout/PageHero'
 import { Container } from '@/components/ui/Container'
 import { Field, Input } from '@/components/ui/Field'
 import { Section } from '@/components/ui/Section'
+import { ROLE_LABEL } from '@/config/constants'
 import { useAuth } from '@/features/auth/authContext'
 import { cn } from '@/lib/cn'
 import { hueByIndex } from '@/lib/hues'
@@ -381,8 +382,8 @@ function DemoPicker({ destination }: { destination?: string }) {
 
                 <span className="min-w-0 flex-1">
                   <span className="text-ink-900 block font-medium">{account.name}</span>
-                  <span className="text-ink-500 block text-xs capitalize">
-                    {account.role}
+                  <span className="text-ink-500 block text-xs">
+                    {ROLE_LABEL[account.role]}
                     {officer
                       ? ' — sees the finances and can approve entries'
                       : ' — membership only, no access to the finances'}

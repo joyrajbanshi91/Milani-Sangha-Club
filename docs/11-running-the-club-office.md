@@ -40,11 +40,18 @@ and it goes to that address.
 | `secretary` | yes | The secretary |
 | `treasurer` | yes | **The accountant** — this is the role to give them |
 | `administrator` | yes | Whoever maintains the system |
+| `culturalSecretary` | to look, not to change | The cultural secretary |
+| `gameSecretary` | to look, not to change | The game secretary |
 | `member` | no | Every ordinary member |
 | `volunteer`, `visitor` | no | Not used yet |
 
 "Accountant" is `treasurer` in the system. There is no `accountant` role, and
 `npm run user -- role --role accountant` will be refused.
+
+The cultural and game secretaries are **read-only**: every screen in the office area
+opens for them and none of the buttons are there. The club can give either of them full
+access later, and take it back, without a code change — *Letting somebody look without
+letting them act*, in section 4.
 
 ### Adding many members at once, from a spreadsheet
 
@@ -89,6 +96,8 @@ the synonym and **prints what it became**, so a mapping is never silent:
 | `president`, `chairman` | `president` |
 | `secretary`, `joint secretary` | `secretary` |
 | `treasurer`, `cashier`, `accountant` | `treasurer` |
+| `cultural secretary`, `culture secretary` | `culturalSecretary` |
+| `game secretary`, `games secretary`, `sports secretary`, `joint game secretary` | `gameSecretary` |
 | `member`, `ordinary member`, `general member` | `member` |
 | `administrator`, `admin` | `administrator` |
 | `volunteer`, `visitor` | as written |
@@ -417,7 +426,8 @@ would be the same person — so it still needs one other bearer, exactly as befo
 | `secretary` | yes | yes | yes — but never their own |
 | `president` | yes | yes | yes — but never their own |
 | `administrator` | yes | yes | yes — but never their own |
-| `member`, `volunteer`, `visitor` | no | no | no |
+| `culturalSecretary`, `gameSecretary` | no — they see the accounts and change nothing | no | no |
+| `member`, `volunteer`, `visitor` | no — they do not see the accounts at all | no | no |
 
 Approving is not a separate permission: **any bearer can approve any entry except one
 they recorded themselves.** You control who can approve by controlling roles.
@@ -445,9 +455,11 @@ deploy rather than a setting in the app:
   entry. `1` today, so two people in total. `2` would need three different people. `0`
   means recording posts immediately with no second pair of eyes at all — the wrong
   default for money, and not recommended.
-- **`FINANCE_ROLES`** — which roles may see the accounts and record entries. Remove
-  `administrator` if the system's maintainer should not be able to move club money; that
-  is a defensible choice and costs nothing.
+- **`FINANCE_ROLES`** — the four roles that may always see the accounts and record
+  entries. Remove `administrator` if the system's maintainer should not be able to move
+  club money; that is a defensible choice and costs nothing. Widening this list does
+  **not** need a code change — see *Letting somebody look without letting them act*
+  below.
 
 ```ts
 export const FINANCE_ROLES: readonly Role[] = ['treasurer', 'secretary', 'president', 'administrator']
@@ -465,11 +477,53 @@ having a busy afternoon — changing it leaves a commit with a date and an autho
 role-based on purpose, so that a single officer being away does not stop the club
 recording money.
 
+### Letting somebody look without letting them act
+
+The Cultural Secretary and the Game Secretary organise the events the club spends its
+money on. Seeing what it costs is reasonable; recording it is not their job. So they
+ship with **read-only** access: they can open every screen in the office area — the
+dashboard, the entries, the payments queue, the statements — and there are no buttons.
+Where the buttons would have been, one sentence says why.
+
+That is the browser being polite. The refusal is on the server: every route that changes
+anything checks the role again and answers *You can see the club's accounts but not
+change them*, so it holds whether the request comes from the club's screens or from
+anywhere else.
+
+Three states, then, and the club moves a role between them **without a deploy** — two
+variables on the API function in the Appwrite console → **Functions → api → Settings →
+Environment variables**:
+
+| State | How | What they get |
+| --- | --- | --- |
+| Full | name the role in `FINANCE_ROLES_FULL` | Records, approves, reverses, verifies payments |
+| Read-only | name it in `FINANCE_ROLES_READONLY` — where both start | Opens every screen, presses nothing |
+| None | leave it out of both | The member portal and nothing else |
+
+To promote the Cultural Secretary:
+
+```bash
+FINANCE_ROLES_FULL=culturalSecretary
+FINANCE_ROLES_READONLY=gameSecretary
+```
+
+Then **restart the function** — the setting is read once when it starts, because a
+permission set that changed halfway through somebody's session would be very hard to
+reason about. To put them back to looking only, move the word back to
+`FINANCE_ROLES_READONLY` and restart again. Whoever is signed in sees the change on their
+next request; they do not need to sign out.
+
+Two things the variables deliberately cannot do. They **cannot** take access away from
+`treasurer`, `secretary`, `president` or `administrator` — a typo must not be able to
+lock the club out of its own books. And they **cannot invent a role**: a word that is not
+one of the club's roles is ignored and named in the function's log, because a silent typo
+looks exactly like the feature not working.
+
 ### Doing it by hand, without the command line
 
 Roles are Appwrite account **labels**. Appwrite console → **Auth** → the user →
 **Labels** → set exactly one of `treasurer`, `secretary`, `president`, `administrator`,
-`member`.
+`culturalSecretary`, `gameSecretary`, `volunteer`, `member`.
 
 One label only. If two role labels are somehow present, the API takes the **least**
 privileged, so the outcome does not depend on their order — safe, but not what you

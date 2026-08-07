@@ -7,6 +7,7 @@ import { Container } from '@/components/ui/Container'
 import { Field, Input, Select } from '@/components/ui/Field'
 import type { PaymentStatus } from '@/config/constants'
 import { useAuth } from '@/features/auth/authContext'
+import { READ_ONLY_NOTE, useCanRecordFinance } from '@/features/auth/permissions'
 import { financeApi } from '@/features/finance/api'
 import { formatDate, formatDateTime, formatPaise } from '@/features/finance/money'
 import {
@@ -133,6 +134,7 @@ function PaymentRow({ payment }: { payment: Payment }) {
    */
   const isOwn = user?.uid === payment.memberUid
   const open = payment.status === 'pending_verification'
+  const canRecord = useCanRecordFinance()
 
   return (
     <li className="rounded-card border border-ink-200 bg-white p-4 shadow-soft">
@@ -204,7 +206,11 @@ function PaymentRow({ payment }: { payment: Payment }) {
 
       {open ? (
         <div className="mt-3 border-t border-ink-100 pt-3">
-          {isOwn ? (
+          {!canRecord ? (
+            // A read-only officer sees the declaration and who it is from, and cannot
+            // put it in the books. Two different refusals, so they are said separately.
+            <p className="text-xs/relaxed text-ink-500">{READ_ONLY_NOTE}</p>
+          ) : isOwn ? (
             <p className="flex gap-2 text-xs/relaxed text-amber-700">
               <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
               This is your own payment, so another officer must verify it. Confirming your own
