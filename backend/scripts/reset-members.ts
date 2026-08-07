@@ -3,7 +3,7 @@
  *
  *   npm run reset:members                          # lists what it would delete
  *   npm run reset:members -- --write               # deletes it
- *   npm run reset:members -- --except me@club.in --write
+ *   npm run reset:members -- --except you@example.org --write
  *
  * The companion to `reset:ledger`, which clears the money. This clears the people:
  * the sign-in accounts and the `members` table that holds their profile photographs.
@@ -47,7 +47,7 @@ import { appwriteProjectId, hasAppwriteCredentials } from '../src/config/env.js'
 const write = process.argv.includes('--write')
 const all = process.argv.includes('--all')
 
-/** Addresses to keep, lower-cased. `--except a@b.in --except c@d.in`. */
+/** Addresses to keep, lower-cased. `--except one@example.org --except two@example.org`. */
 const spared = new Set(
   process.argv
     .map((argument, index) => (argument === '--except' ? process.argv[index + 1] : undefined))
