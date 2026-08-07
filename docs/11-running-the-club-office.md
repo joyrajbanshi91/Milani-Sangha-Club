@@ -490,9 +490,9 @@ anything checks the role again and answers *You can see the club's accounts but 
 change them*, so it holds whether the request comes from the club's screens or from
 anywhere else.
 
-Three states, then, and the club moves a role between them **without a deploy** — two
-variables on the API function in the Appwrite console → **Functions → api → Settings →
-Environment variables**:
+Three states, then, and the club moves a role between them **without a code change** —
+two variables on the API function in the Appwrite console → **Functions → `api` →
+Settings → Variables**. They belong on the *function*, never on the site:
 
 | State | How | What they get |
 | --- | --- | --- |
@@ -500,18 +500,27 @@ Environment variables**:
 | Read-only | name it in `FINANCE_ROLES_READONLY` — where both start | Opens every screen, presses nothing |
 | None | leave it out of both | The member portal and nothing else |
 
-To promote the Cultural Secretary:
+To promote the Cultural Secretary, two variables, each one line:
 
-```bash
-FINANCE_ROLES_FULL=culturalSecretary
-FINANCE_ROLES_READONLY=gameSecretary
-```
+| Key | Value |
+| --- | --- |
+| `FINANCE_ROLES_FULL` | `culturalSecretary` |
+| `FINANCE_ROLES_READONLY` | `gameSecretary` |
 
-Then **restart the function** — the setting is read once when it starts, because a
-permission set that changed halfway through somebody's session would be very hard to
-reason about. To put them back to looking only, move the word back to
-`FINANCE_ROLES_READONLY` and restart again. Whoever is signed in sees the change on their
-next request; they do not need to sign out.
+**Put nothing else in the value.** No quotes, no `#` note about what it does — the whole
+value is read as a comma-separated list of roles, so a trailing comment is one more word
+that is not a role, and the promotion silently does not happen. Two roles at once is
+`culturalSecretary,gameSecretary`.
+
+Then **redeploy the function** — Functions → `api` → Deployments → the active one → ⋮ →
+*Redeploy*. The setting is read once when the function starts, because a permission set
+that changed halfway through somebody's session would be very hard to reason about, and a
+container that is already warm keeps the old value until it is replaced. To put a role
+back to looking only, move the word to the other variable and redeploy again. Whoever is
+signed in sees the change on their next request; they do not need to sign out.
+
+To check it took: ask them to open **Office → Entries**. *Record an entry* is there, or
+it is not.
 
 Two things the variables deliberately cannot do. They **cannot** take access away from
 `treasurer`, `secretary`, `president` or `administrator` — a typo must not be able to

@@ -149,8 +149,10 @@ Sensitive endpoints (login, OTP, payment submission) additionally get a fixed
 | `FINANCE_ROLES_READONLY` | `culturalSecretary,gameSecretary` | Roles that may **open** every screen in the office area and change nothing. Every write route refuses them, and the browser hides the buttons rather than showing controls that always fail |
 | `FINANCE_ROLES_FULL` | unset | Extra roles that may record, approve, reverse and verify, on top of the four in `FINANCE_ROLES`. This is the promotion switch |
 
-Set on the **API function**, not the site, and read once when the function starts — so
-restart it after a change. Neither variable can take access away from `treasurer`,
+Set on the **API function**, not the site — Appwrite console → Functions → `api` →
+Settings → Variables. Read once when the function starts, so **redeploy** after a change;
+a warm container keeps the old value. The value is a comma-separated list of role names
+and nothing else — a `#` comment on the end is read as another role name and ignored. Neither variable can take access away from `treasurer`,
 `secretary`, `president` or `administrator`: a mistyped value cannot lock a club out of
 its own accounts. A word that is not a role is ignored and named in the log.
 
