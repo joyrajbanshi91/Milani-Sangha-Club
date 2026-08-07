@@ -269,6 +269,44 @@ To set or correct them:
 Get this right before recording many entries. Correcting it later is one number, but
 every statement printed in between was wrong.
 
+### Starting the club's people again from scratch
+
+Two scripts, because people and money are different things and are almost never
+cleared together by accident:
+
+```bash
+npm run backup                                   # first, always
+npm run reset:members                            # lists what would go
+npm run reset:members -- --except you@example.org --write
+```
+
+`reset:members` deletes **every sign-in account** and **every member profile** — the
+photographs members uploaded. It does not touch funds, categories, the ledger or the
+website's enquiries, and it says how many records in the books already name an account
+that is gone, which is the usual state by the time somebody asks for a fresh start.
+
+**Keep one account.** `--except you@example.org` spares yours. Delete every account and
+nobody can sign in — including the person who would have to put it right — because the
+accounts an import creates have passwords nobody knows and the way back in is a
+password-reset email for each of them. The script refuses to delete them all unless you
+add `--all` and mean it.
+
+Then put the club back from the spreadsheet:
+
+```bash
+npm run members:import -- --reset-only --write   # creates them, prints no passwords
+npm run user -- list                             # check the names and roles
+```
+
+Each person then uses **Reset password** on the sign-in page and sets their own. Their
+email addresses have to be right — that is the only way in.
+
+For a *completely* clean start, clear the money as well:
+
+```bash
+npm run reset:ledger -- --write
+```
+
 ### Clearing the entries made while learning
 
 Everything recorded while trying the system out can be thrown away, so the club's first
