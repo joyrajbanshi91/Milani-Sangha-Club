@@ -291,9 +291,9 @@ export const home = {
      * Delete an entry to show fewer than three. An empty list hides the row.
      */
     stats: [
-      { source: 'members', value: '', label: 'Members' },
-      { source: 'manual', value: '', label: 'Events a year' },
-      { source: 'manual', value: '', label: 'Years serving the area' },
+      { source: 'members', value: '40', label: 'Members' },
+      { source: 'manual', value: '5', label: 'Events a year' },
+      { source: 'manual', value: '2015', label: 'Years serving the area' },
     ],
   },
 
