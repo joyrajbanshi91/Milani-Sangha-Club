@@ -56,6 +56,34 @@ function explain(error: unknown, scope: string): string {
  * domain changes every time it is redeployed, so any URL written down by hand goes
  * stale silently and the probe then reports a healthy deployment as unreachable.
  */
+/**
+ * Every column on a table, not the first page of them.
+ *
+ * `listColumns` returns 25 unless told otherwise, and the payments table has 27. Read
+ * unpaged, this check reports two columns as missing on a database that has them — and
+ * then tells the reader to run the provisioner, which finds nothing to do. A check that
+ * lies is worse than no check, because it is what somebody consults when they are
+ * already unsure what is wrong.
+ *
+ * The same paging lives in provision-appwrite.ts, where the same default cost an
+ * afternoon.
+ */
+async function listAllColumns(tableId: string): Promise<Array<{ key: string; status?: string }>> {
+  const all: Array<{ key: string; status?: string }> = []
+
+  for (;;) {
+    const page = await getTables().listColumns({
+      databaseId: env.APPWRITE_DATABASE_ID,
+      tableId,
+      queries: [Query.limit(100), Query.offset(all.length)],
+    })
+
+    all.push(...(page.columns as unknown as Array<{ key: string; status?: string }>))
+
+    if (page.columns.length === 0 || all.length >= page.total) return all
+  }
+}
+
 async function discoverApiUrl(): Promise<string | null> {
   const explicit = process.env.API_PROBE_URL?.replace(/\/+$/, '')
   if (explicit) return explicit
@@ -293,17 +321,14 @@ async function main(): Promise<number> {
       for (const table of TABLES) {
         if (!present.has(table.id)) continue
 
-        const { columns } = await getTables().listColumns({
-          databaseId: env.APPWRITE_DATABASE_ID,
-          tableId: table.id,
-        })
+        const columns = await listAllColumns(table.id)
 
-        const have = new Set(columns.map((column) => (column as unknown as { key: string }).key))
+        const have = new Set(columns.map((column) => column.key))
         const absent = table.columns.filter((column) => !have.has(column.key)).map((c) => c.key)
 
         const unavailable = columns
-          .filter((column) => (column as unknown as { status?: string }).status !== 'available')
-          .map((column) => (column as unknown as { key: string }).key)
+          .filter((column) => column.status !== 'available')
+          .map((column) => column.key)
 
         if (absent.length > 0 || unavailable.length > 0) {
           incomplete.push(table.id)

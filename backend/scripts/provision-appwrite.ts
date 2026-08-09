@@ -19,9 +19,9 @@
  * Safe to re-run. Anything that already exists is left alone, so adding a column
  * to the schema below and running it again adds just that column.
  */
-import { AppwriteException, Client, OrderBy, TablesDB, TablesDBIndexType } from 'node-appwrite'
+import { AppwriteException, Client, OrderBy, Query, TablesDB, TablesDBIndexType } from 'node-appwrite'
 
-import { TABLES, type Index } from '../src/config/appwriteSchema.js'
+import { TABLES, type Column, type Index } from '../src/config/appwriteSchema.js'
 import { appwriteProjectId, env, hasAppwriteCredentials } from '../src/config/env.js'
 
 /**
@@ -60,27 +60,198 @@ function isPlanLimit(error: unknown): boolean {
   )
 }
 
+/** How long to wait for a table's columns to finish being created. */
+const COLUMN_WAIT_SECONDS = 180
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * Every column on a table, not the first page of them.
+ *
+ * `listColumns` returns **25** unless told otherwise, and this schema has a table with
+ * 27. Without the paging below, the script reads a table it has just finished building
+ * and concludes two of its columns are missing — then tries to create them, is told
+ * `column_already_exists`, treats that as a busy table, retries, and finally fails
+ * naming two columns that were there all along. Every symptom pointed at Appwrite
+ * being slow; the cause was a default page size.
+ *
+ * Paged rather than raised to a large limit, because a schema outgrowing whatever
+ * number were written here would fail in exactly this way again, and the next person
+ * would have the same afternoon.
+ */
+async function listAllColumns(
+  tables: TablesDB,
+  databaseId: string,
+  tableId: string
+): Promise<Array<{ key: string; status?: string }>> {
+  const all: Array<{ key: string; status?: string }> = []
+
+  for (;;) {
+    const page = await tables.listColumns({
+      databaseId,
+      tableId,
+      queries: [Query.limit(100), Query.offset(all.length)],
+    })
+
+    all.push(...(page.columns as unknown as Array<{ key: string; status?: string }>))
+
+    if (page.columns.length === 0 || all.length >= page.total) return all
+  }
+}
+
+async function createColumn(
+  tables: TablesDB,
+  databaseId: string,
+  tableId: string,
+  column: Column
+): Promise<void> {
+  if (column.kind === 'string') {
+    await tables.createStringColumn({
+      databaseId,
+      tableId,
+      key: column.key,
+      size: column.size,
+      required: column.required,
+    })
+  } else if (column.kind === 'integer') {
+    await tables.createIntegerColumn({
+      databaseId,
+      tableId,
+      key: column.key,
+      required: column.required,
+      min: column.min,
+    })
+  } else {
+    await tables.createBooleanColumn({
+      databaseId,
+      tableId,
+      key: column.key,
+      required: column.required,
+    })
+  }
+}
+
+/**
+ * Every column this schema declares, actually on the table.
+ *
+ * **The list is the check, not the response to the create call.** A 409 from Appwrite
+ * says a column with that key exists; it does not say the column this schema wants
+ * exists, and the script that only ever read the error was one that could report
+ * `= (exists)` for something it had never seen. Reading the table settles it.
+ *
+ * Each pass asks the table what it has, creates only what is missing, and looks again —
+ * so a table momentarily too busy to take a column recovers by itself, and a run cannot
+ * end believing something exists when it does not. That is the failure worth engineering
+ * against: a missing column does not announce itself later, it quietly stops storing a
+ * field, and the first sign is a receipt with nobody's name on it.
+ *
+ * `listAllColumns` rather than `listColumns`, and see the note there — reading only the
+ * first page of a table's columns is precisely how a healthy run was made to fail.
+ */
+async function ensureColumns(
+  tables: TablesDB,
+  databaseId: string,
+  table: { id: string; columns: readonly Column[] }
+): Promise<void> {
+  for (let pass = 0; pass < 6; pass += 1) {
+    const columns = await listAllColumns(tables, databaseId, table.id)
+    const live = new Set(columns.map((column) => column.key))
+
+    const missing = table.columns.filter((column) => !live.has(column.key))
+
+    if (pass === 0) {
+      for (const column of table.columns) {
+        if (live.has(column.key)) log(`  = ${column.key} (exists)`)
+      }
+    }
+
+    if (missing.length === 0) return
+    if (pass > 0) log(`  … retrying ${missing.length} column(s) the table was too busy to take`)
+
+    for (const column of missing) {
+      try {
+        await createColumn(tables, databaseId, table.id, column)
+        log(`  + ${column.key}`)
+      } catch (error) {
+        if (isPlanLimit(error)) throw error
+        // Either it appeared between the listing and now, or the table is busy. The
+        // next pass reads the table again and settles which — no guessing from here.
+        if (!alreadyExists(error)) throw error
+      }
+    }
+
+    await sleep(2_000)
+  }
+
+  const columns = await listAllColumns(tables, databaseId, table.id)
+  const live = new Set(columns.map((column) => column.key))
+  const missing = table.columns.filter((column) => !live.has(column.key)).map((c) => c.key)
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Could not create ${missing.join(', ')} on ${table.id} — Appwrite refused each attempt ` +
+        'as a conflict. The table may still be settling from an earlier change: wait a minute ' +
+        'and re-run. Nothing is half-written.'
+    )
+  }
+}
+
 /**
  * Appwrite creates columns asynchronously: the call returns while the column is
  * still `processing`, and an index built on one that is not yet `available`
  * fails. Waiting here is the difference between a script that works and one that
  * works only when the network is slow enough.
+ *
+ * **Waits on the columns this schema names, by key**, rather than on a count of
+ * available columns. Counting was wrong in a way that only shows up on a table which
+ * has more columns than the schema lists — a leftover from an earlier version, say:
+ * the total could reach the expected number while the column an index needs was still
+ * processing, and the index creation that follows would fail for no visible reason.
+ *
+ * Three minutes, not thirty seconds. Adding columns to a table that already holds rows
+ * is slower than creating an empty one, and thirty seconds was tuned on a fresh
+ * database — so the first person to extend a live club's schema hit a timeout on a
+ * perfectly healthy run.
  */
-async function waitForColumns(tables: TablesDB, tableId: string, expected: number): Promise<void> {
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    const { columns } = await tables.listColumns({ databaseId: env.APPWRITE_DATABASE_ID, tableId })
+async function waitForColumns(
+  tables: TablesDB,
+  tableId: string,
+  keys: readonly string[]
+): Promise<void> {
+  const wanted = new Set(keys)
 
-    const ready = columns.filter(
-      (column) => (column as unknown as { status?: string }).status === 'available'
-    ).length
+  for (let attempt = 0; attempt < COLUMN_WAIT_SECONDS; attempt += 1) {
+    const columns = await listAllColumns(tables, env.APPWRITE_DATABASE_ID, tableId)
+    const status = new Map(columns.map((column) => [column.key, column.status ?? 'unknown']))
 
-    if (ready >= expected) return
+    const pending = [...wanted].filter((key) => status.get(key) !== 'available')
+    if (pending.length === 0) return
+
+    /**
+     * A failed column never becomes available, so waiting out the full three minutes
+     * and then advising a re-run would send somebody round the same loop. Appwrite
+     * puts the reason on the column itself; the console is where it is readable.
+     */
+    const failed = pending.filter((key) => status.get(key) === 'failed')
+    if (failed.length > 0) {
+      throw new Error(
+        `Appwrite could not create ${failed.join(', ')} on ${tableId}. Re-running will not fix ` +
+          'this. Open the table in the Appwrite console — the failed column carries the reason — ' +
+          'then delete it there and re-run.'
+      )
+    }
+
+    // Said once, after a few seconds, so a slow run does not look like a hung one.
+    if (attempt === 5) {
+      log(`  … waiting for ${pending.length} column(s) on ${tableId} to finish`)
+    }
 
     await new Promise((resolve) => setTimeout(resolve, 1000))
   }
 
   throw new Error(
-    `Columns on ${tableId} were still processing after 30s. Re-run to continue where this left off.`
+    `Columns on ${tableId} were still processing after ${COLUMN_WAIT_SECONDS}s. ` +
+      'Nothing is broken and nothing was half-written — re-run to continue where this left off.'
   )
 }
 
@@ -183,41 +354,17 @@ async function main(): Promise<number> {
       log(`\ntable ${table.id} already exists`)
     }
 
-    for (const column of table.columns) {
-      try {
-        if (column.kind === 'string') {
-          await tables.createStringColumn({
-            databaseId,
-            tableId: table.id,
-            key: column.key,
-            size: column.size,
-            required: column.required,
-          })
-        } else if (column.kind === 'integer') {
-          await tables.createIntegerColumn({
-            databaseId,
-            tableId: table.id,
-            key: column.key,
-            required: column.required,
-            min: column.min,
-          })
-        } else {
-          await tables.createBooleanColumn({
-            databaseId,
-            tableId: table.id,
-            key: column.key,
-            required: column.required,
-          })
-        }
-        log(`  + ${column.key}`)
-      } catch (error) {
-        if (!alreadyExists(error)) throw error
-        log(`  = ${column.key} (exists)`)
-      }
-    }
+    await ensureColumns(tables, databaseId, table)
 
     if (table.indexes.length > 0) {
-      await waitForColumns(tables, table.id, table.columns.length)
+      await waitForColumns(
+        tables,
+        table.id,
+        // Only the columns the indexes below are built on need to be available, but
+        // waiting on all of them is simpler and costs nothing: they were created in
+        // the same pass and finish at much the same time.
+        table.columns.map((column) => column.key)
+      )
 
       for (const index of table.indexes) {
         try {
