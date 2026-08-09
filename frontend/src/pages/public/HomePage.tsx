@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query'
 import { ArrowRight, Quote, Sparkles } from 'lucide-react'
 
 import { AlbumCard } from '@/components/cards/AlbumCard'
@@ -14,6 +15,7 @@ import { Reveal } from '@/components/ui/Reveal'
 import { Section } from '@/components/ui/Section'
 import { SectionHeading } from '@/components/ui/SectionHeading'
 import { events, gallery, home, news, sponsors, testimonials } from '@/content/site'
+import { clubApi } from '@/features/club/api'
 import { photosFor } from '@/features/gallery/photos'
 import { cn } from '@/lib/cn'
 import { isUpcoming } from '@/lib/format'
@@ -150,8 +152,55 @@ function SectionRow({
   )
 }
 
+/**
+ * The membership figure, counted from the club's own register.
+ *
+ * Everything about this query is arranged so that the banner never waits for it and
+ * never breaks without it. It does not retry, because a visitor reading the front page
+ * will not stay for the second attempt; there is no loading state, because a spinner
+ * where a number belongs is worse than the figure the content file already carries; and
+ * a failure is silent, because the API being unreachable is not the visitor's problem.
+ *
+ * Until it answers — and for good, on a build with no API — `site.ts` supplies the
+ * figure. So the site is correct offline, correct before a database is connected, and
+ * correct in a test that never touches the network.
+ */
+function useMemberCount(): number | null {
+  const { data } = useQuery({
+    queryKey: ['club', 'stats'],
+    queryFn: clubApi.stats,
+    retry: false,
+    // The club gains a member a few times a year. Asking again on every navigation
+    // would be a request per page view for a number that has not moved.
+    staleTime: 30 * 60_000,
+  })
+
+  return data?.members ?? null
+}
+
+/**
+ * What a stat tile actually shows.
+ *
+ * The counted figure when there is one, the club's own text otherwise, and a dash when
+ * there is neither — which is the state the site ships in, and reads as "not stated"
+ * rather than as a broken number.
+ */
+function statValue(
+  stat: { source: string; value: string },
+  memberCount: number | null
+): string {
+  if (stat.source === 'members' && memberCount !== null) {
+    // 'en-IN' groups as 1,20,000 rather than 120,000, which is how the figure would be
+    // written on a notice at the club.
+    return memberCount.toLocaleString('en-IN')
+  }
+
+  return stat.value.trim() === '' ? '—' : stat.value
+}
+
 function Hero() {
   const { hero } = home
+  const memberCount = useMemberCount()
 
   // Highlight the final word of the headline in the brand gradient.
   const words = hero.title.trim().split(' ')
@@ -219,7 +268,7 @@ function Hero() {
                         aria-hidden="true"
                       />
                       <dd className="mt-3 font-display text-2xl text-ink-900 sm:text-3xl">
-                        <AnimatedNumber value={stat.value} />
+                        <AnimatedNumber value={statValue(stat, memberCount)} />
                       </dd>
                       <dt className="mt-1 text-xs uppercase tracking-wider text-ink-500">
                         {stat.label}

@@ -1,6 +1,7 @@
 import { Router } from 'express'
 
 import { authRouter } from './auth.routes.js'
+import { clubRouter } from './club.routes.js'
 import { contactRouter } from './contact.routes.js'
 import { enquiriesRouter } from './enquiries.routes.js'
 import { financeRouter } from './finance.routes.js'
@@ -36,6 +37,12 @@ apiRouter.use('/auth', authRouter)
  * environment rather than from the request. See contact.routes.ts.
  */
 apiRouter.use('/contact', contactRouter)
+/**
+ * How many members the club has, for the public website's banner — and nothing else.
+ * The second of the two routes anybody at all may call. See club.routes.ts for why a
+ * count is publishable when the register behind /finance/members is not.
+ */
+apiRouter.use('/club', clubRouter)
 // Scoped to the caller's own record; any signed-in member may use it.
 apiRouter.use('/members', membersRouter)
 // Both of these are gated by requireAuth + requireFinanceOfficer inside the

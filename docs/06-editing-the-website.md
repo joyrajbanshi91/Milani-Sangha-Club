@@ -197,6 +197,39 @@ Scan the new QR yourself with a payment app before pushing, and check the name i
 That name is what the portal tells members to expect, and it is the only protection they
 have against a swapped code.
 
+### The three figures under the banner
+
+Section 3 of `site.ts`, `stats:` inside `hero:`. Each figure says where its number comes
+from:
+
+```ts
+stats: [
+  { source: 'members', value: '',   label: 'Members' },
+  { source: 'manual',  value: '24', label: 'Events a year' },
+  { source: 'manual',  value: '11', label: 'Years serving the area' },
+],
+```
+
+- **`source: 'members'` counts itself.** The website asks the API how many accounts the
+  club has and prints that. There is nothing to keep up to date: add a member in the
+  office area and the front page follows within half an hour. Leave `value` empty.
+- **`source: 'manual'` is whatever you type.** Nothing in the system knows how many
+  events the club runs in a year, so that one is yours to set and yours to revise.
+- **Write the numeral only** — `'24'`, not `'24 events'`. The label underneath already
+  says what it is, and the figure counts up when it scrolls into view, which only works
+  on a plain number. A suffix does survive, so `'500+'` is fine.
+- **An empty `value` shows a dash.** That is deliberate: a dash reads as *not stated*,
+  which is honest, where a `0` would be a false claim about the club.
+
+Two things about the counted figure:
+
+- **It counts every account, office bearers included** — they are members of the club
+  too.
+- **It needs `VITE_API_BASE_URL` set** to the API's own domain. On Appwrite the site and
+  the API are separate domains, so without it the site asks itself, gets no number, and
+  quietly shows the dash. See [03-environment-variables.md](03-environment-variables.md).
+  Nothing breaks either way; the figure is simply absent until it is set.
+
 ### Put three photographs in the home page banner
 
 The top of the home page shows three tiles beside the headline. Until you supply

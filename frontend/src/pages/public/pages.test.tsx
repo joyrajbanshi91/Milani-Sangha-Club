@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import type { ComponentType } from 'react'
 import { MemoryRouter } from 'react-router'
@@ -38,13 +39,27 @@ const PAGES: ReadonlyArray<{ name: string; Component: ComponentType }> = [
   { name: 'NotFoundPage', Component: NotFoundPage },
 ]
 
-describe.each(PAGES)('$name', ({ Component }) => {
-  it('renders with exactly one level-one heading', () => {
-    render(
+/**
+ * A page may fetch — the home page counts the club's members — so all of them are given
+ * a query client. Not one of them may *need* the fetch to succeed: a public page whose
+ * heading depends on the API would disappear the moment the API did, and that is what
+ * this smoke test is here to catch.
+ */
+function renderPage(Component: ComponentType) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+
+  return render(
+    <QueryClientProvider client={client}>
       <MemoryRouter>
         <Component />
       </MemoryRouter>
-    )
+    </QueryClientProvider>
+  )
+}
+
+describe.each(PAGES)('$name', ({ Component }) => {
+  it('renders with exactly one level-one heading', () => {
+    renderPage(Component)
 
     // One h1 per page is what keeps the heading outline usable for screen
     // readers and for search engines.

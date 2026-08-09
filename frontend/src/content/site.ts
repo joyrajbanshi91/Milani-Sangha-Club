@@ -271,13 +271,29 @@ export const home = {
     },
 
     /**
-     * The three figures under the banner. Replace with real numbers, or delete
-     * an entry to show fewer. An empty array hides the row entirely.
+     * THE THREE FIGURES UNDER THE BANNER.
+     *
+     * Each has a `source`, which says where its number comes from:
+     *
+     *   'members'  Counted automatically from the club's own register — every
+     *              account on the system. Leave `value` empty; anything typed
+     *              there is used only until the count arrives, and if the site
+     *              cannot reach the API at all. Nothing to keep up to date.
+     *
+     *   'manual'   Whatever you type in `value`. Nothing in the system knows
+     *              these, so they are yours to set and yours to revise.
+     *
+     * A `manual` figure left as '' shows a dash — an honest "not stated" rather
+     * than a number nobody has checked. Write the numeral only: '24', not
+     * '24 events'. The label underneath says what it is, and the figure counts
+     * itself up when it scrolls into view, which only works on a plain number.
+     *
+     * Delete an entry to show fewer than three. An empty list hides the row.
      */
     stats: [
-      { value: '—', label: 'Members' },
-      { value: '—', label: 'Events a year' },
-      { value: '—', label: 'Years serving the area' },
+      { source: 'members', value: '', label: 'Members' },
+      { source: 'manual', value: '', label: 'Events a year' },
+      { source: 'manual', value: '', label: 'Years serving the area' },
     ],
   },
 
