@@ -224,6 +224,17 @@ export const TABLES: Table[] = [
       str('transactionId', TEXT_SIZE.id),
       str('transactionReference', 32),
       str('withdrawnAt', 32),
+      /**
+       * Who entered this for a member who cannot use the app.
+       *
+       * Absent on a declaration the member made themselves, which is the distinction
+       * that decides who may accept it: the maker must never be the checker, and on
+       * these the maker is the officer rather than the member.
+       */
+      bool('recordedOnBehalf'),
+      str('recordedBy', TEXT_SIZE.id),
+      str('recordedByName', TEXT_SIZE.short),
+      str('recordedByRole', 32),
     ],
     indexes: [
       { key: 'unique_reference', type: 'unique', columns: ['reference'] },

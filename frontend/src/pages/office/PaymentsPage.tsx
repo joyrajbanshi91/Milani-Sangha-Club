@@ -10,6 +10,7 @@ import { useAuth } from '@/features/auth/authContext'
 import { READ_ONLY_NOTE, useCanRecordFinance } from '@/features/auth/permissions'
 import { financeApi } from '@/features/finance/api'
 import { formatDate, formatDateTime, formatPaise } from '@/features/finance/money'
+import { RecordForMember } from '@/features/payments/RecordForMember'
 import {
   PAYMENT_METHOD_LABEL,
   PAYMENT_PURPOSE_LABEL,
@@ -54,6 +55,8 @@ export function PaymentsPage() {
   const raw = params.get('status')
   const status: PaymentStatus | 'all' = isStatus(raw) ? raw : 'pending_verification'
 
+  const canRecord = useCanRecordFinance()
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['payments', 'queue', status],
     queryFn: () => officePaymentsApi.queue(status),
@@ -71,7 +74,13 @@ export function PaymentsPage() {
           bearer is needed: the member put the money forward, you are the check, and{' '}
           <strong>nobody can accept their own payment</strong>.
         </p>
+        <p className="mt-2 text-sm/relaxed text-ink-500">
+          For a member who cannot use the app, record their payment yourself below. That one is
+          the other way round — you are the maker, so another bearer has to accept it.
+        </p>
       </div>
+
+      {canRecord ? <RecordForMember /> : null}
 
       <CheckAReceipt />
 
@@ -133,6 +142,15 @@ function PaymentRow({ payment }: { payment: Payment }) {
    * refusal after they have filled in the form.
    */
   const isOwn = user?.uid === payment.memberUid
+  /**
+   * The same rule, reached the other way.
+   *
+   * On a payment an officer recorded for a member, the maker is that officer rather than
+   * the member — so they are the one who must not also be the checker. `isOwn` cannot
+   * catch it, because the payment belongs to the member. The server refuses it either
+   * way; this is so the button is not offered.
+   */
+  const isMine = payment.recordedBy !== undefined && user?.uid === payment.recordedBy
   const open = payment.status === 'pending_verification'
   const canRecord = useCanRecordFinance()
 
@@ -150,6 +168,13 @@ function PaymentRow({ payment }: { payment: Payment }) {
               {PAYMENT_STATUS_LABEL[payment.status]}
             </span>
             <span className="font-mono text-xs text-ink-400">{payment.reference}</span>
+            {payment.recordedOnBehalf ? (
+              // The bearer about to accept this must know it was not the member who sent
+              // it in — that is what decides whether they are allowed to accept it.
+              <span className="inline-flex items-center rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-800">
+                Recorded for the member
+              </span>
+            ) : null}
           </div>
 
           <p className="mt-2 font-medium text-ink-900">{payment.memberName}</p>
@@ -181,9 +206,15 @@ function PaymentRow({ payment }: { payment: Payment }) {
               </div>
             ) : null}
             <div className="flex gap-1.5">
-              <dt className="font-medium">Declared:</dt>
+              <dt className="font-medium">{payment.recordedOnBehalf ? 'Recorded:' : 'Declared:'}</dt>
               <dd>{formatDateTime(payment.submittedAt)}</dd>
             </div>
+            {payment.recordedByName ? (
+              <div className="flex gap-1.5">
+                <dt className="font-medium">Entered by:</dt>
+                <dd>{payment.recordedByName}</dd>
+              </div>
+            ) : null}
           </dl>
 
           {payment.status === 'approved' ? (
@@ -215,6 +246,12 @@ function PaymentRow({ payment }: { payment: Payment }) {
               <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
               This is your own payment, so another officer must verify it. Confirming your own
               payment would defeat the check.
+            </p>
+          ) : isMine ? (
+            <p className="flex gap-2 text-xs/relaxed text-amber-700">
+              <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
+              You recorded this for {payment.memberName}, so another office bearer must accept it.
+              Whoever enters a payment cannot also be the one who checks it.
             </p>
           ) : reviewing ? (
             <ReviewForm payment={payment} onDone={() => setReviewing(false)} />

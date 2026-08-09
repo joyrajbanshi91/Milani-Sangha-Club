@@ -98,11 +98,13 @@ export function newEntryState(
 /**
  * The state an entry starts in when the officer writing it is the *checker*.
  *
- * Used for one thing: a member's declared payment, entered by the officer who verified
- * it. The maker is the member, the checker is the officer, and they cannot be the same
- * person — `canReview` refuses an officer their own declaration. So the entry is posted
- * with that officer's signature on it rather than queued for somebody else, and the
- * member's money reaches the books the moment a bearer accepts it.
+ * Used for one thing: a member's payment, entered by the officer who verified it. The
+ * maker is whoever put the payment forward — the member from their own page, or the
+ * officer who recorded it for a member who cannot use the app — and the checker is the
+ * officer accepting it. They cannot be the same person: `canReview` refuses an officer
+ * both their own declaration and one they recorded on somebody's behalf. So the entry
+ * is posted with the checker's signature rather than queued for a third bearer, and the
+ * member's money reaches the books the moment a second person accepts it.
  *
  * Deliberately not the default and not reachable from any route where an officer writes
  * an entry of their own: `FinanceService.createEntry` takes it as an explicit option,

@@ -199,6 +199,23 @@ export function canReview(payment: Payment, actor: Actor): Outcome<true> {
     )
   }
 
+  /**
+   * The officer who entered it on a member's behalf cannot also accept it.
+   *
+   * Without this the whole two-person rule falls over on the one route where an officer
+   * writes the declaration: they would be the maker *and* the checker, and money would
+   * reach the books on a single signature while every screen said two people had been
+   * involved. The self-check above cannot catch it, because the payment belongs to the
+   * member, not to the officer who typed it.
+   */
+  if (payment.recordedBy === actor.uid) {
+    return fail(
+      'self_verification',
+      'You recorded this payment for the member, so another office bearer must accept it. ' +
+        'Whoever enters a payment cannot also be the one who checks it.'
+    )
+  }
+
   return { ok: true, value: true }
 }
 

@@ -5,6 +5,8 @@ import {
   CATEGORY_KINDS,
   FUND_KINDS,
   MEMBERSHIP_DUES,
+  PAYMENT_METHODS,
+  PAYMENT_PURPOSES,
   PAYMENT_STATUSES,
   TRANSACTION_KINDS,
   TRANSACTION_STATUSES,
@@ -286,9 +288,15 @@ financeRouter.post('/transactions/:id/reverse', requireFinanceWriter, async (req
 // member says what they paid; an officer checks it against the club's records and
 // either enters it in the books or says why not.
 //
-// Recording one creates an ordinary *pending* entry through the same service the
-// manual form uses, so it gathers the recording officer's signature and no more —
-// a second officer still has to approve it before any balance moves.
+// Accepting one **posts it to the books there and then**, on that officer's signature.
+// Two people have been involved by that point — the member who put the money forward
+// and the bearer who checked it — and `canReview` guarantees they are not the same
+// person. Asking a third would leave the member holding a receipt for money the club's
+// own figures did not yet include.
+//
+// A payment an officer records *for* a member (POST /finance/payments, below) turns the
+// same machinery round: the officer is the maker, so a different bearer must be the
+// checker, and `canReview` refuses whoever recorded it. Two people either way.
 // ---------------------------------------------------------------------------
 
 financeRouter.get('/payments', async (req: Request, res: Response) => {
@@ -299,6 +307,82 @@ financeRouter.get('/payments', async (req: Request, res: Response) => {
       : 'pending_verification'
 
   res.json({ payments: await payments.list({ status: parsedStatus }) })
+})
+
+const isMonthString = z.string().refine(isIsoMonth, 'Use the format YYYY-MM, e.g. 2026-04')
+
+/**
+ * Mirrors the member's own form, with one field added: whose payment it is.
+ *
+ * `.strict()` so a field nobody meant to send is refused rather than ignored — the
+ * fields this route does *not* take are the point of it. Status, reference, receipt
+ * number and the recorded-by trio are all decided by the server.
+ */
+const onBehalfSchema = z
+  .object({
+    memberUid: z.string().min(1, 'Choose which member this payment is for'),
+    purpose: z.enum(PAYMENT_PURPOSES),
+    method: z.enum(PAYMENT_METHODS),
+    periodStart: isMonthString.optional(),
+    periodEnd: isMonthString.optional(),
+    amount: amountSchema,
+    paidOn: isoDate,
+    externalReference: z.string().trim().max(128).optional(),
+    handedTo: z.string().trim().max(128).optional(),
+    note: z.string().trim().max(500).optional(),
+  })
+  .strict()
+
+/**
+ * Record a payment for a member who cannot use the app.
+ *
+ * The member's name is read from their account, never from the request: an officer
+ * choosing a name from a list and an officer typing one into a box are different
+ * things, and only the first can be reconciled against the club's register.
+ *
+ * It lands in the same verification queue as a member's own declaration, so nothing
+ * about the money's route into the books changes — except who has to accept it, which
+ * is now anybody except the officer who recorded it.
+ */
+financeRouter.post('/payments', requireFinanceWriter, async (req: Request, res: Response) => {
+  const input = onBehalfSchema.parse(req.body)
+  const actor = actorOf(req)
+
+  const member = (await auth.listAccounts()).find((account) => account.uid === input.memberUid)
+  if (!member) {
+    throw notFound(
+      'That member could not be found. They may have been removed since this page was opened.'
+    )
+  }
+
+  const result = await payments.submitFor(
+    {
+      memberUid: member.uid,
+      memberName: member.name,
+      purpose: input.purpose,
+      method: input.method,
+      amountPaise: input.amount,
+      paidOn: input.paidOn,
+      ...(input.periodStart ? { periodStart: input.periodStart } : {}),
+      ...(input.periodEnd ? { periodEnd: input.periodEnd } : {}),
+      ...(input.externalReference ? { externalReference: input.externalReference } : {}),
+      // Cash with nobody named would fail validation, and the honest default is the
+      // officer entering it — they are the one who has the money.
+      handedTo: input.handedTo?.trim() ? input.handedTo : actor.name,
+      ...(input.note ? { note: input.note } : {}),
+    },
+    actor
+  )
+
+  if (!result.ok) throw toHttpError(result)
+
+  res.status(201).json({
+    payment: result.value,
+    message:
+      `Recorded for ${member.name}. Acknowledgement ${result.value.reference}. ` +
+      'Another office bearer must accept it before it reaches the books and a receipt is issued — ' +
+      'you cannot accept your own entry.',
+  })
 })
 
 /**
@@ -510,6 +594,7 @@ function toHttpError(result: { code: string; reason: string }): AppError {
       // "nothing happened", which is the one thing that is not true.
       return new AppError(409, result.code, result.reason)
     case 'self_verification':
+    case 'self_record':
     case 'not_open':
     case 'self_approval':
     case 'self_rejection':
@@ -520,6 +605,12 @@ function toHttpError(result: { code: string; reason: string }): AppError {
     case 'not_pending':
     case 'not_posted':
     case 'already_reversed':
+      return new AppError(409, result.code, result.reason)
+    case 'duplicate':
+    case 'months_already_covered':
+      // Reachable from POST /payments, recorded for a member. The form was filled in
+      // correctly and the months are simply already taken — the same answer the
+      // member's own route gives, because it is the same refusal.
       return new AppError(409, result.code, result.reason)
     default:
       return new AppError(400, result.code, result.reason)

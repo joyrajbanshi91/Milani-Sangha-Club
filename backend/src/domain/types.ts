@@ -205,6 +205,27 @@ export interface Payment {
    */
   securityCode?: string
 
+  /**
+   * Set when an officer entered this for a member who cannot use the app.
+   *
+   * Plenty of members have an account they have never signed into — no smartphone, a
+   * forgotten password, no wish to learn. They still pay their subscription, in cash,
+   * to whoever is at the club that evening. Without this the money either never
+   * reaches the member's record or is entered under the officer's own name, and the
+   * member's page says they have paid nothing all year.
+   *
+   * It changes who the *maker* is, which is the part that matters. A declaration
+   * normally comes from the member, so the officer accepting it is the second pair of
+   * eyes and it posts on their signature. Here the officer is the maker, so a
+   * different officer has to be the checker — `canReview` refuses whoever recorded it,
+   * exactly as it refuses an officer their own declaration.
+   */
+  recordedOnBehalf?: boolean
+  /** The officer who entered it. Never the member. */
+  recordedBy?: string
+  recordedByName?: string
+  recordedByRole?: Role
+
   /** ISO timestamp. */
   submittedAt: string
 

@@ -36,6 +36,21 @@ export interface Payment {
   handedTo?: string
   note?: string
 
+  /**
+   * Set when an officer entered this for a member who cannot use the app.
+   *
+   * It is still the member's payment — their uid, their months, their receipt. What
+   * this records is that an officer, not the member, is the one who put it forward,
+   * which is why a *different* officer has to accept it. Shown wherever the payment
+   * appears, including on the member's own page: somebody who does eventually sign in
+   * must not find a payment they never declared with no explanation of where it
+   * came from.
+   */
+  recordedOnBehalf?: boolean
+  recordedBy?: string
+  recordedByName?: string
+  recordedByRole?: Role
+
   submittedAt: string
 
   reviewedAt?: string
@@ -59,6 +74,17 @@ export interface Payment {
   securityCode?: string
 
   withdrawnAt?: string
+}
+
+/**
+ * What an officer sends when recording a payment for a member.
+ *
+ * The member's own submission plus the one thing it cannot carry: whose payment it is.
+ * Everything else the server decides — the reference, the status, the security code,
+ * and who recorded it, which comes from the officer's token and never from here.
+ */
+export interface OnBehalfSubmission extends PaymentSubmission {
+  memberUid: string
 }
 
 export interface PaymentSubmission {
@@ -161,6 +187,16 @@ export const officePaymentsApi = {
     api.get<{ payments: Payment[] }>(`/finance/payments?status=${status}`),
 
   roster: (year?: string) => api.get<Roster>(`/finance/members${year ? `?year=${year}` : ''}`),
+
+  /**
+   * Record a payment for a member who cannot use the app.
+   *
+   * It joins the same queue as a member's own declaration, so the money's route into
+   * the books is unchanged — only who may accept it. The officer who calls this cannot
+   * be the one who verifies it, and the server refuses them if they try.
+   */
+  recordFor: (body: OnBehalfSubmission) =>
+    api.post<{ payment: Payment; message: string }>('/finance/payments', body),
 
   record: (id: string, body: { fundId: string; categoryId: string; note?: string }) =>
     api.post<{ payment: Payment; transaction: Transaction; message: string }>(

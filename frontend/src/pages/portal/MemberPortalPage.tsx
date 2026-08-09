@@ -735,10 +735,22 @@ function MyPayments() {
                     · {PAYMENT_METHOD_LABEL[payment.method]} · paid {formatDate(payment.paidOn)}
                   </p>
                   <p className="mt-0.5 text-xs text-ink-500">
-                    Sent {formatDateTime(payment.submittedAt)}
+                    {payment.recordedOnBehalf ? 'Recorded' : 'Sent'}{' '}
+                    {formatDateTime(payment.submittedAt)}
                     {payment.externalReference ? ` · ref ${payment.externalReference}` : ''}
                     {payment.handedTo ? ` · given to the ${payment.handedTo.toLowerCase()}` : ''}
                   </p>
+
+                  {/*
+                    Somebody signing in for the first time in a year must not find a
+                    payment they never made themselves and have no way to explain it.
+                    Named, so they know who to ask if it looks wrong.
+                  */}
+                  {payment.recordedOnBehalf ? (
+                    <p className="mt-1 text-xs text-sky-800">
+                      Entered for you at the club by {payment.recordedByName ?? 'an office bearer'}.
+                    </p>
+                  ) : null}
 
                   {/*
                     The code that makes the receipt checkable.

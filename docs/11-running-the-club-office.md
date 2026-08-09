@@ -418,16 +418,20 @@ for money the club's figures did not yet include.
 An entry an officer **types in themselves** is the opposite case — maker and checker
 would be the same person — so it still needs one other bearer, exactly as before.
 
+A payment an officer records **for** a member who cannot use the app sits with the
+second case, not the first: the officer put it forward, so a different bearer accepts
+it. See §5.
+
 ### Who can record
 
-| Role | Can record | Can approve someone else's | Can verify a member's payment |
-| --- | --- | --- | --- |
-| `treasurer` (the cashier) | yes | yes | yes — but never their own |
-| `secretary` | yes | yes | yes — but never their own |
-| `president` | yes | yes | yes — but never their own |
-| `administrator` | yes | yes | yes — but never their own |
-| `culturalSecretary`, `gameSecretary` | no — they see the accounts and change nothing | no | no |
-| `member`, `volunteer`, `visitor` | no — they do not see the accounts at all | no | no |
+| Role | Can record | Can approve someone else's | Can verify a member's payment | Can record a payment for a member |
+| --- | --- | --- | --- | --- |
+| `treasurer` (the cashier) | yes | yes | yes — but never their own | yes — but somebody else accepts it |
+| `secretary` | yes | yes | yes — but never their own | yes — but somebody else accepts it |
+| `president` | yes | yes | yes — but never their own | yes — but somebody else accepts it |
+| `administrator` | yes | yes | yes — but never their own | yes — but somebody else accepts it |
+| `culturalSecretary`, `gameSecretary` | no — they see the accounts and change nothing | no | no | no |
+| `member`, `volunteer`, `visitor` | no — they do not see the accounts at all | no | no | no |
 
 Approving is not a separate permission: **any bearer can approve any entry except one
 they recorded themselves.** You control who can approve by controlling roles.
@@ -751,6 +755,50 @@ their own payment.
 **If your club has only one active officer, nobody can verify that officer's own
 subscription.** That is the rule working, not a fault. Give a second person the
 `secretary` role — see §1.
+
+### A member who cannot use the app
+
+Plenty of members have an account they have never signed into — no smartphone, a
+forgotten password, no wish to learn — and pay their subscription in cash at the club as
+they always have. **Office → Members' payments → Record a payment for a member** is how
+that money reaches their record instead of being entered as an anonymous ledger line.
+
+Choose the member from the register, fill in the same form the member would, and it
+lands in the verification queue. From that point it is an ordinary payment: it appears
+on the member's own page, their months are marked when it is accepted, and their receipt
+carries their name.
+
+**It is the one payment you cannot accept yourself.** You entered it, so you are the
+*maker* — and the whole two-person rule rests on the maker never being the checker. On a
+member's own declaration the member is the maker, which is why one bearer accepting is
+enough; here that person is you, so another bearer has to accept it. The screen says so
+before you start, the **Verify** button is not offered to you afterwards, and the API
+refuses it if something tries anyway.
+
+Three things worth knowing:
+
+- **You cannot record your own subscription here.** Declare it on your own membership
+  page like everybody else. Going through this form would make you the maker of a
+  payment about your own money, which is the loophole the rule exists to shut.
+- **Who entered it is stored on the payment** — name, role and account — and shown on
+  the queue, on the member's own page and in the audit trail. A member signing in for
+  the first time in a year must not find a payment they never made with no explanation
+  of where it came from.
+- **A duplicate is caught.** If the member already declared the same payment from their
+  phone, the form refuses it rather than crediting the club twice for money it received
+  once.
+
+> **If the club is already on Appwrite, run the provisioner once before using this.**
+> Four columns are new — `recordedOnBehalf`, `recordedBy`, `recordedByName`,
+> `recordedByRole` — and a deploy does not create them:
+>
+> ```bash
+> npm run appwrite:provision -- --write
+> ```
+>
+> It is safe to re-run and leaves everything already there alone. Without it the
+> payments still record, and who entered them would not be stored — which is the part
+> that makes them checkable.
 
 ### If it goes wrong halfway
 

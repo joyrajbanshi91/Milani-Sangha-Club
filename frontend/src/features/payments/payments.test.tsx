@@ -537,6 +537,225 @@ describe('the officers’ queue', () => {
 })
 
 /**
+ * Recording a payment for a member who cannot use the app.
+ *
+ * The club has members with an account they have never signed into who pay in cash at
+ * the club as they always have. The tests here are mostly about the way it could go
+ * wrong: this is the one route where an *officer* is the maker of a payment, and the
+ * two-person rule has to hold on it just as firmly as everywhere else.
+ */
+describe('recording a payment for a member', () => {
+  const ROSTER = {
+    members: [
+      {
+        uid: 'u-member',
+        name: 'Ordinary Member',
+        email: 'member@example.org',
+        role: 'member',
+        former: false,
+        membership: register(),
+        awaitingVerification: 0,
+      },
+      {
+        // The officer using the form. Must not be offered to themselves.
+        uid: 'u-treasurer',
+        name: 'Treasurer',
+        email: 'treasurer@example.org',
+        role: 'treasurer',
+        former: false,
+        membership: register(),
+        awaitingVerification: 0,
+      },
+      {
+        // Gone from the club. Their money stays in the books; new money does not.
+        uid: 'u-former',
+        name: 'Former Member',
+        email: 'former@example.org',
+        role: 'member',
+        former: true,
+        membership: register(),
+        awaitingVerification: 0,
+      },
+    ],
+    financialYear: '2026-27',
+    dues: DUES,
+    totals: {
+      members: 3,
+      paidInFull: 0,
+      nothingPaid: 3,
+      overduePaise: 0,
+      outstandingPaise: 0,
+      awaitingVerification: 0,
+    },
+  }
+
+  function officeDefaults(url: string): Response | null {
+    if (url.includes('/finance/members')) return json(ROSTER)
+    if (url.includes('/finance/payments')) return json({ payments: [] })
+    return null
+  }
+
+  it('posts against the chosen member, with the months and the computed amount', async () => {
+    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+      const path = String(url)
+      if (path.includes('/finance/payments') && init?.method === 'POST') {
+        return Promise.resolve(
+          json({ payment: payment({ recordedOnBehalf: true }), message: 'Recorded.' }, 201)
+        )
+      }
+      return Promise.resolve(officeDefaults(path) ?? json({}))
+    })
+
+    renderWith(<PaymentsPage />, TREASURER)
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: /record a payment for a member/i })
+    )
+    await userEvent.selectOptions(await screen.findByLabelText(/which member/i), 'u-member')
+    await userEvent.click(screen.getByRole('button', { name: /record it/i }))
+
+    const posted = await waitFor(() => {
+      const found = calls().find(
+        (call) => call.method === 'POST' && call.url.includes('/finance/payments')
+      )
+      expect(found).toBeDefined()
+      return found
+    })
+
+    /**
+     * The member's uid travels with it, and the amount is derived from the months
+     * exactly as on the member's own form — the server refuses a subscription whose
+     * amount does not match its months, so a typed figure could only be rejected.
+     */
+    expect(posted?.body).toMatchObject({
+      memberUid: 'u-member',
+      purpose: 'membership',
+      method: 'cash',
+      periodStart: '2026-04',
+      periodEnd: '2026-04',
+      amount: '50.00',
+      // Cash has to name who took it, and the officer entering it is the honest
+      // default — they are the one holding the money.
+      handedTo: 'Treasurer',
+    })
+  })
+
+  it('does not offer the officer themselves, or anybody who has left', async () => {
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(officeDefaults(String(url)) ?? json({}))
+    )
+
+    renderWith(<PaymentsPage />, TREASURER)
+    await userEvent.click(
+      await screen.findByRole('button', { name: /record a payment for a member/i })
+    )
+
+    const select = await screen.findByLabelText(/which member/i)
+    const names = Array.from(select.querySelectorAll('option')).map((option) => option.textContent)
+
+    // Their own name, because the server refuses it — an officer declares their own
+    // subscription on their own page. A former member, because the club has no more
+    // subscriptions to take from them.
+    expect(names.join(' ')).toContain('Ordinary Member')
+    expect(names.join(' ')).not.toContain('Treasurer')
+    expect(names.join(' ')).not.toContain('Former Member')
+  })
+
+  it('says up front that somebody else has to accept it', async () => {
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(officeDefaults(String(url)) ?? json({}))
+    )
+
+    renderWith(<PaymentsPage />, TREASURER)
+    await userEvent.click(
+      await screen.findByRole('button', { name: /record a payment for a member/i })
+    )
+
+    // Before the form, not after a refusal. An officer who expects a receipt to appear
+    // and gets a queue entry instead concludes the software is broken.
+    expect(await screen.findByText(/another office bearer must accept it/i)).toBeInTheDocument()
+  })
+
+  it('refuses the officer who recorded it the Verify button', async () => {
+    // The self-check on `memberUid` cannot catch this: the payment belongs to the
+    // member. Without the check on `recordedBy`, the treasurer would be both maker and
+    // checker and the money would post on one signature.
+    fetchMock.mockImplementation((url: string) => {
+      const path = String(url)
+      if (path.includes('/finance/members')) return Promise.resolve(json(ROSTER))
+      return Promise.resolve(
+        json({
+          payments: [
+            payment({
+              recordedOnBehalf: true,
+              recordedBy: TREASURER.uid,
+              recordedByName: TREASURER.name,
+            }),
+          ],
+        })
+      )
+    })
+
+    renderWith(<PaymentsPage />, TREASURER)
+
+    expect(await screen.findByText(/you recorded this for ordinary member/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /verify this payment/i })).not.toBeInTheDocument()
+  })
+
+  it('lets a different officer accept it, and marks it as recorded for the member', async () => {
+    fetchMock.mockImplementation((url: string) => {
+      const path = String(url)
+      if (path.includes('/finance/members')) return Promise.resolve(json(ROSTER))
+      return Promise.resolve(
+        json({
+          payments: [
+            payment({
+              recordedOnBehalf: true,
+              recordedBy: 'u-secretary',
+              recordedByName: 'Secretary',
+            }),
+          ],
+        })
+      )
+    })
+
+    renderWith(<PaymentsPage />, TREASURER)
+
+    // The badge is not decoration: it is what tells the bearer about to accept this
+    // that the member did not send it in, which is what decides whether they may.
+    expect(await screen.findByText(/recorded for the member/i)).toBeInTheDocument()
+    expect(screen.getByText('Secretary')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /verify this payment/i })).toBeInTheDocument()
+  })
+
+  it('explains itself on the member’s own page', async () => {
+    fetchMock.mockImplementation((url: string) => {
+      const path = String(url)
+      if (path.includes('/members/me/payments')) {
+        return Promise.resolve(
+          json({
+            payments: [
+              payment({
+                recordedOnBehalf: true,
+                recordedBy: 'u-treasurer',
+                recordedByName: 'Treasurer',
+              }),
+            ],
+          })
+        )
+      }
+      return Promise.resolve(portalDefaults()(path) ?? json({}))
+    })
+
+    renderWith(<MemberPortalPage />, MEMBER)
+
+    // Somebody signing in for the first time in a year must not find a payment they
+    // never made and have no way to explain it — or to know who to ask about it.
+    expect(await screen.findByText(/entered for you at the club by treasurer/i)).toBeInTheDocument()
+  })
+})
+
+/**
  * The officers' membership register.
  *
  * The screen a committee meets over, so what it must never do is quietly omit a

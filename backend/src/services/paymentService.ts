@@ -1,5 +1,5 @@
 import type { Role } from '../config/constants.js'
-import type { Outcome } from '../domain/approval.js'
+import { isFinanceOfficer, type Outcome } from '../domain/approval.js'
 import { todayInIndia } from '../domain/dates.js'
 import { earliestOpenDate } from '../domain/financialYear.js'
 import {
@@ -197,6 +197,87 @@ export class PaymentService {
       targetId: created.id,
       details: {
         reference: created.reference,
+        amountPaise: created.amountPaise,
+        method: created.method,
+        purpose: created.purpose,
+      },
+    })
+
+    return { ok: true, value: created }
+  }
+
+  /**
+   * Record a payment for a member who cannot use the app.
+   *
+   * The club has members with an account they have never signed into, who pay their
+   * subscription in cash at the club like they always have. This is how that money
+   * reaches their own record rather than being lost or filed under an officer's name.
+   *
+   * **It is the member's payment, not the officer's.** `memberUid` is the member's, so
+   * their months, their register, their receipt and their page all follow from it with
+   * nothing else to keep in step — that is the whole reason it is written here rather
+   * than as a bare ledger entry.
+   *
+   * **But the officer is the maker**, and that is what `recordedOnBehalf` records. A
+   * member's own declaration posts on the first officer to accept it, because the
+   * member put it forward and the officer is provably somebody else. Here the officer
+   * put it forward, so `canReview` refuses them their own record and a different bearer
+   * has to accept it. Two people either way; the pair is just a different pair.
+   *
+   * Refused for oneself. An officer paying their own subscription declares it on their
+   * own membership page like everybody else — routing it through here would make them
+   * the maker of a payment nobody else had to check first, which is the loophole this
+   * whole arrangement exists to keep shut.
+   */
+  async submitFor(
+    draft: PaymentDraft,
+    actor: Actor
+  ): Promise<Outcome<Payment>> {
+    if (!isFinanceOfficer(actor.role)) {
+      return {
+        ok: false,
+        code: 'not_officer',
+        reason: 'Only the treasurer, secretary or president may record a payment for a member.',
+      }
+    }
+
+    if (draft.memberUid === actor.uid) {
+      return {
+        ok: false,
+        code: 'self_record',
+        reason:
+          'Declare your own subscription from your own membership page. Recording it here ' +
+          'would make you both the person paying and the person entering it.',
+      }
+    }
+
+    // The member's own history, for the duplicate check — the same guard the member's
+    // form uses, and it matters more here: an officer working through a receipt book
+    // has no way of knowing the member already declared this from their phone.
+    const existing = await this.store.listForMember(draft.memberUid)
+
+    const valid = validatePaymentDraft(draft, { today: todayInIndia(), existing })
+    if (!valid.ok) return valid
+
+    const created = await this.store.create({
+      ...draft,
+      status: 'pending_verification',
+      securityCode: await this.allocateSecurityCode(),
+      submittedAt: this.now(),
+      recordedOnBehalf: true,
+      recordedBy: actor.uid,
+      recordedByName: actor.name,
+      recordedByRole: actor.role,
+    })
+
+    await this.audit({
+      action: 'payment.recordedOnBehalf',
+      actor,
+      targetId: created.id,
+      details: {
+        reference: created.reference,
+        member: created.memberName,
+        memberUid: created.memberUid,
         amountPaise: created.amountPaise,
         method: created.method,
         purpose: created.purpose,
