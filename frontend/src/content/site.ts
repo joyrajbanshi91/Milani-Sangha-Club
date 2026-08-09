@@ -259,9 +259,11 @@ export const home = {
      *   • topRight   — square
      *   • bottomLeft — square
      *
-     * These appear on laptops and desktops only. Phones show the banner text
-     * alone, which is deliberate: three photographs on a small screen push the
-     * "Become a member" button off it.
+     * On a phone the three sit in a row of squares under the buttons; on a
+     * laptop they become the overlapping arrangement beside the headline. So
+     * the tall one is only tall on a big screen — on a phone it is cropped
+     * square like the other two, which is another reason to keep the subject
+     * in the middle.
      */
 
     collage: {

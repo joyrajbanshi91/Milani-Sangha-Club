@@ -286,22 +286,40 @@ function Hero() {
             in site.ts names one, and a coloured monogram until then — the club
             supplies them one at a time, and a half-filled collage must still look
             arranged rather than broken.
+
+            ## Two layouts, one set of images
+
+            On a phone the three sit in a plain row of squares, below the headline and
+            the buttons; from `lg` up they become the overlapping, slightly rotated
+            arrangement beside the text.
+
+            Written as responsive classes on the *same* elements rather than as a
+            mobile block and a desktop block, because `hidden` does not stop a browser
+            downloading an image — a second copy would have cost every phone three
+            photographs it never displayed. One set of `<img>` tags, reflowed.
+
+            The collage was hidden below `lg` until the club asked for it. The original
+            reason was real and is worth keeping in mind: three photographs stacked
+            above the fold push "Become a member" off a small screen. Putting them
+            *after* the buttons rather than before is what makes showing them safe.
           */}
-          <Reveal className="relative hidden lg:block">
+          <Reveal className="relative grid grid-cols-3 items-start gap-3 lg:block">
             <Photo
               picture={hero.collage.tall}
               shape="portrait"
-              className="rotate-2 shadow-lift ring-8 ring-white/60 transition-transform duration-500 hover:rotate-0"
+              // Square on a phone so the three read as one row; upright from lg, which
+              // is the shape the arrangement beside the text is built around.
+              className="aspect-square shadow-lift ring-4 ring-white/60 transition-transform duration-500 lg:aspect-4/5 lg:rotate-2 lg:ring-8 lg:hover:rotate-0"
             />
             <Photo
               picture={hero.collage.bottomLeft}
               shape="square"
-              className="absolute -bottom-8 -left-10 w-40 -rotate-6 shadow-lift ring-8 ring-white/70 transition-transform duration-500 hover:rotate-0"
+              className="shadow-lift ring-4 ring-white/70 transition-transform duration-500 lg:absolute lg:-bottom-8 lg:-left-10 lg:w-40 lg:-rotate-6 lg:ring-8 lg:hover:rotate-0"
             />
             <Photo
               picture={hero.collage.topRight}
               shape="square"
-              className="absolute -right-6 -top-8 w-28 rotate-6 shadow-lift ring-8 ring-white/70 transition-transform duration-500 hover:rotate-0"
+              className="shadow-lift ring-4 ring-white/70 transition-transform duration-500 lg:absolute lg:-right-6 lg:-top-8 lg:w-28 lg:rotate-6 lg:ring-8 lg:hover:rotate-0"
             />
           </Reveal>
         </div>

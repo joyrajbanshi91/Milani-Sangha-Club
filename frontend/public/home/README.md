@@ -35,7 +35,7 @@ never leaves the banner looking broken.
 
 | Key | Position | Shape to supply |
 | --- | --- | --- |
-| `tall` | The large picture, centre | Upright, about 4 wide × 5 tall (e.g. 1200 × 1500) |
+| `tall` | The large picture, centre | Upright, about 4 wide × 5 tall (e.g. 1200 × 1500) — but cropped **square** on a phone |
 | `topRight` | Small, above right | Square (e.g. 800 × 800) |
 | `bottomLeft` | Small, below left | Square (e.g. 800 × 800) |
 

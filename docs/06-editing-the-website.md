@@ -266,8 +266,10 @@ Two steps:
 - **Shrink the files first.** There is no resize command for this folder — all three load
   before the visitor sees anything, so aim for about 300 KB each. On macOS, Preview →
   Tools → Adjust Size.
-- **Laptops and desktops only.** Phones show the headline alone, on purpose: three
-  photographs on a small screen push the "Become a member" button off it.
+- **Phones show all three too**, as a row of squares *below* the buttons — under them
+  rather than above, so "Become a member" is still on the first screen. The tall one is
+  cropped square there, so a subject near the top or bottom of that photograph will be
+  lost on a phone even though it looks right on a laptop.
 
 `frontend/public/home/README.md` repeats these notes beside the files.
 
