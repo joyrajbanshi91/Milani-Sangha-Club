@@ -234,6 +234,42 @@ export const home = {
     lead: 'Sporting fixtures, cultural evenings and service work — organised through the year by members, for members and for the neighbourhood around us.',
     primaryCta: { label: 'Become a member', to: '/membership' },
     secondaryCta: { label: 'See what’s on', to: '/events' },
+
+    /**
+     * THE THREE PICTURES BESIDE THE BANNER TEXT.
+     *
+     * Until you fill these in, each one shows a coloured tile with initials on
+     * it — 'NC', 'CE', 'SW' — which is the stand-in, not a mistake.
+     *
+     * To use real photographs:
+     *   1. Save the files in  frontend/public/home/
+     *   2. Write the path here from the site root, so a file saved as
+     *      frontend/public/home/ground.jpg is written '/home/ground.jpg'
+     *      — leading slash, and the word "public" does not appear.
+     *
+     * `label` is the alt text a screen reader reads out, and the word the
+     * stand-in tile takes its initials from. Say what is in the picture.
+     *
+     * Fill in one, two or all three: any left as '' keeps its coloured tile, at
+     * the same size, so the arrangement does not fall apart half way through.
+     *
+     * The pictures are cropped from the centre to fit their frames, so choose
+     * files with the subject in the middle:
+     *   • tall       — upright, roughly 4 wide by 5 tall
+     *   • topRight   — square
+     *   • bottomLeft — square
+     *
+     * These appear on laptops and desktops only. Phones show the banner text
+     * alone, which is deliberate: three photographs on a small screen push the
+     * "Become a member" button off it.
+     */
+
+    collage: {
+      tall: { image: '/home/outside.jpeg', label: 'New Barrackpore Milani Sangha Club' },
+      topRight: { image: '/home/inside3.jpeg', label: 'Service Work' },
+      bottomLeft: { image: '/home/ground.jpeg', label: 'Club Ground' },
+    },
+
     /**
      * The three figures under the banner. Replace with real numbers, or delete
      * an entry to show fewer. An empty array hides the row entirely.

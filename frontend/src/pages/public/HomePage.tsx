@@ -13,7 +13,7 @@ import { PlaceholderImage } from '@/components/ui/PlaceholderImage'
 import { Reveal } from '@/components/ui/Reveal'
 import { Section } from '@/components/ui/Section'
 import { SectionHeading } from '@/components/ui/SectionHeading'
-import { club, events, gallery, home, news, sponsors, testimonials } from '@/content/site'
+import { events, gallery, home, news, sponsors, testimonials } from '@/content/site'
 import { photosFor } from '@/features/gallery/photos'
 import { cn } from '@/lib/cn'
 import { isUpcoming } from '@/lib/format'
@@ -231,20 +231,25 @@ function Hero() {
             ) : null}
           </Reveal>
 
-          {/* Decorative collage. Replace with real photographs of the club. */}
+          {/*
+            The collage. Each tile is the club's own photograph once `hero.collage`
+            in site.ts names one, and a coloured monogram until then — the club
+            supplies them one at a time, and a half-filled collage must still look
+            arranged rather than broken.
+          */}
           <Reveal className="relative hidden lg:block">
-            <PlaceholderImage
-              label={club.name}
+            <CollageTile
+              picture={hero.collage.tall}
               shape="portrait"
               className="rotate-2 shadow-lift ring-8 ring-white/60 transition-transform duration-500 hover:rotate-0"
             />
-            <PlaceholderImage
-              label="Club events"
+            <CollageTile
+              picture={hero.collage.bottomLeft}
               shape="square"
               className="absolute -bottom-8 -left-10 w-40 -rotate-6 shadow-lift ring-8 ring-white/70 transition-transform duration-500 hover:rotate-0"
             />
-            <PlaceholderImage
-              label="Service work"
+            <CollageTile
+              picture={hero.collage.topRight}
               shape="square"
               className="absolute -right-6 -top-8 w-28 rotate-6 shadow-lift ring-8 ring-white/70 transition-transform duration-500 hover:rotate-0"
             />
@@ -257,6 +262,44 @@ function Hero() {
         aria-hidden="true"
       />
     </section>
+  )
+}
+
+/**
+ * One tile of the hero collage.
+ *
+ * A photograph when the club has supplied one, the monogram tile until then, at the
+ * same shape and angle either way — so adding the second picture does not shuffle the
+ * other two. `object-cover` crops from the centre, which is why the editing note in
+ * site.ts asks for the subject in the middle of the frame.
+ *
+ * No `loading="lazy"`: these sit at the top of the page, and a lazy hero photograph is
+ * a blank space at the moment the visitor is looking straight at it.
+ */
+function CollageTile({
+  picture,
+  shape,
+  className,
+}: {
+  picture: { image: string; label: string }
+  shape: 'portrait' | 'square'
+  className?: string
+}) {
+  if (!picture.image) {
+    return <PlaceholderImage label={picture.label} shape={shape} className={className} />
+  }
+
+  return (
+    <img
+      src={picture.image}
+      alt={picture.label}
+      decoding="async"
+      className={cn(
+        'rounded-card object-cover',
+        shape === 'portrait' ? 'aspect-4/5' : 'aspect-square',
+        className
+      )}
+    />
   )
 }
 

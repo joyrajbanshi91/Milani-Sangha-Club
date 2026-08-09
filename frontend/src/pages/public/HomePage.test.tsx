@@ -60,6 +60,31 @@ describe('HomePage', () => {
     }
   })
 
+  /**
+   * The banner collage, whichever state the club has it in.
+   *
+   * The three tiles are filled one at a time — a photograph arrives for one, the other
+   * two are still stand-ins — so the test reads the content file rather than assuming
+   * either state. Asserting on three placeholders would have failed the day the club
+   * added its first real picture, which is the opposite of useful.
+   */
+  it('shows every hero collage tile, as a photograph or as its stand-in', () => {
+    renderHome()
+
+    for (const picture of Object.values(home.hero.collage)) {
+      if (picture.image) {
+        expect(screen.getByRole('img', { name: picture.label })).toHaveAttribute(
+          'src',
+          picture.image
+        )
+      } else {
+        expect(
+          screen.getByLabelText(`Placeholder image for ${picture.label}`)
+        ).toBeInTheDocument()
+      }
+    }
+  })
+
   it('only advertises upcoming events in the diary section', () => {
     renderHome()
 

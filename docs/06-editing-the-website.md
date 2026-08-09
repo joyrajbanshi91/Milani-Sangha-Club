@@ -197,6 +197,47 @@ Scan the new QR yourself with a payment app before pushing, and check the name i
 That name is what the portal tells members to expect, and it is the only protection they
 have against a swapped code.
 
+### Put three photographs in the home page banner
+
+The top of the home page shows three tiles beside the headline. Until you supply
+pictures they are coloured squares with initials on them — **NC**, **CE** and **SW** —
+which is the stand-in, not a fault.
+
+Two steps:
+
+1. Save the files in `frontend/public/home/`.
+2. Open section 3 of `site.ts`, find `collage:` inside `hero:`, and fill in the paths:
+
+   ```ts
+   collage: {
+     tall:       { image: '/home/ground.jpg',       label: 'The club ground on a match day' },
+     topRight:   { image: '/home/blood-camp.jpg',   label: 'Our blood donation camp' },
+     bottomLeft: { image: '/home/puja-evening.jpg', label: 'The cultural evening' },
+   },
+   ```
+
+   The path starts with `/home/` — a leading slash, and the word `public` never appears
+   in it. This is the same rule as the logo and the committee photographs.
+
+- **`tall` is the big upright one** in the centre, roughly 4 wide by 5 tall.
+  `topRight` and `bottomLeft` are the two small square ones. Each is cropped from the
+  centre, so put the subject in the middle of the frame.
+- **`label` is read aloud** to visitors using a screen reader, and it is where the
+  stand-in tile's initials come from. Say what is in the picture, not "photo 1".
+- **Fill in one, two or all three.** Any left as `''` keeps its coloured tile at the same
+  size, so a banner filled in over several weeks never looks half-built.
+- **Copy the filename, capitals and all.** `Outside.jpeg` and `/home/outside.jpeg` are
+  the same file on a Mac and two different files on the Linux machine that builds the
+  site — so a wrong capital letter looks right locally and shows an empty tile once
+  deployed. Name the files in lower case with hyphens and the problem cannot arise.
+- **Shrink the files first.** There is no resize command for this folder — all three load
+  before the visitor sees anything, so aim for about 300 KB each. On macOS, Preview →
+  Tools → Adjust Size.
+- **Laptops and desktops only.** Phones show the headline alone, on purpose: three
+  photographs on a small screen push the "Become a member" button off it.
+
+`frontend/public/home/README.md` repeats these notes beside the files.
+
 ### Add photographs to the gallery
 
 Each album has a folder named after its slug. **Copy the photographs in and they are on
