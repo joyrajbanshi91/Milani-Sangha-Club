@@ -2,7 +2,7 @@ import { Check } from 'lucide-react'
 
 import { PageHero } from '@/components/layout/PageHero'
 import { LinkButton } from '@/components/ui/LinkButton'
-import { PlaceholderImage } from '@/components/ui/PlaceholderImage'
+import { Photo } from '@/components/ui/Photo'
 import { Reveal } from '@/components/ui/Reveal'
 import { Section } from '@/components/ui/Section'
 import { SectionHeading } from '@/components/ui/SectionHeading'
@@ -31,10 +31,14 @@ export function AboutPage() {
           </Reveal>
 
           <Reveal as="aside" className="space-y-6">
-            <PlaceholderImage
-              label={club.name}
+            {/*
+              The club's own photograph once site.ts names one, the monogram tile until
+              then — the same size either way, so the column keeps its shape.
+            */}
+            <Photo
+              picture={about.picture}
               shape="wide"
-              className="shadow-lift ring-8 ring-brand-50"
+              className="w-full shadow-lift ring-8 ring-brand-50"
             />
             <div className="rounded-card border border-brand-200 bg-brand-50/60 p-6">
               <h2 className="font-display text-lg text-ink-900">In brief</h2>

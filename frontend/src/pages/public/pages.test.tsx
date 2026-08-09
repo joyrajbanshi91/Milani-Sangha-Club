@@ -4,6 +4,7 @@ import type { ComponentType } from 'react'
 import { MemoryRouter } from 'react-router'
 import { describe, expect, it } from 'vitest'
 
+import { about } from '@/content/site'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { AboutPage } from '@/pages/public/AboutPage'
 import { CommitteePage } from '@/pages/public/CommitteePage'
@@ -64,6 +65,26 @@ describe.each(PAGES)('$name', ({ Component }) => {
     // One h1 per page is what keeps the heading outline usable for screen
     // readers and for search engines.
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+  })
+})
+
+describe('AboutPage picture', () => {
+  it('shows the club’s photograph, or its stand-in tile', () => {
+    renderPage(AboutPage)
+
+    // Read from the content file rather than assuming either state: the club fills
+    // these in over time, and a test asserting a placeholder would fail the day a
+    // photograph arrived — which is the opposite of useful.
+    if (about.picture.image) {
+      expect(screen.getByRole('img', { name: about.picture.label })).toHaveAttribute(
+        'src',
+        about.picture.image
+      )
+    } else {
+      expect(
+        screen.getByLabelText(`Placeholder image for ${about.picture.label}`)
+      ).toBeInTheDocument()
+    }
   })
 })
 

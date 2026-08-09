@@ -371,6 +371,29 @@ export const about = {
   eyebrow: 'About us',
   title: 'A member-run club with a long view',
   lead: 'The club is run entirely by its members. Every office bearer is elected, every account is presented to the general body, and every major decision is taken in the open.',
+  /**
+   * THE PICTURE BESIDE THE OPENING PARAGRAPHS.
+   *
+   * Same rules as the banner pictures on the home page: save the file in
+   * frontend/public/home/ and write the path here from the site root, so a file
+   * saved as frontend/public/home/outside.jpeg is written '/home/outside.jpeg'
+   * — leading slash, and the word "public" does not appear.
+   *
+   * Leave `image` empty ('') and it shows the coloured 'NC' tile instead, at the
+   * same size, so the page does not change shape either way.
+   *
+   * This frame is a wide one — roughly 16 across by 10 down — so a landscape
+   * photograph suits it. It is cropped from the centre, so put the subject in
+   * the middle of the frame.
+   *
+   * `label` is read aloud to visitors using a screen reader, and it is where the
+   * stand-in tile's initials come from.
+   */
+  picture: {
+    image: '/home/outside.jpeg',
+    label: 'New Barrackpore Milani Sangha Club',
+  },
+
   /** Each entry becomes a paragraph. Add or remove entries freely. */
   paragraphs: [
     'New Barrackpore Milani Sangha is a registered community club in Barrackpore, North 24 Parganas, dedicated to promoting unity, culture, sports, and social service. We bring together people of all ages through football tournaments, cultural programmes, festival celebrations, blood donation camps, and various community welfare initiatives.',

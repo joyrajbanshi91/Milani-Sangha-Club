@@ -271,6 +271,24 @@ Two steps:
 
 `frontend/public/home/README.md` repeats these notes beside the files.
 
+### The picture on the About page
+
+Section 6 of `site.ts`, `picture:` inside `about:`. Same rule as the banner — the file
+goes in `frontend/public/home/` and the path is written from the site root:
+
+```ts
+picture: {
+  image: '/home/outside.jpeg',
+  label: 'New Barrackpore Milani Sangha Club',
+},
+```
+
+It sits beside the opening paragraphs, in a **wide** frame — roughly 16 across by 10
+down — so a landscape photograph suits it, and it is cropped from the centre. Leave
+`image` as `''` and it shows the coloured **NC** tile at the same size instead.
+
+The same file can be used here and in the banner; nothing minds being pointed at twice.
+
 ### Add photographs to the gallery
 
 Each album has a folder named after its slug. **Copy the photographs in and they are on

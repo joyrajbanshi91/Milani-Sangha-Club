@@ -2,6 +2,10 @@
 
 **Put the three pictures for the top of the home page in this folder.**
 
+The About page's picture lives here too — it is set in section 6 of `site.ts`,
+`picture:` inside `about:`, and may point at one of the same files. Nothing minds
+being used twice.
+
 Anything in `frontend/public/` is served from the root of the website, so a file
 saved here as `ground.jpg` is reachable at `/home/ground.jpg`.
 
