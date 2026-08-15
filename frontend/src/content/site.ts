@@ -259,11 +259,9 @@ export const home = {
      *   • topRight   — square
      *   • bottomLeft — square
      *
-     * On a phone the three sit in a row of squares under the buttons; on a
-     * laptop they become the overlapping arrangement beside the headline. So
-     * the tall one is only tall on a big screen — on a phone it is cropped
-     * square like the other two, which is another reason to keep the subject
-     * in the middle.
+     * These appear on laptops and desktops only. Phones show the banner text
+     * alone, which is deliberate: three photographs on a small screen push the
+     * "Become a member" button off it.
      */
 
     collage: {
@@ -629,6 +627,16 @@ export interface EventItem {
 
 export const events: ReadonlyArray<EventItem> = [
   {
+    slug: 'Independence-day',
+    title: 'Independence flag hoisting',
+    date: '2026-08-15',
+    time: '08:00',
+    venue: 'Club ground',
+    category: 'Service',
+    summary:
+      'Former president hoist the flag on our Independence day.',
+  },
+  {
     slug: 'annual-general-meeting',
     title: 'Annual general body meeting',
     date: '2026-09-20',
@@ -668,6 +676,7 @@ export const events: ReadonlyArray<EventItem> = [
     summary:
       'Blood donation camp run with a local hospital.',
   },
+  
 ]
 
 // ===========================================================================
@@ -762,10 +771,12 @@ export interface AlbumItem {
 
 export const gallery: ReadonlyArray<AlbumItem> = [
   // Each slug has a folder of the same name in frontend/src/assets/gallery/.
+  { slug: 'Independence-day', title: 'Independece day', date: '2025-08-15', description: 'Former president hoist the flag on our Independence day.' },
   { slug: 'cultural-evening', title: 'Cultural evening', date: '2025-11-08', description: 'Performances by members and the prize distribution.' },
   { slug: 'tournament', title: 'Inter-club tournament', date: '2025-10-12', description: 'Match play, the final, and the presentation.' },
   { slug: 'health-camp', title: 'Blood donation camp', date: '2026-05-31', description: 'Blood donation camp run with a local hospital.' },
   { slug: 'founders-day', title: 'Founders’ day', date: '2025-08-15', description: 'Flag hoisting, prize giving and the community lunch.' },
+  
 ]
 
 // ===========================================================================
