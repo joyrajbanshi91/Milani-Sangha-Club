@@ -293,7 +293,7 @@ export const home = {
     stats: [
       { source: 'members', value: '40', label: 'Members' },
       { source: 'manual', value: '5', label: 'Events a year' },
-      { source: 'manual', value: '2015', label: 'Years serving the area' },
+      { source: 'manual', value: '11', label: 'Years serving the area' },
     ],
   },
 
