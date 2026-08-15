@@ -775,7 +775,7 @@ export const gallery: ReadonlyArray<AlbumItem> = [
   { slug: 'cultural-evening', title: 'Cultural evening', date: '2025-11-08', description: 'Performances by members and the prize distribution.' },
   { slug: 'tournament', title: 'Inter-club tournament', date: '2025-10-12', description: 'Match play, the final, and the presentation.' },
   { slug: 'health-camp', title: 'Blood donation camp', date: '2026-05-31', description: 'Blood donation camp run with a local hospital.' },
-  { slug: 'founders-day', title: 'Founders’ day', date: '2025-08-15', description: 'Flag hoisting, prize giving and the community lunch.' },
+  { slug: 'founders-day', title: 'Founders’ day', date: '2026-08-15', description: 'Flag hoisting, prize giving and the community lunch.' },
   
 ]
 
